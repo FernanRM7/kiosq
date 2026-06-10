@@ -2,3 +2,7 @@ node_modules
 bun.lock
 package-lock.json
 .turbo
+.DS_Store
+apps/.DS_Store
+.agents/
+.agents/*

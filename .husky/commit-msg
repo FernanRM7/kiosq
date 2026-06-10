@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# Validate the commit message format:
+#   [type]: mensaje descriptivo
+#   [type]: mensaje descriptivo.<context>
+# Where `type` must be one of: feat, fix, docs, chore, refactor
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Allow merge / revert / fixup commits to pass through unchanged.
+if printf '%s' "$COMMIT_MSG" | head -n1 | grep -qE '^(Merge|Revert) '; then
+  exit 0
+fi
+
+FIRST_LINE=$(printf '%s' "$COMMIT_MSG" | head -n1)
+
+# Required pattern: [type]: mensaje descriptivo OR type: mensaje descriptivo
+# type is one of feat|fix|docs|chore|refactor
+# subject must be non-empty and contain at least one non-space character
+PATTERN='^\[?(feat|fix|docs|chore|refactor)\]?: [^ ].*$'
+
+if ! printf '%s' "$FIRST_LINE" | grep -qE "$PATTERN"; then
+  echo "husky - commit-msg: invalid commit message format."
+  echo ""
+  echo "  Got:      $FIRST_LINE"
+  echo "  Expected: type: mensaje descriptivo"
+  echo "  Or:       [type]: mensaje descriptivo"
+  echo ""
+  echo "  Where \`type\` must be one of: feat, fix, docs, chore, refactor"
+  exit 1
+fi

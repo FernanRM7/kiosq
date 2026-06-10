@@ -1,10 +1,22 @@
 {
-  "dependencies": {},
-  "devDependencies": {
-    "turbo": "^2.9.16"
-  },
+  "name": "kiosq",
+  "version": "0.0.1",
+  "private": true,
   "workspaces": [
     "apps/*"
   ],
-  "packageManager": "npm@11.13.0"
+  "type": "module",
+  "scripts": {
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0",
+    "turbo": "^2.9.16",
+    "ultracite": "^7.8.2"
+  },
+  "packageManager": "npm@11.10.0"
 }
