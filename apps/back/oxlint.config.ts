@@ -5,10 +5,16 @@ import nestjs from "ultracite/oxlint/nestjs";
 
 export default defineConfig({
   extends: [core, nestjs, jest],
-  ignorePatterns: core.ignorePatterns,
+
+  ignorePatterns: [
+    ...(core.ignorePatterns || []),
+    "**/*.test.ts",
+    "**/*.spec.ts",
+  ],
   rules: {
     "eslint/class-methods-use-this": "off",
     "eslint/func-style": "off",
+    "jest/no-confusing-set-timeout": "off",
     "typescript/consistent-type-imports": "off",
     "typescript/no-extraneous-class": ["error", { allowWithDecorator: true }],
     "typescript/parameter-properties": "off",
