@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -11,7 +12,7 @@ import { UserService } from "./services/user.service";
 
 @Module({
   controllers: [AppController, ...healthRoutes, ...userRoutes],
-  imports: [],
+  imports: [ConfigModule.forRoot({ isGlobal: true })],
   providers: [AppService, AuthService, SessionService, UserService, AuthGuard],
 })
 export class AppModule {}
