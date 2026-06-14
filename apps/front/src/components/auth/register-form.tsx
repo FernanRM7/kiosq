@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function RegisterForm() {
   const navigate = useNavigate();
@@ -15,7 +16,8 @@ export function RegisterForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 text-center">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <img src="/logo.jpg" alt="Logo" className="h-10 w-10 rounded-md" />
         <h1 className="font-semibold text-2xl tracking-tight">
           Create account
         </h1>
@@ -34,11 +36,11 @@ export function RegisterForm() {
         </div>
         <div className="grid gap-2">
           <Label htmlFor="password">Password</Label>
-          <Input id="password" type="password" placeholder="••••••••" />
+          <PasswordInput id="password" placeholder="••••••••" />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="confirmPassword">Confirm Password</Label>
-          <Input id="confirmPassword" type="password" placeholder="••••••••" />
+          <PasswordInput id="confirmPassword" placeholder="••••••••" />
         </div>
         <Button type="submit" className="w-full">
           Create account

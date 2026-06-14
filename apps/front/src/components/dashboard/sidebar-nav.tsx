@@ -21,7 +21,7 @@ export function DashboardSidebar() {
   const location = useLocation();
 
   return (
-    <Sidebar variant="floating">
+    <Sidebar variant="sidebar">
       <SidebarHeader>
         <WorkspaceSwitcher />
       </SidebarHeader>
@@ -48,7 +48,7 @@ export function DashboardSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarSeparator />
+        <div className="mt-auto" />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -70,6 +70,7 @@ export function DashboardSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarSeparator />
       <SidebarFooter>
         <UserNav />
       </SidebarFooter>

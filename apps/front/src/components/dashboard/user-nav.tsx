@@ -1,8 +1,7 @@
-import { LogOut } from "lucide-react";
+import { LogOut, ChevronsUpDown } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardPanel } from "@/components/ui/card";
 import {
   Popover,
   PopoverContent,
@@ -17,33 +16,17 @@ export function UserNav() {
           <Button variant="ghost" className="w-full justify-start gap-2 px-2" />
         }
       >
-        <Avatar className="size-6">
-          <AvatarFallback className="text-xs">U</AvatarFallback>
+        <Avatar className="size-6 rounded-md">
+          <AvatarFallback className="rounded-md text-xs">U</AvatarFallback>
         </Avatar>
         <span className="truncate font-medium text-sm">User Name</span>
+        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" side="top" align="start">
-        <Card>
-          <CardPanel className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-8">
-                  <AvatarFallback>U</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">User Name</span>
-                  <span className="text-muted-foreground text-xs">
-                    user@example.com
-                  </span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon-sm">
-                <LogOut className="size-4" />
-                <span className="sr-only">Logout</span>
-              </Button>
-            </div>
-          </CardPanel>
-        </Card>
+      <PopoverContent className="w-56 p-1" side="top" align="start">
+        <Button variant="ghost" className="w-full justify-start gap-2 px-2">
+          <LogOut className="size-4" />
+          <span className="text-sm">Log out</span>
+        </Button>
       </PopoverContent>
     </Popover>
   );
