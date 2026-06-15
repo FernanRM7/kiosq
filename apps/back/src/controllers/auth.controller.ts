@@ -19,6 +19,7 @@ import {
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
+import { Public } from "../decorators/public.decorator";
 import { AuthService } from "../services/auth.service";
 
 /** Error reasons returned by WorkOS in the `error` query param */
@@ -29,6 +30,7 @@ const WORKOS_ERROR_MESSAGES: Record<string, string> = {
   server_error: "WorkOS encountered an internal error. Please try again.",
 };
 
+@Public()
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
