@@ -6,3 +6,4 @@ package-lock.json
 apps/.DS_Store
 .agents/
 .agents/*
+schema.sql
