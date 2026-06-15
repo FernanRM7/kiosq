@@ -83,4 +83,17 @@ export class AuthService {
   verifyToken(token: string): Promise<JwtPayload> {
     return verifyWorkosToken(token, this.jwks);
   }
+
+  /**
+   * Generates a WorkOS logout URL for the given session.
+   *
+   * Visiting this URL invalidates the WorkOS session server-side.
+   * After invalidation, WorkOS redirects the user to the post-logout
+   * URL configured in the WorkOS dashboard.
+   *
+   * @param sessionId - The `sessionId` from the authenticated session result
+   */
+  getLogoutUrl(sessionId: string): string {
+    return this.workos.userManagement.getLogoutUrl({ sessionId });
+  }
 }

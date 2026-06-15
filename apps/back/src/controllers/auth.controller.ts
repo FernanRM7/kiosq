@@ -1,12 +1,16 @@
 import {
   Controller,
   Get,
+  HttpCode,
   HttpStatus,
   Logger,
+  Post,
   Query,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import {
+  ApiCookieAuth,
   ApiExcludeEndpoint,
   ApiOperation,
   ApiQuery,
@@ -19,8 +23,12 @@ import {
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
+import { CurrentUser } from "../decorators/current-user.decorator";
 import { Public } from "../decorators/public.decorator";
+import { AuthGuard } from "../middlewares/auth.guard";
 import { AuthService } from "../services/auth.service";
+import { SessionService } from "../services/session.service";
+import type { AuthenticatedSessionResult } from "../types/session.type";
 
 /** Error reasons returned by WorkOS in the `error` query param */
 const WORKOS_ERROR_MESSAGES: Record<string, string> = {
@@ -30,13 +38,21 @@ const WORKOS_ERROR_MESSAGES: Record<string, string> = {
   server_error: "WorkOS encountered an internal error. Please try again.",
 };
 
-@Public()
+/** Shape of the data returned by POST /auth/logout */
+export interface LogoutResponseData {
+  /** WorkOS logout URL — navigate the browser here to complete server-side revocation */
+  logoutUrl: string;
+}
+
 @ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService
+  ) {}
 
   /**
    * OAuth2 Authorization Code callback.
@@ -54,6 +70,7 @@ export class AuthController {
    * **This endpoint is called by WorkOS, not by the frontend directly.**
    * The redirect URI must be registered in the WorkOS dashboard.
    */
+  @Public()
   @Get("callback")
   @ApiOperation({
     description: `
@@ -187,5 +204,90 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
         `${loginUrl}?error=exchange_failed&message=${encodeURIComponent("Authentication could not be completed. Please try again.")}`
       );
     }
+  }
+
+  /**
+   * Terminates the current user session.
+   *
+   * Flow:
+   *   1. AuthGuard validates the `wos-session` cookie and injects `session`.
+   *   2. Generate a WorkOS logout URL using the `sessionId` from the session.
+   *   3. Clear the local `wos-session` cookie immediately.
+   *   4. Return the WorkOS logout URL — the frontend must navigate there
+   *      to complete server-side session revocation on WorkOS.
+   *
+   * After the client visits the returned `logoutUrl`, WorkOS invalidates
+   * the session and redirects to the post-logout URL configured in the
+   * WorkOS dashboard.
+   *
+   * **Requires authentication.** A valid `wos-session` cookie must be present.
+   */
+  @Post("logout")
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth("wos-session")
+  @ApiOperation({
+    description: `
+Terminates the authenticated user's session.
+
+### Steps performed by this endpoint
+1. Validates the \`wos-session\` cookie (via AuthGuard).
+2. Generates a WorkOS logout URL using the current \`sessionId\`.
+3. Clears the \`wos-session\` cookie immediately (local invalidation).
+4. Returns \`{ logoutUrl }\` — the frontend **must** navigate the browser
+   to this URL to complete server-side revocation on WorkOS.
+
+### Frontend integration
+\`\`\`ts
+const { data } = await fetch('/auth/logout', { method: 'POST', credentials: 'include' }).then(r => r.json());
+window.location.href = data.logoutUrl; // Completes WorkOS revocation
+\`\`\`
+
+After WorkOS revocation, the browser is redirected to the post-logout URL
+configured in the WorkOS dashboard (typically \`/login\`).
+    `.trim(),
+    summary: "Logout — invalidate session",
+  })
+  @ApiResponse({
+    description:
+      "Session cookie cleared. Returns the WorkOS logout URL for complete server-side revocation.",
+    schema: {
+      properties: {
+        data: {
+          properties: {
+            logoutUrl: {
+              description:
+                "Navigate the browser here to complete WorkOS session revocation.",
+              example: "https://auth.workos.com/logout?token=...",
+              type: "string",
+            },
+          },
+          type: "object",
+        },
+        success: { example: true, type: "boolean" },
+      },
+    },
+    status: HttpStatus.OK,
+  })
+  @ApiResponse({
+    description:
+      "No valid session cookie found. Session may have already expired or been revoked.",
+    status: HttpStatus.UNAUTHORIZED,
+  })
+  logout(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Res({ passthrough: true }) response: Response
+  ): LogoutResponseData {
+    const logoutUrl = this.authService.getLogoutUrl(session.sessionId);
+
+    // Clear the local cookie immediately — the session is considered terminated
+    // from the backend's perspective even if the client hasn't visited logoutUrl yet.
+    this.sessionService.clearSession(response);
+
+    this.logger.log(
+      `Session cleared for user ${session.userId}. WorkOS logout URL generated.`
+    );
+
+    return { logoutUrl };
   }
 }

@@ -1,38 +1,75 @@
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
+import { afterEach } from "@jest/globals";
+import { UnauthorizedException } from "@nestjs/common";
+import type { ExecutionContext, INestApplication } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const supertestLib = require("supertest") as typeof import("supertest");
 
+import { ApiResponseInterceptor } from "../common/interceptors/api-response.interceptor";
 import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
+import { AuthGuard } from "../middlewares/auth.guard";
 import { AuthService } from "../services/auth.service";
+import { SessionService } from "../services/session.service";
 import { AuthController } from "./auth.controller";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Shared fixtures ──────────────────────────────────────────────────────────
 
 function makeResponse() {
   return {
+    clearCookie: jest.fn(),
     cookie: jest.fn(),
     redirect: jest.fn(),
   };
 }
 
 const APP_URL = "http://localhost:5173";
+const MOCK_SESSION_ID = "session_01";
+const MOCK_LOGOUT_URL = "https://auth.workos.com/logout?token=abc123";
+
+const MOCK_SESSION = {
+  accessToken: "access.token",
+  authenticated: true as const,
+  organizationId: "org_01",
+  role: "admin",
+  sessionId: MOCK_SESSION_ID,
+  user: {
+    email: "user@example.com",
+    emailVerified: true,
+    firstName: "Jane",
+    id: "user_01",
+    lastName: "Doe",
+  },
+  userId: "user_01",
+};
 
 const mockAuthService = {
   appUrl: APP_URL,
   exchangeCodeForSession: jest.fn(),
+  getLogoutUrl: jest.fn().mockReturnValue(MOCK_LOGOUT_URL),
 } as unknown as AuthService;
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+const mockSessionService = {
+  clearSession: jest.fn(),
+} as unknown as SessionService;
+
+// ─── GET /auth/callback ───────────────────────────────────────────────────────
 
 describe("AuthController — GET /auth/callback", () => {
   let controller: AuthController;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    jest.mocked(mockAuthService.getLogoutUrl).mockReturnValue(MOCK_LOGOUT_URL);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{ provide: AuthService, useValue: mockAuthService }],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionService, useValue: mockSessionService },
+      ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -169,5 +206,132 @@ describe("AuthController — GET /auth/callback", () => {
     const redirectArg: string = (response.redirect as jest.Mock).mock
       .calls[0][0] as string;
     expect(redirectArg).not.toContain(sensitiveMessage);
+  });
+});
+
+// ─── POST /auth/logout ────────────────────────────────────────────────────────
+
+describe("AuthController — POST /auth/logout", () => {
+  let app: INestApplication;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    jest.mocked(mockAuthService.getLogoutUrl).mockReturnValue(MOCK_LOGOUT_URL);
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionService, useValue: mockSessionService },
+        { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
+      ],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (ctx: ExecutionContext) => {
+          ctx.switchToHttp().getRequest<{ user: typeof MOCK_SESSION }>().user =
+            MOCK_SESSION;
+
+          return true;
+        },
+      })
+      .compile();
+
+    app = module.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  // ── Successful logout ─────────────────────────────────────────────────────
+
+  it("returns HTTP 200 on successful logout", async () => {
+    await supertestLib(app.getHttpServer()).post("/auth/logout").expect(200);
+  });
+
+  it("returns success envelope with logoutUrl", async () => {
+    const res = await supertestLib(app.getHttpServer())
+      .post("/auth/logout")
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.logoutUrl).toBe(MOCK_LOGOUT_URL);
+  });
+
+  it("calls getLogoutUrl with the sessionId from the authenticated session", async () => {
+    await supertestLib(app.getHttpServer()).post("/auth/logout");
+
+    expect(mockAuthService.getLogoutUrl).toHaveBeenCalledWith(MOCK_SESSION_ID);
+  });
+
+  it("calls clearSession to remove the wos-session cookie", async () => {
+    await supertestLib(app.getHttpServer()).post("/auth/logout");
+
+    expect(mockSessionService.clearSession).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Unauthenticated ───────────────────────────────────────────────────────
+
+  it("returns HTTP 401 when no session cookie is present", async () => {
+    // Rebuild app with a guard that rejects
+    await app.close();
+
+    const module = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionService, useValue: mockSessionService },
+      ],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: () => {
+          throw new UnauthorizedException("Authentication required");
+        },
+      })
+      .compile();
+
+    const unauthApp = module.createNestApplication();
+    await unauthApp.init();
+
+    await supertestLib(unauthApp.getHttpServer())
+      .post("/auth/logout")
+      .expect(401);
+
+    await unauthApp.close();
+  });
+
+  it("does NOT call clearSession or getLogoutUrl when unauthenticated", async () => {
+    await app.close();
+    jest.clearAllMocks();
+
+    const module = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionService, useValue: mockSessionService },
+      ],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: () => {
+          throw new UnauthorizedException("Authentication required");
+        },
+      })
+      .compile();
+
+    const unauthApp = module.createNestApplication();
+    await unauthApp.init();
+
+    await supertestLib(unauthApp.getHttpServer())
+      .post("/auth/logout")
+      .expect(401);
+
+    expect(mockAuthService.getLogoutUrl).not.toHaveBeenCalled();
+    expect(mockSessionService.clearSession).not.toHaveBeenCalled();
+
+    await unauthApp.close();
   });
 });
