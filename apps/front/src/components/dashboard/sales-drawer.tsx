@@ -1,10 +1,10 @@
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Minus, Plus, PlusCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
-  DrawerContent,
+  DrawerContentRight,
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
@@ -48,16 +48,17 @@ export function SalesDrawer() {
   const total = subtotal + tax;
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={setOpen} direction="right">
       <Button
         variant="outline"
         size="sm"
         className="w-28"
         onClick={() => setOpen(true)}
       >
+        <PlusCircle className="size-4" />
         <span>Sales</span>
       </Button>
-      <DrawerContent>
+      <DrawerContentRight>
         <DrawerHeader>
           <DrawerTitle>Sales Checkout</DrawerTitle>
           <DrawerDescription>Review items before purchase</DrawerDescription>
@@ -122,7 +123,7 @@ export function SalesDrawer() {
           </div>
           <Button className="mt-2 w-full">Complete Sale</Button>
         </DrawerFooter>
-      </DrawerContent>
+      </DrawerContentRight>
     </Drawer>
   );
 }

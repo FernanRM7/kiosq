@@ -6,7 +6,7 @@ import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "@/lib/utils";
 
 function Drawer({
-  shouldScaleBackground = true,
+  shouldScaleBackground = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
   return (
@@ -60,12 +60,35 @@ function DrawerContent({
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-2xl border bg-background",
+          "fixed z-50 flex flex-col bg-background",
+          "inset-x-0 bottom-0 mt-24 h-auto rounded-t-2xl border",
           className
         )}
         {...props}
       >
         <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  );
+}
+
+function DrawerContentRight({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  return (
+    <DrawerPortal>
+      <DrawerOverlay />
+      <DrawerPrimitive.Content
+        data-slot="drawer-content"
+        className={cn(
+          "fixed inset-y-0 right-0 top-0 left-auto z-50 flex h-full w-[25vw] min-w-[320px] flex-col rounded-none border-l bg-background",
+          className
+        )}
+        {...props}
+      >
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>
@@ -125,6 +148,7 @@ export {
   Drawer,
   DrawerClose,
   DrawerContent,
+  DrawerContentRight,
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
