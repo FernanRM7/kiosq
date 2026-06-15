@@ -3,7 +3,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Req,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -14,12 +13,13 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 
+import { CurrentUser } from "../decorators/current-user.decorator";
 import { AuthGuard } from "../middlewares/auth.guard";
 import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { MeResponseSchema } from "../schemas/me-response.schema";
 import { MeSuccessResponseSchema } from "../schemas/me-success-response.schema";
 import { UserService } from "../services/user.service";
-import type { SessionRequest } from "../types/authenticated-request.type";
+import type { AuthenticatedSessionResult } from "../types/session.type";
 
 @ApiTags("Users")
 @ApiCookieAuth("wos-session")
@@ -54,7 +54,7 @@ cookie in the response before returning this endpoint's data.
     status: HttpStatus.UNAUTHORIZED,
     type: ApiErrorResponseSchema,
   })
-  getMe(@Req() request: SessionRequest): MeResponseSchema {
-    return this.userService.buildMeResponse(request.user);
+  getMe(@CurrentUser() session: AuthenticatedSessionResult): MeResponseSchema {
+    return this.userService.buildMeResponse(session);
   }
 }
