@@ -1,0 +1,527 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── ENUMS ──────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  PARTIAL
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  QR
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum StockMovementType {
+  SALE
+  PURCHASE
+  ADJUSTMENT
+  RETURN
+  TRANSFER
+}
+
+enum SyncOp {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncStatus {
+  PENDING
+  APPLIED
+  CONFLICT
+  REJECTED
+}
+
+// ── RBAC ───────────────────────────────────────────
+
+model Permission {
+  id              String           @id @default(cuid())
+  action          String
+  resource        String
+  description     String?
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+
+  @@unique([action, resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@map("role_permissions")
+}
+
+// FIX: grantedById ahora es FK real a User con relación nombrada para distinguir
+//      de la relación userId → user en el mismo modelo.
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation("UserPermissions", fields: [userId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  granted      Boolean    @default(true)
+  grantedById  String?
+  grantedBy    User?      @relation("GrantedPermissions", fields: [grantedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+// ── ABAC ───────────────────────────────────────────
+
+model AbacPolicy {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  resource    String
+  action      String
+  conditions  Json
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       AbacPolicyRole[]
+  users       AbacPolicyUser[]
+
+  @@index([tenantId])
+  @@map("abac_policies")
+}
+
+model AbacPolicyRole {
+  id       String     @id @default(cuid())
+  policyId String
+  policy   AbacPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  role     Role
+
+  @@unique([policyId, role])
+  @@map("abac_policy_roles")
+}
+
+model AbacPolicyUser {
+  id       String     @id @default(cuid())
+  policyId String
+  policy   AbacPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, userId])
+  @@map("abac_policy_users")
+}
+
+// ── PLANES Y TENANTS ───────────────────────────────
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  maxDevices   Int
+  maxUsers     Int
+  maxBranches  Int      @default(1)
+  priceMonthly Decimal  @db.Decimal(10, 2)
+  features     Json
+  isActive     Boolean  @default(true)
+  tenants      Tenant[]
+  createdAt    DateTime @default(now())
+
+  @@map("plans")
+}
+
+// Tenant.planId = plan ACTIVO (fuente de verdad).
+// Subscription rastrea el historial de facturación con Stripe.
+// Al cambiar de plan: actualiza Tenant.planId + crea nueva Subscription.
+model Tenant {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  planId      String
+  plan        Plan         @relation(fields: [planId], references: [id])
+  status      TenantStatus @default(TRIAL)
+  trialEndsAt DateTime?
+  settings    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  subscriptions  Subscription[]
+  users          User[]
+  branches       Branch[]
+  devices        Device[]
+  categories     Category[]
+  products       Product[]
+  sales          Sale[]
+  syncEvents     SyncEvent[]
+  stockMovements StockMovement[]
+  abacPolicies   AbacPolicy[]
+
+  @@map("tenants")
+}
+
+// FIX: agregado @@index([tenantId]) para queries por tenant.
+model Subscription {
+  id                String             @id @default(cuid())
+  tenantId          String
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stripeSubId       String?            @unique
+  stripePriceId     String?
+  status            SubscriptionStatus
+  currentPeriodEnd  DateTime
+  cancelAtPeriodEnd Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([tenantId])
+  @@map("subscriptions")
+}
+
+// ── USUARIOS ───────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String
+  name         String
+  role         Role      @default(CASHIER)
+  branchId     String?
+  branch       Branch?   @relation(fields: [branchId], references: [id])
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions           Session[]
+  sales              Sale[]
+  // FIX: dos relaciones nombradas para distinguir permisos propios vs permisos otorgados
+  permissions        UserPermission[] @relation("UserPermissions")
+  grantedPermissions UserPermission[] @relation("GrantedPermissions")
+  abacPolicies       AbacPolicyUser[]
+  // FIX: relación formal con StockMovement
+  stockMovements     StockMovement[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+  @@map("users")
+}
+
+// FIX: agregado @@index([expiresAt]) para job de limpieza de sesiones vencidas.
+model Session {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id])
+
+  refreshToken String @unique
+
+  userAgent String?
+  ipAddress String?
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Device {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  fingerprint String
+
+  isActive Boolean @default(true)
+
+  lastSeenAt DateTime?
+
+  offlineTokenHash      String?
+  offlineTokenExpiresAt DateTime?
+
+  metadata Json?
+
+  sales      Sale[]
+  sessions   Session[]
+  syncEvents SyncEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, fingerprint])
+  @@index([tenantId])
+  @@map("devices")
+}
+
+// ── ESTRUCTURA COMERCIAL ───────────────────────────
+
+model Branch {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name String
+
+  address String?
+  phone   String?
+
+  timezone String @default("America/Mexico_City")
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  sales           Sale[]
+  productBranches ProductBranch[]
+  stockMovements  StockMovement[]
+
+  @@index([tenantId])
+  @@map("branches")
+}
+
+// ── INVENTARIO ─────────────────────────────────────
+
+// Las categorías son globales por tenant (un catálogo único).
+// Si en el futuro se necesitan catálogos por sucursal, agregar branchId aquí.
+// FIX: agregado isActive para soft-delete de categorías.
+model Category {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name String
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sku         String
+  barcode     String?
+  name        String
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  cost        Decimal?  @db.Decimal(10, 2)
+  taxRate     Decimal   @default(0) @db.Decimal(5, 4)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  isActive    Boolean   @default(true)
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  branches       ProductBranch[]
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@index([tenantId, barcode])
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+// price = null → usa el precio base del Product. Definido = precio override por sucursal.
+model ProductBranch {
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  stock     Int      @default(0)
+  minStock  Int      @default(5)
+  price     Decimal? @db.Decimal(10, 2)
+  updatedAt DateTime @updatedAt
+
+  @@id([productId, branchId])
+  @@map("product_branches")
+}
+
+// FIX: branchId y userId ahora tienen @relation formal con sus modelos.
+//      Sin esto Prisma no genera joins y no hay integridad referencial en BD.
+model StockMovement {
+  id        String            @id @default(cuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product           @relation(fields: [productId], references: [id])
+  branchId  String
+  branch    Branch            @relation(fields: [branchId], references: [id])
+  type      StockMovementType
+  quantity  Int
+  reason    String?
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt DateTime          @default(now())
+
+  @@index([tenantId, productId])
+  @@index([tenantId, branchId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+// ── VENTAS ─────────────────────────────────────────
+
+model Sale {
+  id             String     @id @default(cuid())
+  tenantId       String
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId       String
+  branch         Branch     @relation(fields: [branchId], references: [id])
+  deviceId       String?
+  device         Device?    @relation(fields: [deviceId], references: [id])
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status         SaleStatus @default(COMPLETED)
+  subtotal       Decimal    @db.Decimal(10, 2)
+  taxAmount      Decimal    @db.Decimal(10, 2)
+  discountAmount Decimal    @default(0) @db.Decimal(10, 2)
+  discountReason String?
+  total          Decimal    @db.Decimal(10, 2)
+  cfdiId         String?
+  offlineId      String?    @unique
+  syncedAt       DateTime?
+  createdAt      DateTime   @default(now())
+
+  items    SaleItem[]
+  payments Payment[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, branchId])
+  // FIX: índice para reportes por cajero
+  @@index([tenantId, userId])
+  @@map("sales")
+}
+
+// FIX: agregado @@index([saleId]) para lookups de items por venta.
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  taxRate   Decimal @db.Decimal(5, 4)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+// FIX: agregado @@index([saleId]) para lookups de pagos por venta.
+model Payment {
+  id String @id @default(cuid())
+
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  method PaymentMethod
+
+  amount Decimal @db.Decimal(10, 2)
+
+  reference String?
+
+  status PaymentStatus @default(COMPLETED)
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@map("payments")
+}
+
+// ── SINCRONIZACIÓN ─────────────────────────────────
+
+model SyncEvent {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  entityType String
+  entityId   String
+
+  operation SyncOp
+
+  payload Json
+
+  clientTs DateTime
+  serverTs DateTime @default(now())
+
+  status SyncStatus @default(PENDING)
+
+  conflictNote String?
+
+  @@index([tenantId, deviceId])
+  @@index([tenantId, status])
+  @@map("sync_events")
+}
