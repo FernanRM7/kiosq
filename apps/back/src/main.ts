@@ -14,11 +14,10 @@ async function bootstrap() {
   setupSwagger(app);
 
   await redisClient.connect();
-  
 
   await app.listen(process.env.PORT ?? 3000);
 
-  logger.info("Backend iniciado correctamente");  
+  logger.info("Backend iniciado correctamente");
 
   const port = process.env.PORT ?? 3000;
   logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);

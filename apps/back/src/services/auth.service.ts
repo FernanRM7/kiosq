@@ -7,6 +7,16 @@ import { createWorkosJwks } from "../lib/jwks.lib";
 import type { JwtPayload } from "../types/jwt-payload.type";
 import { verifyWorkosToken } from "../utils/jwt.util";
 
+/** Result of a successful code exchange */
+export interface CodeExchangeResult {
+  /** The WorkOS sealed session string — write this to the `wos-session` cookie */
+  sealedSession: string;
+  /** WorkOS user ID */
+  userId: string;
+  /** Organization the user authenticated into (present when using Organizations) */
+  organizationId: string | undefined;
+}
+
 @Injectable()
 export class AuthService {
   readonly workos: WorkOS;
@@ -25,6 +35,43 @@ export class AuthService {
 
   get cookiePassword(): string {
     return this.config.cookiePassword;
+  }
+
+  /** URI registered in the WorkOS dashboard (must match exactly) */
+  get redirectUri(): string {
+    return this.config.redirectUri;
+  }
+
+  /** Frontend base URL — used to build post-auth redirect targets */
+  get appUrl(): string {
+    return this.config.appUrl;
+  }
+
+  /**
+   * Exchanges an OAuth2 authorization code for a sealed WorkOS session.
+   *
+   * Uses `sealSession: true` so WorkOS returns an encrypted session string
+   * ready to be stored in an HttpOnly cookie — no access/refresh tokens
+   * are exposed to the browser at any point.
+   *
+   * @param code - The `code` query parameter received from WorkOS
+   * @throws {WorkOS API error} When the code is invalid, expired, or already used
+   */
+  async exchangeCodeForSession(code: string): Promise<CodeExchangeResult> {
+    const result = await this.workos.userManagement.authenticateWithCode({
+      clientId: this.config.clientId,
+      code,
+      session: {
+        cookiePassword: this.config.cookiePassword,
+        sealSession: true,
+      },
+    });
+
+    return {
+      organizationId: result.organizationId ?? undefined,
+      sealedSession: result.sealedSession ?? "",
+      userId: result.user.id,
+    };
   }
 
   /**
