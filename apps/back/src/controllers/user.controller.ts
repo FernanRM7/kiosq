@@ -15,8 +15,9 @@ import {
 } from "@nestjs/swagger";
 
 import { AuthGuard } from "../middlewares/auth.guard";
+import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { MeResponseSchema } from "../schemas/me-response.schema";
-import { UnauthorizedResponseSchema } from "../schemas/unauthorized-response.schema";
+import { MeSuccessResponseSchema } from "../schemas/me-success-response.schema";
 import { UserService } from "../services/user.service";
 import type { SessionRequest } from "../types/authenticated-request.type";
 
@@ -45,13 +46,13 @@ cookie in the response before returning this endpoint's data.
   @ApiResponse({
     description: "Authenticated user profile.",
     status: HttpStatus.OK,
-    type: MeResponseSchema,
+    type: MeSuccessResponseSchema,
   })
   @ApiResponse({
     description:
       "No valid session cookie found or session has been revoked. Re-authenticate to obtain a new session.",
     status: HttpStatus.UNAUTHORIZED,
-    type: UnauthorizedResponseSchema,
+    type: ApiErrorResponseSchema,
   })
   getMe(@Req() request: SessionRequest): MeResponseSchema {
     return this.userService.buildMeResponse(request.user);
