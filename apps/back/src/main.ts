@@ -14,6 +14,7 @@ async function bootstrap() {
   setupSwagger(app);
 
   await redisClient.connect();
+  
 
   await app.listen(process.env.PORT ?? 3000);
 
