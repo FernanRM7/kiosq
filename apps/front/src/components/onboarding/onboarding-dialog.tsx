@@ -32,17 +32,21 @@ export function OnboardingDialog() {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center gap-4">
             <Empty
               title="Logo"
               description="Click to upload"
-              className="aspect-square cursor-pointer"
+              className="h-32 w-32 shrink-0 cursor-pointer p-4"
             />
-            <div className="flex flex-col gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="workspaceName">Workspace Name</Label>
-                <Input id="workspaceName" placeholder="My Workspace" />
-              </div>
+            <div className="flex flex-1 flex-col items-center gap-2">
+              <Label htmlFor="workspaceName" className="text-center">
+                Nombre del Local
+              </Label>
+              <Input
+                id="workspaceName"
+                placeholder="Mi Local"
+                className="text-center"
+              />
             </div>
           </div>
           <DialogFooter>

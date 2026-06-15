@@ -9,7 +9,6 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export function TopBar() {
-  const [salesOpen, setSalesOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
 
   return (
@@ -24,15 +23,7 @@ export function TopBar() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-28"
-            onClick={() => setSalesOpen(true)}
-          >
-            <PlusCircle className="size-4" />
-            <span>Sales</span>
-          </Button>
+          <SalesDrawer />
           <Button
             variant="default"
             size="sm"
@@ -44,7 +35,6 @@ export function TopBar() {
           </Button>
         </div>
       </header>
-      <SalesDrawer open={salesOpen} onOpenChange={setSalesOpen} />
       <ProductDialog open={productOpen} onOpenChange={setProductOpen} />
     </>
   );

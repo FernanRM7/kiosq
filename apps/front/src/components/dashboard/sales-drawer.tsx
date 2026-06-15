@@ -20,12 +20,8 @@ interface CartItem {
   quantity: number;
 }
 
-interface SalesDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function SalesDrawer({ open, onOpenChange }: SalesDrawerProps) {
+export function SalesDrawer() {
+  const [open, setOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>(saleItems);
 
   function updateQuantity(id: string, delta: number) {
@@ -52,54 +48,60 @@ export function SalesDrawer({ open, onOpenChange }: SalesDrawerProps) {
   const total = subtotal + tax;
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="right">
-      <DrawerContent className="right-0 top-0 h-full w-full max-w-md rounded-none border-l border-t-0 border-b-0 border-r-0">
+    <Drawer open={open} onOpenChange={setOpen}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-28"
+        onClick={() => setOpen(true)}
+      >
+        <span>Sales</span>
+      </Button>
+      <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Sales Checkout</DrawerTitle>
           <DrawerDescription>Review items before purchase</DrawerDescription>
         </DrawerHeader>
-        <div className="flex-1 overflow-y-auto px-6">
-          <div className="flex flex-col gap-3">
-            {cart.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">{item.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    ${item.price.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    onClick={() => updateQuantity(item.id, -1)}
-                  >
-                    <Minus className="size-3" />
-                  </Button>
-                  <span className="w-6 text-center text-sm tabular-nums">
-                    {item.quantity}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    onClick={() => updateQuantity(item.id, 1)}
-                  >
-                    <Plus className="size-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => removeItem(item.id)}
-                  >
-                    <Trash2 className="size-3" />
-                  </Button>
-                </div>
+        <div className="flex flex-col gap-3 px-6">
+          {cart.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between rounded-lg border p-3"
+            >
+              <div className="flex flex-col">
+                <span className="font-medium text-sm">{item.name}</span>
+                <span className="text-muted-foreground text-xs">
+                  ${item.price.toFixed(2)}
+                </span>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon-xs"
+                  onClick={() => updateQuantity(item.id, -1)}
+                >
+                  <Minus className="size-3" />
+                </Button>
+                <span className="w-6 text-center text-sm tabular-nums">
+                  {item.quantity}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon-xs"
+                  onClick={() => updateQuantity(item.id, 1)}
+                >
+                  <Plus className="size-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => removeItem(item.id)}
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
         <DrawerFooter>
           <Separator />
