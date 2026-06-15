@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { HealthResponseSchema } from "../schemas/health-response.schema";
+import { HealthSuccessResponseSchema } from "../schemas/health-success-response.schema";
 
 @ApiTags("Health")
 @Controller("health")
@@ -15,7 +16,7 @@ export class HealthController {
   @ApiResponse({
     description: "Service is operational.",
     status: HttpStatus.OK,
-    type: HealthResponseSchema,
+    type: HealthSuccessResponseSchema,
   })
   check(): HealthResponseSchema {
     return {
