@@ -1,39 +1,62 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardPanel,
-} from "@/components/ui/card";
+import { useMemo, useState } from "react";
 
-const products = [
-  { category: "Electronics", name: "Product A", price: "$99.99" },
-  { category: "Clothing", name: "Product B", price: "$49.99" },
-  { category: "Home", name: "Product C", price: "$79.99" },
-  { category: "Sports", name: "Product D", price: "$59.99" },
-  { category: "Books", name: "Product E", price: "$19.99" },
-  { category: "Toys", name: "Product F", price: "$29.99" },
-  { category: "Food", name: "Product G", price: "$12.99" },
-  { category: "Health", name: "Product H", price: "$34.99" },
-];
+import { getProductColumns } from "@/components/data-table/columns";
+import { DataTable } from "@/components/data-table/data-table";
+import { DeleteProductDialog } from "@/components/dialogs/delete-product-dialog";
+import { EditProductDialog } from "@/components/dialogs/edit-product-dialog";
+import { products as initialProducts } from "@/data/products";
+import type { Product } from "@/data/products";
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
+
+  const handleSaveProduct = (updatedProduct: Product) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    );
+  };
+
+  const handleDeleteProduct = (product: Product) => {
+    setProducts((prev) => prev.filter((p) => p.id !== product.id));
+  };
+
+  const columns = useMemo(
+    () =>
+      getProductColumns(
+        (product) => setEditProduct(product),
+        (product) => setDeleteProduct(product)
+      ),
+    []
+  );
+
   return (
     <div>
       <h1 className="mb-4 font-semibold text-lg">Products</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {products.map((product) => (
-          <Card key={product.name}>
-            <CardHeader>
-              <CardTitle>{product.name}</CardTitle>
-              <CardDescription>{product.category}</CardDescription>
-            </CardHeader>
-            <CardPanel>
-              <span className="font-semibold text-lg">{product.price}</span>
-            </CardPanel>
-          </Card>
-        ))}
-      </div>
+      <DataTable columns={columns} data={products} />
+
+      <EditProductDialog
+        product={editProduct}
+        open={editProduct !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditProduct(null);
+          }
+        }}
+        onSave={handleSaveProduct}
+      />
+
+      <DeleteProductDialog
+        product={deleteProduct}
+        open={deleteProduct !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteProduct(null);
+          }
+        }}
+        onDelete={handleDeleteProduct}
+      />
     </div>
   );
 }

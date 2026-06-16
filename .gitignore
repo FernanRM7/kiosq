@@ -7,3 +7,4 @@ apps/.DS_Store
 .agents/
 .agents/*
 schema.sql
+.vscode/

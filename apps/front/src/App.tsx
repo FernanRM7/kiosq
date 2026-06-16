@@ -6,6 +6,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { AuthProvider } from "@/contexts/auth.context";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/login";
+import OnboardingPage from "@/pages/onboarding";
 import ProductsPage from "@/pages/products";
 import RegisterPage from "@/pages/register";
 import SalesPage from "@/pages/sales";
