@@ -4,6 +4,7 @@ import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/login";
+import OnboardingPage from "@/pages/onboarding";
 import ProductsPage from "@/pages/products";
 import RegisterPage from "@/pages/register";
 import SalesPage from "@/pages/sales";
@@ -22,6 +23,7 @@ function App() {
         <Route path="sales" element={<SalesPage />} />
         <Route path="suppliers" element={<SuppliersPage />} />
       </Route>
+      <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
