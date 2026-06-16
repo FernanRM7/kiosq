@@ -7,3 +7,5 @@ apps/.DS_Store
 .agents/
 .agents/*
 schema.sql
+revision.patch
+test-zod.ts

@@ -52,8 +52,8 @@ export class SyncService {
       case "user.updated": {
         await this.upsertUser({
           email: event.data.email,
-          firstName: event.data.first_name ?? null,
-          lastName: event.data.last_name ?? null,
+          firstName: event.data.firstName ?? null,
+          lastName: event.data.lastName ?? null,
           workosUserId: event.data.id,
         });
         break;
@@ -62,9 +62,9 @@ export class SyncService {
       case "organization_membership.created": {
         await this.syncMembership({
           membershipId: event.data.id,
-          organizationId: event.data.organization_id,
+          organizationId: event.data.organizationId,
           roleSlug: event.data.role?.slug,
-          userId: event.data.user_id,
+          userId: event.data.userId,
         });
         break;
       }

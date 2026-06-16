@@ -12,9 +12,9 @@ export const WorkosOrganizationSchema = z.object({
 
 export const WorkosUserSchema = z.object({
   email: z.string().email(),
-  first_name: z.string().nullable().optional(),
+  firstName: z.string().nullable().optional(),
   id: z.string(),
-  last_name: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
 });
 
 // ─── Event envelope ───────────────────────────────────────────────────────────
@@ -48,11 +48,11 @@ export const WorkosMembershipSchema = z.object({
   /** WorkOS Membership ID */
   id: z.string(),
   /** WorkOS Organization ID the user joined */
-  organization_id: z.string(),
+  organizationId: z.string(),
   /** WorkOS role for this membership (optional — depends on org configuration) */
   role: z.object({ slug: z.string() }).optional().nullable(),
   /** WorkOS User ID of the member */
-  user_id: z.string(),
+  userId: z.string(),
 });
 
 export const OrganizationMembershipCreatedEventSchema = z.object({

@@ -118,10 +118,12 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
 
     try {
       // WorkOS SDK verifies the HMAC-SHA256 signature and returns the parsed event
-      payload = this.authService.workos.webhooks.constructEvent({
+      payload = await this.authService.workos.webhooks.constructEvent({
         payload: rawBody,
         secret: this.webhookSecret,
         sigHeader: signature,
+        tolerance: 600_000,
+        // 10 minutos en milisegundos para evitar problemas de tiempo de los servidores cambiar en producccion
       });
     } catch (error) {
       const message =
@@ -138,7 +140,10 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     if (!parsed.success) {
       // Unknown event type — acknowledge without processing (forward-compatible)
       const rawEvent = (payload as Record<string, unknown>)?.event ?? "unknown";
-      this.logger.debug(`Ignoring unknown WorkOS event: ${String(rawEvent)}`);
+      this.logger.debug(
+        `Ignoring unknown WorkOS event: ${String(rawEvent)}`,
+        parsed.error.format()
+      );
       return { received: true };
     }
 
