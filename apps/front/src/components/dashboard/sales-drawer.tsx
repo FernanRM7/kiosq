@@ -67,7 +67,7 @@ export function SalesDrawer() {
           {cart.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between rounded-lg border border-border p-3"
+              className="flex items-center justify-between rounded-lg p-3"
             >
               <div className="flex flex-col">
                 <span className="font-medium text-sm">{item.name}</span>

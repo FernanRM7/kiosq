@@ -7,6 +7,7 @@ import {
   isValidElement,
   use,
   useCallback,
+  useContext,
   useId,
   useMemo,
   useState,
@@ -299,6 +300,44 @@ const GlowFilter = ({ id, glowingSectors }: GlowFilterProps) => (
   </>
 );
 
+interface PieShapeContextValue {
+  id: string;
+  data: Record<string, unknown>[];
+  nameKey: string;
+  isClickable: boolean;
+  selectedSector: string | null;
+  glowingSectors: string[];
+  paddingAngle: number;
+}
+
+const PieShapeContext = createContext<PieShapeContextValue | null>(null);
+
+function PieSectorShape(props: PieSectorShapeProps) {
+  const ctx = useContext(PieShapeContext);
+  if (!ctx) {
+    return <Sector {...props} />;
+  }
+
+  const sectorName = ctx.data[props.index ?? 0]?.[ctx.nameKey] as string;
+  const isGlowing = ctx.glowingSectors.includes(sectorName);
+  const isDimmed =
+    ctx.isClickable &&
+    ctx.selectedSector !== null &&
+    ctx.selectedSector !== sectorName;
+
+  return (
+    <Sector
+      {...props}
+      fill={`url(#${ctx.id}-colors-${sectorName})`}
+      filter={isGlowing ? `url(#${ctx.id}-glow-${sectorName})` : undefined}
+      stroke={ctx.paddingAngle < 0 ? "var(--background)" : "none"}
+      strokeWidth={ctx.paddingAngle < 0 ? 5 : 0}
+      opacity={isDimmed ? 0.3 : 1}
+      className="transition-opacity duration-200"
+    />
+  );
+}
+
 interface PieProps {
   variant?: PieVariant;
   innerRadius?: number | string;
@@ -354,7 +393,7 @@ export function Pie({
         endAngle={endAngle}
         strokeWidth={0}
         isAnimationActive={false}
-        shape={(props) => <AnimatedLoadingSector {...props} />}
+        shape={AnimatedLoadingSector}
       />
     );
   }
@@ -366,52 +405,56 @@ export function Pie({
     fill: `url(#${id}-colors-${item[nameKey] as string})`,
   }));
 
+  const shapeContextValue = useMemo<PieShapeContextValue>(
+    () => ({
+      data,
+      glowingSectors,
+      id,
+      isClickable,
+      nameKey,
+      paddingAngle,
+      selectedSector,
+    }),
+    [
+      id,
+      data,
+      nameKey,
+      isClickable,
+      selectedSector,
+      glowingSectors,
+      paddingAngle,
+    ]
+  );
+
   return (
     <>
-      <RechartsPie
-        data={preparedData}
-        dataKey={dataKey}
-        nameKey={nameKey}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius}
-        cornerRadius={cornerRadius}
-        paddingAngle={paddingAngle}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        strokeWidth={0}
-        isAnimationActive
-        style={isClickable ? { cursor: "pointer" } : undefined}
-        onClick={(_, index) => {
-          if (!isClickable) {
-            return;
-          }
-          const clickedName = data[index]?.[nameKey] as string;
-          selectSector(selectedSector === clickedName ? null : clickedName);
-        }}
-        shape={(props: PieSectorShapeProps) => {
-          const sectorName = data[props.index ?? 0]?.[nameKey] as string;
-          const isGlowing = glowingSectors.includes(sectorName);
-          const isDimmed =
-            isClickable &&
-            selectedSector !== null &&
-            selectedSector !== sectorName;
-
-          return (
-            <Sector
-              {...props}
-              fill={`url(#${id}-colors-${sectorName})`}
-              filter={isGlowing ? `url(#${id}-glow-${sectorName})` : undefined}
-              stroke={paddingAngle < 0 ? "var(--background)" : "none"}
-              strokeWidth={paddingAngle < 0 ? 5 : 0}
-              opacity={isDimmed ? 0.3 : 1}
-              className="transition-opacity duration-200"
-            />
-          );
-        }}
-        {...pieProps}
-      >
-        {label}
-      </RechartsPie>
+      <PieShapeContext value={shapeContextValue}>
+        <RechartsPie
+          data={preparedData}
+          dataKey={dataKey}
+          nameKey={nameKey}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          cornerRadius={cornerRadius}
+          paddingAngle={paddingAngle}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          strokeWidth={0}
+          isAnimationActive
+          style={isClickable ? { cursor: "pointer" } : undefined}
+          onClick={(_, index) => {
+            if (!isClickable) {
+              return;
+            }
+            const clickedName = data[index]?.[nameKey] as string;
+            selectSector(selectedSector === clickedName ? null : clickedName);
+          }}
+          shape={PieSectorShape}
+          {...pieProps}
+        >
+          {label}
+        </RechartsPie>
+      </PieShapeContext>
       <defs>
         <RadialColorGradient id={id} config={config} variant={variant} />
         {glowingSectors.length > 0 && (

@@ -82,13 +82,13 @@ const HoverTraceLabel = ({ viewBox, value }: HoverTraceLabelProps) => {
   );
 };
 
-type HoverTraceBarShapeProps = BarShapeProps & {
-  highlightedIndex: number;
-};
+const HighlightedIndexContext = React.createContext<number>(0);
+
+type HoverTraceBarShapeProps = BarShapeProps;
 
 const HoverTraceBarShape = (props: HoverTraceBarShapeProps) => {
-  const { x, y, width, height, fill, index, isActive, highlightedIndex } =
-    props;
+  const highlightedIndex = React.useContext(HighlightedIndexContext);
+  const { x, y, width, height, fill, index, isActive } = props;
 
   const fillOpacity = isActive || index === highlightedIndex ? 1 : 0.2;
 
@@ -185,57 +185,49 @@ export function EvilHoverTraceBarChart() {
         </div>
       </div>
 
-      <ChartContainer config={chartConfig}>
-        <BarChart
-          accessibilityLayer
-          data={chartData}
-          margin={{ left: CHART_MARGIN }}
-          onMouseMove={(state) => {
-            if (state?.activeTooltipIndex !== undefined) {
-              handleBarHover(Number(state.activeTooltipIndex));
-            }
-          }}
-          onMouseLeave={() => {
-            setActiveIndex(null);
-            valueSpring.set(maxData.value);
-          }}
-        >
-          <XAxis
-            dataKey="month"
-            tickLine={false}
-            tickMargin={10}
-            axisLine={false}
-            tickFormatter={(value: string) => value.slice(0, 3)}
-          />
+      <HighlightedIndexContext value={selectedData.index}>
+        <ChartContainer config={chartConfig}>
+          <BarChart
+            accessibilityLayer
+            data={chartData}
+            margin={{ left: CHART_MARGIN }}
+            onMouseMove={(state) => {
+              if (state?.activeTooltipIndex !== undefined) {
+                handleBarHover(Number(state.activeTooltipIndex));
+              }
+            }}
+            onMouseLeave={() => {
+              setActiveIndex(null);
+              valueSpring.set(maxData.value);
+            }}
+          >
+            <XAxis
+              dataKey="month"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              tickFormatter={(value: string) => value.slice(0, 3)}
+            />
 
-          <Tooltip cursor={false} content={() => null} />
+            <Tooltip cursor={false} content={() => null} />
 
-          <Bar
-            dataKey="desktop"
-            fill="var(--color-desktop-0)"
-            radius={4}
-            shape={(props: BarShapeProps) => (
-              <HoverTraceBarShape
-                {...props}
-                highlightedIndex={selectedData.index}
-              />
-            )}
-            activeBar={(props: BarShapeProps) => (
-              <HoverTraceBarShape
-                {...props}
-                highlightedIndex={selectedData.index}
-              />
-            )}
-          />
+            <Bar
+              dataKey="desktop"
+              fill="var(--color-desktop-0)"
+              radius={4}
+              shape={HoverTraceBarShape}
+              activeBar={HoverTraceBarShape}
+            />
 
-          <ReferenceLine
-            y={springValue}
-            stroke="var(--foreground)"
-            strokeDasharray="3 3"
-            label={<HoverTraceLabel value={selectedData.value} />}
-          />
-        </BarChart>
-      </ChartContainer>
+            <ReferenceLine
+              y={springValue}
+              stroke="var(--foreground)"
+              strokeDasharray="3 3"
+              label={<HoverTraceLabel value={selectedData.value} />}
+            />
+          </BarChart>
+        </ChartContainer>
+      </HighlightedIndexContext>
     </div>
   );
 }

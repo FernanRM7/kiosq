@@ -62,6 +62,7 @@ export function EditProductDialog({
     }
     onSave({ ...product, ...data });
     onOpenChange(false);
+    reset();
   };
 
   return (

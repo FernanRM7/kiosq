@@ -10,37 +10,151 @@ import {
   getColorsCount,
   useChart,
 } from "@/components/evilcharts/ui/chart";
+import type { ChartConfig } from "@/components/evilcharts/ui/chart";
 import { cn } from "@/lib/utils";
 
 type TooltipRoundness = "sm" | "md" | "lg" | "xl";
 type TooltipVariant = "default" | "frosted-glass";
 
-const roundnessMap: Record<TooltipRoundness, string> = {
-  lg: "rounded-lg",
-  md: "rounded-md",
-  sm: "rounded-sm",
-  xl: "rounded-xl",
-};
+interface TooltipItemProps {
+  item: {
+    value?: ValueType;
+    name?: NameType;
+    dataKey?: string;
+    type?: string;
+    payload?: Record<string, unknown>;
+  };
+  index: number;
+  nameKey?: string;
+  indicator: "line" | "dot" | "dashed";
+  hideIndicator: boolean;
+  nestLabel: boolean;
+  tooltipLabel: React.ReactNode;
+  formatter?: (
+    value: ValueType,
+    name: NameType,
+    item: unknown,
+    index: number,
+    payload: unknown
+  ) => React.ReactNode;
+  selected?: string | null;
+  config: ChartConfig;
+}
 
-const variantMap: Record<TooltipVariant, string> = {
-  default: "bg-background",
-  "frosted-glass": "bg-background/70 backdrop-blur-sm",
-};
+function TooltipIndicator({
+  itemConfig,
+  indicator,
+  hideIndicator,
+  nestLabel,
+  key,
+  colorsCount,
+}: {
+  itemConfig: ReturnType<typeof getPayloadConfigFromPayload>;
+  indicator: "line" | "dot" | "dashed";
+  hideIndicator: boolean;
+  nestLabel: boolean;
+  key: string;
+  colorsCount: number;
+}) {
+  if (itemConfig?.icon) {
+    return <itemConfig.icon />;
+  }
+  if (hideIndicator) {
+    return null;
+  }
+  return (
+    <div
+      className={cn("shrink-0 rounded-[2px]", {
+        "h-2.5 w-2.5": indicator === "dot",
+        "my-0.5": nestLabel && indicator === "dashed",
+        "w-0 border-[1.5px] border-dashed bg-transparent!":
+          indicator === "dashed",
+        "w-1": indicator === "line",
+      })}
+      style={getIndicatorColorStyle(key, colorsCount)}
+    />
+  );
+}
 
-function getIndicatorColorStyle(
-  dataKey: string,
-  colorsCount: number
-): React.CSSProperties {
-  if (colorsCount <= 1) {
-    return { background: `var(--color-${dataKey}-0)` };
+function resolveTooltipItemKey(
+  item: TooltipItemProps["item"],
+  nameKey?: string
+) {
+  const payloadName =
+    nameKey && item.payload
+      ? (item.payload as Record<string, unknown>)[nameKey]
+      : undefined;
+  return `${payloadName ?? item.name ?? item.dataKey ?? "value"}`;
+}
+
+function TooltipItem({
+  item,
+  index,
+  nameKey,
+  indicator,
+  hideIndicator,
+  nestLabel,
+  tooltipLabel,
+  formatter,
+  selected,
+  config,
+}: TooltipItemProps) {
+  const key = resolveTooltipItemKey(item, nameKey);
+  const itemConfig = getPayloadConfigFromPayload(config, item, key);
+  const colorsCount = itemConfig ? getColorsCount(itemConfig) : 1;
+
+  if (formatter && item?.value !== undefined && item.name) {
+    return (
+      <div
+        className={cn(
+          "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+          indicator === "dot" && "items-center",
+          selected !== null && selected !== item.dataKey && "opacity-30"
+        )}
+      >
+        {formatter(item.value, item.name, item, index, item.payload)}
+      </div>
+    );
   }
 
-  const stops = Array.from({ length: colorsCount }, (_, index) => {
-    const offset = (index / (colorsCount - 1)) * 100;
-    return `var(--color-${dataKey}-${index}) ${offset}%`;
-  }).join(", ");
-
-  return { background: `linear-gradient(to right, ${stops})` };
+  return (
+    <div
+      className={cn(
+        "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+        indicator === "dot" && "items-center",
+        selected !== null && selected !== item.dataKey && "opacity-30"
+      )}
+    >
+      <TooltipIndicator
+        itemConfig={itemConfig}
+        indicator={indicator}
+        hideIndicator={hideIndicator}
+        nestLabel={nestLabel}
+        key={key}
+        colorsCount={colorsCount}
+      />
+      <div
+        className={cn(
+          "flex flex-1 justify-between gap-4 leading-none",
+          nestLabel ? "items-end" : "items-center"
+        )}
+      >
+        <div className="grid gap-1.5">
+          {nestLabel ? tooltipLabel : null}
+          <span className="text-muted-foreground">
+            {itemConfig?.label ?? item.name}
+          </span>
+        </div>
+        {item.value !== null && item.value !== undefined && (
+          <span className="text-foreground font-mono font-medium tabular-nums">
+            {typeof item.value === "number"
+              ? item.value.toLocaleString()
+              : String(item.value)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ChartTooltipContent({
@@ -130,69 +244,21 @@ function ChartTooltipContent({
       <div className="grid gap-1.5">
         {payload
           .filter((item) => item.type !== "none")
-          .map((item, index) => {
-            const payloadName =
-              nameKey && item.payload
-                ? (item.payload as Record<string, unknown>)[nameKey]
-                : undefined;
-            const key = `${payloadName ?? item.name ?? item.dataKey ?? "value"}`;
-            const itemConfig = getPayloadConfigFromPayload(config, item, key);
-            const colorsCount = itemConfig ? getColorsCount(itemConfig) : 1;
-
-            return (
-              <div
-                key={index}
-                className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
-                  indicator === "dot" && "items-center",
-                  selected !== null && selected !== item.dataKey && "opacity-30"
-                )}
-              >
-                {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
-                ) : (
-                  <>
-                    {itemConfig?.icon ? (
-                      <itemConfig.icon />
-                    ) : (
-                      !hideIndicator && (
-                        <div
-                          className={cn("shrink-0 rounded-[2px]", {
-                            "h-2.5 w-2.5": indicator === "dot",
-                            "my-0.5": nestLabel && indicator === "dashed",
-                            "w-0 border-[1.5px] border-dashed bg-transparent!":
-                              indicator === "dashed",
-                            "w-1": indicator === "line",
-                          })}
-                          style={getIndicatorColorStyle(key, colorsCount)}
-                        />
-                      )
-                    )}
-                    <div
-                      className={cn(
-                        "flex flex-1 justify-between gap-4 leading-none",
-                        nestLabel ? "items-end" : "items-center"
-                      )}
-                    >
-                      <div className="grid gap-1.5">
-                        {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">
-                          {itemConfig?.label ?? item.name}
-                        </span>
-                      </div>
-                      {item.value !== null && item.value !== undefined && (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
-                          {typeof item.value === "number"
-                            ? item.value.toLocaleString()
-                            : String(item.value)}
-                        </span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+          .map((item, index) => (
+            <TooltipItem
+              key={index}
+              item={item}
+              index={index}
+              nameKey={nameKey}
+              indicator={indicator}
+              hideIndicator={hideIndicator}
+              nestLabel={nestLabel}
+              tooltipLabel={tooltipLabel}
+              formatter={formatter}
+              selected={selected}
+              config={config}
+            />
+          ))}
       </div>
     </div>
   );

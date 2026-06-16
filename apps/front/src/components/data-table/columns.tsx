@@ -1,4 +1,5 @@
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 
 import type { Product } from "@/data/products";
 
@@ -31,5 +32,5 @@ export function getProductColumns(
       header: "Acciones",
       id: "actions",
     }),
-  ] as ColumnDef<Product, any>[];
+  ] as ColumnDef<Product, unknown>[];
 }
