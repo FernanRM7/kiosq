@@ -1,13 +1,20 @@
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
-import { afterEach } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import { UnauthorizedException } from "@nestjs/common";
 import type { ExecutionContext, INestApplication } from "@nestjs/common";
-import { APP_INTERCEPTOR } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const supertestLib = require("supertest") as typeof import("supertest");
 
+import { HttpExceptionFilter } from "../common/filters/http-exception.filter";
 import { ApiResponseInterceptor } from "../common/interceptors/api-response.interceptor";
 import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
 import { AuthGuard } from "../middlewares/auth.guard";
@@ -293,20 +300,23 @@ describe("AuthController — POST /auth/logout", () => {
         { provide: AuthService, useValue: mockAuthService },
         { provide: SessionService, useValue: mockSessionService },
         { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: (ctx: ExecutionContext) => {
-          ctx.switchToHttp().getRequest<{ user: typeof MOCK_SESSION }>().user =
-            MOCK_SESSION;
-
-          return true;
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (ctx: ExecutionContext) => {
+              ctx
+                .switchToHttp()
+                .getRequest<{ user: typeof MOCK_SESSION }>().user =
+                MOCK_SESSION;
+              return true;
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     app = module.createNestApplication();
+    app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
   });
 
@@ -352,17 +362,19 @@ describe("AuthController — POST /auth/logout", () => {
       providers: [
         { provide: AuthService, useValue: mockAuthService },
         { provide: SessionService, useValue: mockSessionService },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: () => {
-          throw new UnauthorizedException("Authentication required");
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: () => {
+              throw new UnauthorizedException("Authentication required");
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     const unauthApp = module.createNestApplication();
+    unauthApp.useGlobalFilters(new HttpExceptionFilter());
     await unauthApp.init();
 
     await supertestLib(unauthApp.getHttpServer())
@@ -381,17 +393,19 @@ describe("AuthController — POST /auth/logout", () => {
       providers: [
         { provide: AuthService, useValue: mockAuthService },
         { provide: SessionService, useValue: mockSessionService },
-      ],
-    })
-      .overrideGuard(AuthGuard)
-      .useValue({
-        canActivate: () => {
-          throw new UnauthorizedException("Authentication required");
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: () => {
+              throw new UnauthorizedException("Authentication required");
+            },
+          },
         },
-      })
-      .compile();
+      ],
+    }).compile();
 
     const unauthApp = module.createNestApplication();
+    unauthApp.useGlobalFilters(new HttpExceptionFilter());
     await unauthApp.init();
 
     await supertestLib(unauthApp.getHttpServer())

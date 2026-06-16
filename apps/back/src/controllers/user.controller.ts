@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  UseGuards,
-} from "@nestjs/common";
+import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -14,7 +8,6 @@ import {
 } from "@nestjs/swagger";
 
 import { CurrentUser } from "../decorators/current-user.decorator";
-import { AuthGuard } from "../middlewares/auth.guard";
 import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { MeResponseSchema } from "../schemas/me-response.schema";
 import { MeSuccessResponseSchema } from "../schemas/me-success-response.schema";
@@ -30,7 +23,6 @@ export class UserController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard)
   @ApiOperation({
     description: `
 Returns the profile of the currently authenticated user.

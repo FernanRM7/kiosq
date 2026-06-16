@@ -8,13 +8,14 @@ import {
 } from "@jest/globals";
 import { UnauthorizedException } from "@nestjs/common";
 import type { ExecutionContext, INestApplication } from "@nestjs/common";
-import { APP_INTERCEPTOR } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 // supertest requires a CJS-compatible import in this ts-jest setup
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const supertestLib = require("supertest") as typeof import("supertest");
 
+import { HttpExceptionFilter } from "../common/filters/http-exception.filter";
 import { ApiResponseInterceptor } from "../common/interceptors/api-response.interceptor";
 import { AuthGuard } from "../middlewares/auth.guard";
 import { UserService } from "../services/user.service";
@@ -69,20 +70,22 @@ describe("UserController — GET /me", () => {
         providers: [
           { provide: UserService, useValue: mockUserService },
           { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
-        ],
-      })
-        .overrideGuard(AuthGuard)
-        .useValue({
-          canActivate: (ctx: ExecutionContext) => {
-            // Simulate what AuthGuard does: inject session into request.user
-            ctx
-              .switchToHttp()
-              .getRequest<{ user: typeof MOCK_SESSION }>().user = MOCK_SESSION;
+          {
+            provide: APP_GUARD,
+            useValue: {
+              canActivate: (ctx: ExecutionContext) => {
+                // Simulate what AuthGuard does: inject session into request.user
+                ctx
+                  .switchToHttp()
+                  .getRequest<{ user: typeof MOCK_SESSION }>().user =
+                  MOCK_SESSION;
 
-            return true;
+                return true;
+              },
+            },
           },
-        })
-        .compile();
+        ],
+      }).compile();
 
       app = module.createNestApplication();
       await app.init();
@@ -152,17 +155,21 @@ describe("UserController — GET /me", () => {
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
         controllers: [UserController],
-        providers: [{ provide: UserService, useValue: mockUserService }],
-      })
-        .overrideGuard(AuthGuard)
-        .useValue({
-          canActivate: () => {
-            throw new UnauthorizedException("Authentication required");
+        providers: [
+          { provide: UserService, useValue: mockUserService },
+          {
+            provide: APP_GUARD,
+            useValue: {
+              canActivate: () => {
+                throw new UnauthorizedException("Authentication required");
+              },
+            },
           },
-        })
-        .compile();
+        ],
+      }).compile();
 
       app = module.createNestApplication();
+      app.useGlobalFilters(new HttpExceptionFilter());
       await app.init();
     });
 

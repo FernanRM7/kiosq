@@ -7,7 +7,6 @@ import {
   Post,
   Query,
   Res,
-  UseGuards,
 } from "@nestjs/common";
 import {
   ApiCookieAuth,
@@ -25,7 +24,6 @@ import {
 } from "../constants/cookie.constants";
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { Public } from "../decorators/public.decorator";
-import { AuthGuard } from "../middlewares/auth.guard";
 import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-response.schema";
 import { AuthService } from "../services/auth.service";
@@ -298,7 +296,6 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
    * **Requires authentication.** A valid `wos-session` cookie must be present.
    */
   @Post("logout")
-  @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth("wos-session")
   @ApiOperation({

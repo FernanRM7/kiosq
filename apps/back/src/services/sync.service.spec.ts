@@ -27,6 +27,7 @@ function makeMockPrisma() {
       findFirst: jest.fn().mockResolvedValue({ id: MOCK_PLAN_ID }),
     },
     tenant: {
+      findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
       upsert: jest.fn().mockResolvedValue({ id: MOCK_TENANT_ID, slug: "acme" }),
     },
@@ -134,10 +135,10 @@ describe("SyncService", () => {
     });
 
     it("appends numeric suffix when slug is already taken", async () => {
+      // findMany returns slugs that start with "acme-corp" — the base is taken
       jest
-        .mocked(prismaMock.tenant.findUnique)
-        .mockResolvedValueOnce({ id: "existing_tenant" } as never) // slug taken
-        .mockResolvedValueOnce(null); // acme-corp-1 is free
+        .mocked(prismaMock.tenant.findMany)
+        .mockResolvedValueOnce([{ slug: "acme-corp" }] as never);
 
       await service.handleEvent(event);
 
