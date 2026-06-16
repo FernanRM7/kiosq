@@ -26,6 +26,8 @@ import {
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { Public } from "../decorators/public.decorator";
 import { AuthGuard } from "../middlewares/auth.guard";
+import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
+import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-response.schema";
 import { AuthService } from "../services/auth.service";
 import { SessionService } from "../services/session.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
@@ -53,6 +55,79 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sessionService: SessionService
   ) {}
+
+  /**
+   * Generates the WorkOS AuthKit authorization URL.
+   *
+   * The client must redirect the user's browser to the returned `authorizationUrl`
+   * to start the authentication flow (login or register — WorkOS hosted UI handles both).
+   * After authentication, WorkOS redirects back to `GET /auth/callback` with a one-time code.
+   *
+   * ### Optional parameters
+   * - `organization_id`: Targets SSO for a specific WorkOS organization.
+   *   Use this for multi-tenant login where users select their organization first.
+   * - `state`: Opaque string echoed back verbatim in the callback `?state=` param.
+   *   Use to restore client-side navigation state or pass CSRF tokens.
+   */
+  @Public()
+  @Get("login")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    description: `
+Generates the WorkOS AuthKit authorization URL.
+
+The client redirects the user's browser to \`authorizationUrl\` to start authentication.
+WorkOS presents its hosted login/register UI. After the user authenticates, WorkOS
+redirects back to \`GET /auth/callback\` with a one-time authorization \`code\`.
+
+### Usage
+\`\`\`ts
+const { data } = await fetch('/auth/login').then(r => r.json());
+window.location.href = data.authorizationUrl;
+\`\`\`
+
+### Organization SSO
+Pass \`organization_id\` to target a specific WorkOS organization's SSO provider.
+Omit it for the default AuthKit flow (email + social providers).
+    `.trim(),
+    summary: "Get AuthKit authorization URL",
+  })
+  @ApiQuery({
+    description:
+      "WorkOS Organization ID. When provided, targets SSO for that specific organization.",
+    name: "organization_id",
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    description:
+      "Opaque state string echoed back in the callback. Use for CSRF protection or client-side state.",
+    name: "state",
+    required: false,
+    type: String,
+  })
+  @ApiResponse({
+    description: "WorkOS authorization URL ready for browser redirect.",
+    status: HttpStatus.OK,
+    type: AuthorizationUrlResponseSchema,
+  })
+  @ApiResponse({
+    description:
+      "Server configuration error — WorkOS SDK failed to generate the URL.",
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    type: ApiErrorResponseSchema,
+  })
+  login(
+    @Query("organization_id") organizationId?: string,
+    @Query("state") state?: string
+  ): AuthorizationUrlResponseSchema {
+    const authorizationUrl = this.authService.getAuthorizationUrl({
+      organizationId,
+      state,
+    });
+
+    return { authorizationUrl };
+  }
 
   /**
    * OAuth2 Authorization Code callback.

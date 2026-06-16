@@ -45,15 +45,84 @@ const MOCK_SESSION = {
   userId: "user_01",
 };
 
+const MOCK_AUTHORIZATION_URL =
+  "https://auth.workos.com/oauth2/authorize?client_id=client_01&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fcallback&response_type=code&provider=authkit";
+
 const mockAuthService = {
   appUrl: APP_URL,
   exchangeCodeForSession: jest.fn(),
+  getAuthorizationUrl: jest.fn().mockReturnValue(MOCK_AUTHORIZATION_URL),
   getLogoutUrl: jest.fn().mockReturnValue(MOCK_LOGOUT_URL),
 } as unknown as AuthService;
 
 const mockSessionService = {
   clearSession: jest.fn(),
 } as unknown as SessionService;
+
+// ─── GET /auth/login ─────────────────────────────────────────────────────────
+
+describe("AuthController — GET /auth/login", () => {
+  let controller: AuthController;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    jest
+      .mocked(mockAuthService.getAuthorizationUrl)
+      .mockReturnValue(MOCK_AUTHORIZATION_URL);
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionService, useValue: mockSessionService },
+      ],
+    }).compile();
+
+    controller = module.get<AuthController>(AuthController);
+  });
+
+  it("returns authorizationUrl from AuthService", () => {
+    const result = controller.login(undefined, undefined);
+
+    expect(result.authorizationUrl).toBe(MOCK_AUTHORIZATION_URL);
+  });
+
+  it("calls getAuthorizationUrl with no options when params are absent", () => {
+    controller.login(undefined, undefined);
+
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
+      organizationId: undefined,
+      state: undefined,
+    });
+  });
+
+  it("forwards organization_id to getAuthorizationUrl", () => {
+    controller.login("org_01", undefined);
+
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
+      organizationId: "org_01",
+      state: undefined,
+    });
+  });
+
+  it("forwards state to getAuthorizationUrl", () => {
+    controller.login(undefined, "csrf_token_xyz");
+
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
+      organizationId: undefined,
+      state: "csrf_token_xyz",
+    });
+  });
+
+  it("forwards both organization_id and state simultaneously", () => {
+    controller.login("org_01", "csrf_token_xyz");
+
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
+      organizationId: "org_01",
+      state: "csrf_token_xyz",
+    });
+  });
+});
 
 // ─── GET /auth/callback ───────────────────────────────────────────────────────
 

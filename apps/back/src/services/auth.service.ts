@@ -96,4 +96,29 @@ export class AuthService {
   getLogoutUrl(sessionId: string): string {
     return this.workos.userManagement.getLogoutUrl({ sessionId });
   }
+
+  /**
+   * Generates a WorkOS AuthKit authorization URL.
+   *
+   * The client must redirect the user's browser to this URL to start
+   * the authentication flow. WorkOS will redirect back to `WORKOS_REDIRECT_URI`
+   * with a one-time `code` after the user authenticates.
+   *
+   * @param organizationId - When provided, targets SSO for a specific organization.
+   *                         Required for organization-specific login flows.
+   * @param state          - Opaque string echoed back in the callback query params.
+   *                         Use for CSRF protection or to preserve client state.
+   */
+  getAuthorizationUrl(options?: {
+    organizationId?: string;
+    state?: string;
+  }): string {
+    return this.workos.userManagement.getAuthorizationUrl({
+      clientId: this.config.clientId,
+      organizationId: options?.organizationId,
+      provider: "authkit",
+      redirectUri: this.config.redirectUri,
+      state: options?.state,
+    });
+  }
 }
