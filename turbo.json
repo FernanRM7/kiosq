@@ -6,7 +6,19 @@
     "build": {
       "outputs": ["dist/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "env": ["WORKOS_API_KEY", "WORKOS_CLIENT_ID", "WORKOS_COOKIE_PASSWORD"]
+      "env": [
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "WORKOS_API_KEY",
+        "WORKOS_CLIENT_ID",
+        "WORKOS_COOKIE_PASSWORD",
+        "WORKOS_REDIRECT_URI",
+        "APP_URL",
+        "CORS_ORIGIN",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "WORKOS_WEBHOOK_SECRET"
+      ]
     },
     "check-types": {
       "dependsOn": ["^check-types"]
