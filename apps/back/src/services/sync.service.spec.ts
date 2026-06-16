@@ -3,11 +3,23 @@ import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 
 import { PrismaService } from "../lib/prisma.service";
+import { AuthService } from "./auth.service";
 import { SyncService } from "./sync.service";
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
 const MOCK_PLAN_ID = "plan_default_01";
+const MOCK_TENANT_ID = "tenant_01";
+const MOCK_USER_ID = "user_local_01";
+
+/** WorkOS API user profile returned by getUser() */
+const MOCK_WORKOS_USER = {
+  email: "jane@example.com",
+  emailVerified: true,
+  firstName: "Jane",
+  id: "wos_user_01",
+  lastName: "Doe",
+};
 
 function makeMockPrisma() {
   return {
@@ -16,11 +28,22 @@ function makeMockPrisma() {
     },
     tenant: {
       findUnique: jest.fn().mockResolvedValue(null),
-      upsert: jest.fn().mockResolvedValue({ id: "tenant_01", slug: "acme" }),
+      upsert: jest.fn().mockResolvedValue({ id: MOCK_TENANT_ID, slug: "acme" }),
     },
     user: {
       findUnique: jest.fn().mockResolvedValue(null),
-      update: jest.fn().mockResolvedValue({ id: "user_01" }),
+      update: jest.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+      upsert: jest.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+    },
+  };
+}
+
+function makeMockAuthService() {
+  return {
+    workos: {
+      userManagement: {
+        getUser: jest.fn().mockResolvedValue(MOCK_WORKOS_USER),
+      },
     },
   };
 }
@@ -30,15 +53,18 @@ function makeMockPrisma() {
 describe("SyncService", () => {
   let service: SyncService;
   let prismaMock: ReturnType<typeof makeMockPrisma>;
+  let authServiceMock: ReturnType<typeof makeMockAuthService>;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock = makeMockPrisma();
+    authServiceMock = makeMockAuthService();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SyncService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: AuthService, useValue: authServiceMock },
       ],
     }).compile();
 
@@ -93,7 +119,6 @@ describe("SyncService", () => {
       await service.handleEvent(event);
 
       const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
-      // update payload must NOT contain slug
       expect(call.update).not.toHaveProperty("slug");
     });
 
@@ -109,7 +134,6 @@ describe("SyncService", () => {
     });
 
     it("appends numeric suffix when slug is already taken", async () => {
-      // First call: slug "acme-corp" exists, second doesn't
       jest
         .mocked(prismaMock.tenant.findUnique)
         .mockResolvedValueOnce({ id: "existing_tenant" } as never) // slug taken
@@ -211,7 +235,7 @@ describe("SyncService", () => {
     it("calls user.update with new email when user already exists", async () => {
       jest
         .mocked(prismaMock.user.findUnique)
-        .mockResolvedValueOnce({ tenantId: "tenant_01" } as never);
+        .mockResolvedValueOnce({ tenantId: MOCK_TENANT_ID } as never);
 
       await service.handleEvent(event);
 
@@ -226,7 +250,7 @@ describe("SyncService", () => {
     it("concatenates first_name and last_name into name", async () => {
       jest
         .mocked(prismaMock.user.findUnique)
-        .mockResolvedValueOnce({ tenantId: "tenant_01" } as never);
+        .mockResolvedValueOnce({ tenantId: MOCK_TENANT_ID } as never);
 
       await service.handleEvent(event);
 
@@ -237,15 +261,11 @@ describe("SyncService", () => {
     it("falls back to email as name when both names are null", async () => {
       jest
         .mocked(prismaMock.user.findUnique)
-        .mockResolvedValueOnce({ tenantId: "tenant_01" } as never);
+        .mockResolvedValueOnce({ tenantId: MOCK_TENANT_ID } as never);
 
       await service.handleEvent({
         ...event,
-        data: {
-          ...event.data,
-          first_name: null,
-          last_name: undefined,
-        },
+        data: { ...event.data, first_name: null, last_name: undefined },
       });
 
       const call = jest.mocked(prismaMock.user.update).mock.calls[0][0];
@@ -255,14 +275,220 @@ describe("SyncService", () => {
     it("is idempotent — replaying the same event calls update with the same data", async () => {
       jest
         .mocked(prismaMock.user.findUnique)
-        .mockResolvedValue({ tenantId: "tenant_01" } as never);
+        .mockResolvedValue({ tenantId: MOCK_TENANT_ID } as never);
 
       await service.handleEvent(event);
       await service.handleEvent(event); // replay
 
       const calls = jest.mocked(prismaMock.user.update).mock.calls;
       expect(calls).toHaveLength(2);
-      expect(calls[0]).toStrictEqual(calls[1]); // same args
+      expect(calls[0]).toStrictEqual(calls[1]);
+    });
+  });
+
+  // ── organization_membership.created ──────────────────────────────────────
+
+  describe("organization_membership.created", () => {
+    const membershipEvent = {
+      event: "organization_membership.created" as const,
+      id: "evt_om_01",
+      data: {
+        id: "om_01",
+        organization_id: "org_01",
+        role: { slug: "admin" },
+        user_id: "wos_user_01",
+      },
+    };
+
+    // ── Successful flows ─────────────────────────────────────────────────
+
+    describe("when tenant exists and user does NOT exist locally", () => {
+      beforeEach(() => {
+        jest
+          .mocked(prismaMock.tenant.findUnique)
+          .mockResolvedValueOnce({ id: MOCK_TENANT_ID } as never);
+
+        jest.mocked(prismaMock.user.findUnique).mockResolvedValueOnce(null);
+      });
+
+      it("fetches user profile from WorkOS API", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(
+          authServiceMock.workos.userManagement.getUser
+        ).toHaveBeenCalledWith("wos_user_01");
+      });
+
+      it("creates user via upsert with tenantId and role", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.user.upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            create: expect.objectContaining({
+              tenantId: MOCK_TENANT_ID,
+              workosUserId: "wos_user_01",
+              role: "ADMIN",
+            }),
+            where: { workosUserId: "wos_user_01" },
+          })
+        );
+      });
+
+      it("builds name from WorkOS first_name + last_name", async () => {
+        await service.handleEvent(membershipEvent);
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.name).toBe("Jane Doe");
+      });
+
+      it("sets email from WorkOS profile", async () => {
+        await service.handleEvent(membershipEvent);
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.email).toBe("jane@example.com");
+      });
+    });
+
+    describe("when tenant exists and user ALREADY exists locally", () => {
+      beforeEach(() => {
+        jest
+          .mocked(prismaMock.tenant.findUnique)
+          .mockResolvedValueOnce({ id: MOCK_TENANT_ID } as never);
+
+        jest.mocked(prismaMock.user.findUnique).mockResolvedValueOnce({
+          id: MOCK_USER_ID,
+          tenantId: "old_tenant",
+        } as never);
+      });
+
+      it("does NOT call WorkOS API (user already exists)", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(
+          authServiceMock.workos.userManagement.getUser
+        ).not.toHaveBeenCalled();
+      });
+
+      it("updates user tenantId and role via user.update", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.user.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              tenantId: MOCK_TENANT_ID,
+              role: "ADMIN",
+            }),
+            where: { workosUserId: "wos_user_01" },
+          })
+        );
+      });
+
+      it("is idempotent — replaying the same membership event updates same fields", async () => {
+        jest.mocked(prismaMock.user.findUnique).mockResolvedValue({
+          id: MOCK_USER_ID,
+          tenantId: MOCK_TENANT_ID,
+        } as never);
+
+        jest
+          .mocked(prismaMock.tenant.findUnique)
+          .mockResolvedValue({ id: MOCK_TENANT_ID } as never);
+
+        await service.handleEvent(membershipEvent);
+        await service.handleEvent(membershipEvent); // replay
+
+        const calls = jest.mocked(prismaMock.user.update).mock.calls;
+        expect(calls).toHaveLength(2);
+        expect(calls[0]).toStrictEqual(calls[1]);
+      });
+    });
+
+    // ── Tenant not found ──────────────────────────────────────────────────
+
+    describe("when tenant does NOT exist", () => {
+      beforeEach(() => {
+        jest.mocked(prismaMock.tenant.findUnique).mockResolvedValueOnce(null);
+      });
+
+      it("returns without creating or updating any user", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.user.update).not.toHaveBeenCalled();
+        expect(prismaMock.user.upsert).not.toHaveBeenCalled();
+        expect(
+          authServiceMock.workos.userManagement.getUser
+        ).not.toHaveBeenCalled();
+      });
+
+      it("resolves tenant by workosOrgId", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.tenant.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { workosOrgId: "org_01" },
+          })
+        );
+      });
+    });
+
+    // ── Role mapping ──────────────────────────────────────────────────────
+
+    describe("role mapping", () => {
+      beforeEach(() => {
+        jest
+          .mocked(prismaMock.tenant.findUnique)
+          .mockResolvedValue({ id: MOCK_TENANT_ID } as never);
+        jest.mocked(prismaMock.user.findUnique).mockResolvedValue(null);
+      });
+
+      it("maps 'admin' slug to ADMIN", async () => {
+        await service.handleEvent({
+          ...membershipEvent,
+          data: { ...membershipEvent.data, role: { slug: "admin" } },
+        });
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.role).toBe("ADMIN");
+      });
+
+      it("maps 'member' slug to MANAGER", async () => {
+        await service.handleEvent({
+          ...membershipEvent,
+          data: { ...membershipEvent.data, role: { slug: "member" } },
+        });
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.role).toBe("MANAGER");
+      });
+
+      it("defaults to ADMIN for unknown role slugs", async () => {
+        await service.handleEvent({
+          ...membershipEvent,
+          data: { ...membershipEvent.data, role: { slug: "custom_role" } },
+        });
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.role).toBe("ADMIN");
+      });
+
+      it("defaults to ADMIN when role is undefined", async () => {
+        await service.handleEvent({
+          ...membershipEvent,
+          data: { ...membershipEvent.data, role: undefined },
+        });
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.role).toBe("ADMIN");
+      });
+
+      it("defaults to ADMIN when role is null", async () => {
+        await service.handleEvent({
+          ...membershipEvent,
+          data: { ...membershipEvent.data, role: null },
+        });
+
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        expect(call.create.role).toBe("ADMIN");
+      });
     });
   });
 });

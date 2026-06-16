@@ -43,6 +43,24 @@ export const UserUpdatedEventSchema = z.object({
   id: z.string(),
 });
 
+/** Data payload for organization_membership.created */
+export const WorkosMembershipSchema = z.object({
+  /** WorkOS Membership ID */
+  id: z.string(),
+  /** WorkOS Organization ID the user joined */
+  organization_id: z.string(),
+  /** WorkOS role for this membership (optional — depends on org configuration) */
+  role: z.object({ slug: z.string() }).optional().nullable(),
+  /** WorkOS User ID of the member */
+  user_id: z.string(),
+});
+
+export const OrganizationMembershipCreatedEventSchema = z.object({
+  data: WorkosMembershipSchema,
+  event: z.literal("organization_membership.created"),
+  id: z.string(),
+});
+
 // ─── Discriminated union ──────────────────────────────────────────────────────
 
 export const WorkosEventSchema = z.discriminatedUnion("event", [
@@ -50,6 +68,7 @@ export const WorkosEventSchema = z.discriminatedUnion("event", [
   OrganizationUpdatedEventSchema,
   UserCreatedEventSchema,
   UserUpdatedEventSchema,
+  OrganizationMembershipCreatedEventSchema,
 ]);
 
 export type WorkosEvent = z.infer<typeof WorkosEventSchema>;
@@ -57,3 +76,6 @@ export type WorkosOrganizationEvent = z.infer<
   typeof OrganizationCreatedEventSchema
 >;
 export type WorkosUserEvent = z.infer<typeof UserCreatedEventSchema>;
+export type WorkosMembershipEvent = z.infer<
+  typeof OrganizationMembershipCreatedEventSchema
+>;

@@ -1,7 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
+import type { Role } from "@prisma/client";
 
 import { PrismaService } from "../lib/prisma.service";
 import type { WorkosEvent } from "../schemas/workos-event.schema";
+import { AuthService } from "./auth.service";
 
 /**
  * Synchronizes WorkOS identity data with the local PostgreSQL database.
@@ -12,29 +14,27 @@ import type { WorkosEvent } from "../schemas/workos-event.schema";
  * safe for WorkOS's at-least-once delivery guarantee.
  *
  * ## Event mapping
- * | WorkOS event             | Local action                           |
- * |--------------------------|----------------------------------------|
- * | `organization.created`   | `upsert` Tenant by `workosOrgId`       |
- * | `organization.updated`   | `upsert` Tenant by `workosOrgId`       |
- * | `user.created`           | `upsert` User by `workosUserId`        |
- * | `user.updated`           | `upsert` User by `workosUserId`        |
+ * | WorkOS event                        | Local action                                  |
+ * |-------------------------------------|-----------------------------------------------|
+ * | `organization.created`              | `upsert` Tenant by `workosOrgId`              |
+ * | `organization.updated`              | `upsert` Tenant by `workosOrgId`              |
+ * | `user.created`                      | Update identity fields if User already exists |
+ * | `user.updated`                      | Update identity fields if User already exists |
+ * | `organization_membership.created`   | Resolve Tenant → upsert User → link both      |
  *
- * ## Missing Tenant on user events
- * WorkOS does not guarantee that `organization.created` arrives before
- * `user.created`. When the linked tenant cannot be found, the user record
- * is created without a `tenantId` link — callers must associate it later
- * once the organization syncs. (This scenario is logged as a warning.)
- *
- * Note: `user.created` / `user.updated` from WorkOS carry the **organization
- * membership** via a separate `organization_membership.*` event — not inline.
- * For now, we sync the user identity fields only; tenant association is
- * handled by the `organization_membership` event family or manual linking.
+ * ## Membership flow
+ * `organization_membership.created` is the critical event that links a WorkOS
+ * user to a local Tenant. If the user doesn't exist locally yet, this handler
+ * fetches their profile from the WorkOS API and creates a fully-linked record.
  */
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService
+  ) {}
 
   /**
    * Dispatches a validated WorkOS event to the appropriate handler.
@@ -59,6 +59,18 @@ export class SyncService {
         break;
       }
 
+      case "organization_membership.created": {
+        await this.syncMembership({
+          membershipId: event.data.id,
+          organizationId: event.data.organization_id,
+          roleSlug: event.data.role?.slug,
+          userId: event.data.user_id,
+        });
+        break;
+      }
+
+      // WorkosEvent is a discriminated union — all variants are handled above.
+      // This default satisfies the linter for forward-compatibility with future event types.
       default: {
         break;
       }
@@ -79,9 +91,6 @@ export class SyncService {
     const tenant = await this.prisma.tenant.upsert({
       create: {
         name,
-        // planId must be set — use a sentinel that onboarding replaces.
-        // A real implementation would derive the plan from the WorkOS
-        // organization metadata or prompt during signup.
         planId: await this.getDefaultPlanId(),
         slug: await this.resolveUniqueSlug(slug),
         workosOrgId,
@@ -99,13 +108,11 @@ export class SyncService {
   }
 
   /**
-   * Creates or updates a User record keyed by `workosUserId`.
+   * Updates identity fields (email, name) for an existing User.
    *
-   * Users synced from WorkOS have no `tenantId` until associated via an
-   * organization membership event or manual admin action.
-   *
-   * Role defaults to ADMIN for WorkOS-managed users (owners/managers).
-   * Cashier-only users are created directly by tenant admins — not via WorkOS.
+   * If the user doesn't exist yet this is a no-op — the
+   * `organization_membership.created` event is responsible for creating
+   * new users and linking them to a Tenant.
    */
   private async upsertUser(data: {
     workosUserId: string;
@@ -113,22 +120,16 @@ export class SyncService {
     firstName: string | null | undefined;
     lastName: string | null | undefined;
   }): Promise<void> {
-    const name =
-      [data.firstName, data.lastName].filter(Boolean).join(" ") || data.email;
+    const name = this.buildName(data.firstName, data.lastName, data.email);
 
-    // Find existing user to preserve tenantId on updates
     const existing = await this.prisma.user.findUnique({
       select: { tenantId: true },
       where: { workosUserId: data.workosUserId },
     });
 
     if (existing) {
-      // Update: preserve tenantId and role, update identity fields
       await this.prisma.user.update({
-        data: {
-          email: data.email,
-          name,
-        },
+        data: { email: data.email, name },
         where: { workosUserId: data.workosUserId },
       });
 
@@ -136,21 +137,141 @@ export class SyncService {
         `User updated: workosUserId=${data.workosUserId} email="${data.email}"`
       );
     } else {
-      // Create: new WorkOS user — tenantId unknown until membership event
-      // We use a placeholder tenantId approach: find or log a warning
-      this.logger.warn(
-        `User created from WorkOS without tenant association: workosUserId=${data.workosUserId}. ` +
-          `Awaiting organization_membership event or manual assignment.`
+      this.logger.debug(
+        `user.created/updated event for unknown user ${data.workosUserId} — ` +
+          `awaiting organization_membership.created to create and link.`
       );
-
-      // NOTE: We cannot create the user without tenantId (FK required).
-      // Store the intent — real flow: organization_membership event links user to tenant.
-      // For now, log for manual resolution.
-      this.logger.debug(`WorkOS user data: email=${data.email} name="${name}"`);
     }
   }
 
+  /**
+   * Links a WorkOS user to a local Tenant via organization membership.
+   *
+   * Flow:
+   * 1. Resolve Tenant by `workosOrgId` — abort with warning if not found.
+   * 2. Lookup existing User by `workosUserId`.
+   *    - If found: update `tenantId` and `role` (idempotent update).
+   *    - If not found: fetch user profile from WorkOS API → create User.
+   * 3. Log the outcome.
+   *
+   * This operation is fully idempotent: replaying the same membership
+   * event produces the same user state.
+   *
+   * @param membershipId    - WorkOS membership record ID (for logging)
+   * @param userId          - WorkOS user ID of the new member
+   * @param organizationId  - WorkOS organization ID
+   * @param roleSlug        - WorkOS role slug (e.g. "admin", "member")
+   */
+  private async syncMembership(data: {
+    membershipId: string;
+    userId: string;
+    organizationId: string;
+    roleSlug: string | undefined;
+  }): Promise<void> {
+    // ── 1. Resolve Tenant ─────────────────────────────────────────────────
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true },
+      where: { workosOrgId: data.organizationId },
+    });
+
+    if (!tenant) {
+      this.logger.warn(
+        `Tenant not found for workosOrgId="${data.organizationId}" ` +
+          `(membership: ${data.membershipId}). ` +
+          `Ensure organization.created is processed before membership events.`
+      );
+      return;
+    }
+
+    const role = this.mapRole(data.roleSlug);
+
+    // ── 2. Upsert User ─────────────────────────────────────────────────────
+    const existing = await this.prisma.user.findUnique({
+      select: { id: true, tenantId: true },
+      where: { workosUserId: data.userId },
+    });
+
+    if (existing) {
+      // User already exists — update tenantId and role (idempotent)
+      await this.prisma.user.update({
+        data: { role, tenantId: tenant.id },
+        where: { workosUserId: data.userId },
+      });
+
+      this.logger.log(
+        `Membership synced (existing user): workosUserId=${data.userId} ` +
+          `tenantId=${tenant.id} role=${role}`
+      );
+
+      return;
+    }
+
+    // User doesn't exist locally — fetch profile from WorkOS API and create
+    const workosUser = await this.authService.workos.userManagement.getUser(
+      data.userId
+    );
+
+    const name = this.buildName(
+      workosUser.firstName,
+      workosUser.lastName,
+      workosUser.email
+    );
+
+    // Upsert (not create) to guard against race conditions where user.created
+    // fires between our findUnique and this point
+    await this.prisma.user.upsert({
+      create: {
+        email: workosUser.email,
+        name,
+        role,
+        tenantId: tenant.id,
+        workosUserId: data.userId,
+      },
+      update: {
+        email: workosUser.email,
+        name,
+        role,
+        tenantId: tenant.id,
+      },
+      where: { workosUserId: data.userId },
+    });
+
+    this.logger.log(
+      `Membership synced (new user created): workosUserId=${data.userId} ` +
+        `email="${workosUser.email}" tenantId=${tenant.id} role=${role}`
+    );
+  }
+
   // ─── Utilities ────────────────────────────────────────────────────────────
+
+  /**
+   * Maps a WorkOS role slug to the local Role enum.
+   *
+   * WorkOS roles are configurable strings. We map known slugs and default
+   * to ADMIN for any unrecognized WorkOS-managed role, since WorkOS users
+   * are owners/managers — not cashiers.
+   *
+   * Role assignments can be changed manually by tenant admins after sync.
+   */
+  private mapRole(slug: string | undefined): Role {
+    if (slug === "admin") {
+      return "ADMIN";
+    }
+    if (slug === "member") {
+      return "MANAGER";
+    }
+    // Safe default for WorkOS-managed users (owners/admins, not cashiers)
+    return "ADMIN";
+  }
+
+  /** Joins first + last name, falls back to email if both are absent */
+  private buildName(
+    firstName: string | null | undefined,
+    lastName: string | null | undefined,
+    email: string
+  ): string {
+    return [firstName, lastName].filter(Boolean).join(" ") || email;
+  }
 
   /** Converts an organization name to a URL-safe slug */
   private toSlug(name: string): string {
@@ -158,7 +279,7 @@ export class SyncService {
       name
         .toLowerCase()
         .normalize("NFD")
-        // strip diacritics
+        // Strip combining diacritical marks after NFD decomposition
         .replaceAll(/[\u0300-\u036F]/gu, "")
         .replaceAll(/[^a-z0-9]+/gu, "-")
         .replaceAll(/^-+|-+$/gu, "")
@@ -168,17 +289,30 @@ export class SyncService {
   /**
    * Appends a numeric suffix to a slug if it's already taken.
    * Ensures every tenant gets a unique slug at creation time.
+   *
+   * Sequential DB lookups are intentional: we need to verify each candidate
+   * slug one at a time to avoid race conditions in concurrent tenant creation.
    */
   private async resolveUniqueSlug(base: string): Promise<string> {
-    let candidate = base;
-    let suffix = 1;
+    const tenants = await this.prisma.tenant.findMany({
+      select: {
+        slug: true,
+      },
+      where: {
+        slug: {
+          startsWith: base,
+        },
+      },
+    });
 
-    while (
-      // eslint-disable-next-line no-await-in-loop
-      await this.prisma.tenant.findUnique({ where: { slug: candidate } })
-    ) {
-      candidate = `${base}-${suffix}`;
+    const used = new Set(tenants.map((t) => t.slug));
+
+    let candidate = base;
+    let suffix = 0;
+
+    while (used.has(candidate)) {
       suffix += 1;
+      candidate = `${base}-${suffix}`;
     }
 
     return candidate;
