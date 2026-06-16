@@ -1,4 +1,4 @@
-import { Minus, Plus, PlusCircle, Trash2 } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ export function SalesDrawer() {
         className="w-28"
         onClick={() => setOpen(true)}
       >
-        <PlusCircle className="size-4" />
+        <Plus className="size-4" />
         <span>Sales</span>
       </Button>
       <DrawerContentRight>
@@ -67,7 +67,7 @@ export function SalesDrawer() {
           {cart.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between rounded-lg border p-3"
+              className="flex items-center justify-between rounded-lg border border-border p-3"
             >
               <div className="flex flex-col">
                 <span className="font-medium text-sm">{item.name}</span>

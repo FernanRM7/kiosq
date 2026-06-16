@@ -8,7 +8,7 @@
   --text: #71717a;
   --text-h: #18181b;
   --bg: #fff;
-  --border: #e4e4e7;
+  --border: #f0f0f2;
   --code-bg: #f4f4f5;
   --accent: oklch(92% 0.004 286.32);
   --accent-bg: rgba(113, 113, 122, 0.1);
@@ -215,7 +215,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
