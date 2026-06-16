@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-table";
 
 interface DataTableProps<TData> {
-  columns: ColumnDef<TData, unknown>[];
+  columns: ColumnDef<TData, any>[];
   data: TData[];
 }
 
