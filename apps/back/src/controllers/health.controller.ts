@@ -1,9 +1,11 @@
 import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 
+import { Public } from "../decorators/public.decorator";
 import { HealthResponseSchema } from "../schemas/health-response.schema";
 import { HealthSuccessResponseSchema } from "../schemas/health-success-response.schema";
 
+@Public()
 @ApiTags("Health")
 @Controller("health")
 export class HealthController {

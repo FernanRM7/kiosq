@@ -7,18 +7,21 @@ import { logger } from "./lib/logger";
 import { redisClient } from "./lib/redis.lib";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // rawBody is required for WorkOS webhook signature verification.
+    // WebhookController reads request.rawBody to compute the HMAC.
+    rawBody: true,
+  });
 
   setupApp(app);
 
   setupSwagger(app);
 
   await redisClient.connect();
-  
 
   await app.listen(process.env.PORT ?? 3000);
 
-  logger.info("Backend iniciado correctamente");  
+  logger.info("Backend iniciado correctamente");
 
   const port = process.env.PORT ?? 3000;
   logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);

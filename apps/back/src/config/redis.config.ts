@@ -8,15 +8,11 @@ export function loadRedisConfig(): RedisConfig {
   const port = process.env.REDIS_PORT;
 
   if (!host) {
-    throw new Error(
-      "Falta la variable de entorno requerida: REDIS_HOST"
-    );
+    throw new Error("Falta la variable de entorno requerida: REDIS_HOST");
   }
 
   if (!port) {
-    throw new Error(
-      "Falta la variable de entorno requerida: REDIS_PORT"
-    );
+    throw new Error("Falta la variable de entorno requerida: REDIS_PORT");
   }
 
   return {
