@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnModuleInit } from "@nestjs/common";
 import { WorkOS } from "@workos-inc/node";
+import type { JWTVerifyGetKey } from "jose";
 
 import { loadAuthConfig } from "../config/auth.config";
 import type { AuthConfig } from "../config/auth.config";
@@ -18,15 +19,18 @@ export interface CodeExchangeResult {
 }
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   readonly workos: WorkOS;
   private readonly config: AuthConfig;
-  private readonly jwks: ReturnType<typeof createWorkosJwks>;
+  private jwks!: JWTVerifyGetKey;
 
   constructor() {
     this.config = loadAuthConfig();
     this.workos = new WorkOS(this.config.apiKey);
-    this.jwks = createWorkosJwks(this.config.clientId);
+  }
+
+  async onModuleInit() {
+    this.jwks = await createWorkosJwks(this.config.clientId);
   }
 
   get clientId(): string {

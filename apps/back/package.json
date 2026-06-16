@@ -5,8 +5,10 @@
   "description": "",
   "license": "UNLICENSED",
   "author": "",
+  "main": "dist/main.js",
   "scripts": {
     "build": "prisma generate && nest build",
+    "start": "node dist/main",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "format": "oxfmt",
