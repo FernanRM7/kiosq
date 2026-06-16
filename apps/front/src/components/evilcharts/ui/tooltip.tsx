@@ -1,7 +1,9 @@
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 import type {
+  Formatter,
   NameType,
+  Payload,
   ValueType,
 } from "recharts/types/component/DefaultTooltipContent";
 
@@ -16,27 +18,43 @@ import { cn } from "@/lib/utils";
 type TooltipRoundness = "sm" | "md" | "lg" | "xl";
 type TooltipVariant = "default" | "frosted-glass";
 
+const roundnessMap: Record<TooltipRoundness, string> = {
+  lg: "rounded-lg",
+  md: "rounded-md",
+  sm: "rounded-sm",
+  xl: "rounded-xl",
+};
+
+const variantMap: Record<TooltipVariant, string> = {
+  default: "bg-background",
+  "frosted-glass": "bg-background/70 backdrop-blur-sm",
+};
+
+function getIndicatorColorStyle(
+  dataKey: string,
+  colorsCount: number
+): React.CSSProperties {
+  if (colorsCount <= 1) {
+    return { background: `var(--color-${dataKey}-0)` };
+  }
+
+  const stops = Array.from({ length: colorsCount }, (_, index) => {
+    const offset = (index / (colorsCount - 1)) * 100;
+    return `var(--color-${dataKey}-${index}) ${offset}%`;
+  }).join(", ");
+
+  return { background: `linear-gradient(to right, ${stops})` };
+}
+
 interface TooltipItemProps {
-  item: {
-    value?: ValueType;
-    name?: NameType;
-    dataKey?: string;
-    type?: string;
-    payload?: Record<string, unknown>;
-  };
+  item: Payload<ValueType, NameType>;
   index: number;
   nameKey?: string;
   indicator: "line" | "dot" | "dashed";
   hideIndicator: boolean;
   nestLabel: boolean;
   tooltipLabel: React.ReactNode;
-  formatter?: (
-    value: ValueType,
-    name: NameType,
-    item: unknown,
-    index: number,
-    payload: unknown
-  ) => React.ReactNode;
+  formatter?: Formatter<ValueType, NameType>;
   selected?: string | null;
   config: ChartConfig;
 }
@@ -46,14 +64,14 @@ function TooltipIndicator({
   indicator,
   hideIndicator,
   nestLabel,
-  key,
+  indicatorKey,
   colorsCount,
 }: {
   itemConfig: ReturnType<typeof getPayloadConfigFromPayload>;
   indicator: "line" | "dot" | "dashed";
   hideIndicator: boolean;
   nestLabel: boolean;
-  key: string;
+  indicatorKey: string;
   colorsCount: number;
 }) {
   if (itemConfig?.icon) {
@@ -71,13 +89,13 @@ function TooltipIndicator({
           indicator === "dashed",
         "w-1": indicator === "line",
       })}
-      style={getIndicatorColorStyle(key, colorsCount)}
+      style={getIndicatorColorStyle(indicatorKey, colorsCount)}
     />
   );
 }
 
 function resolveTooltipItemKey(
-  item: TooltipItemProps["item"],
+  item: Payload<ValueType, NameType>,
   nameKey?: string
 ) {
   const payloadName =
@@ -130,7 +148,7 @@ function TooltipItem({
         indicator={indicator}
         hideIndicator={hideIndicator}
         nestLabel={nestLabel}
-        key={key}
+        indicatorKey={key}
         colorsCount={colorsCount}
       />
       <div
