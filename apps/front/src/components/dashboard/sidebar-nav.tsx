@@ -21,7 +21,7 @@ export function DashboardSidebar() {
   const location = useLocation();
 
   return (
-    <Sidebar variant="sidebar">
+    <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader>
         <WorkspaceSwitcher />
       </SidebarHeader>

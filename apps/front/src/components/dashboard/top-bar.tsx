@@ -1,4 +1,4 @@
-import { PlusCircle, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 import { ProductDialog } from "@/components/dashboard/product-dialog";
@@ -13,7 +13,7 @@ export function TopBar() {
 
   return (
     <>
-      <header className="flex h-13 m-0.5 shrink-0 items-center gap-2 border-b px-4">
+      <header className="flex h-13 m-0.5 shrink-0 items-center gap-2 border-b border-b-zinc-200 px-4">
         <SidebarTrigger className="" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <div className="flex flex-1 items-center gap-2">
@@ -30,7 +30,7 @@ export function TopBar() {
             className="w-28"
             onClick={() => setProductOpen(true)}
           >
-            <PlusCircle className="size-4" />
+            <Plus className="size-4" />
             <span>Product</span>
           </Button>
         </div>
