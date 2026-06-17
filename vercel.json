@@ -1,20 +1,10 @@
 {
-  "builds": [
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "apps/front/dist",
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "apps/front/dist"
-      }
-    },
-    {
-      "src": "apps/back/dist/main.js",
-      "use": "@vercel/node"
+      "source": "/api/(.*)",
+      "destination": "/api"
     }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "apps/back/dist/main.js" },
-    { "src": "/(.*)", "dest": "apps/front/dist/$1" },
-    { "src": "/", "dest": "apps/front/dist/index.html" }
   ]
 }
