@@ -26,7 +26,9 @@ export class AuthService implements OnModuleInit {
 
   constructor() {
     this.config = loadAuthConfig();
-    this.workos = new WorkOS(this.config.apiKey);
+    this.workos = new WorkOS(this.config.apiKey, {
+      clientId: this.config.clientId,
+    });
   }
 
   async onModuleInit() {

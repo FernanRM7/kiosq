@@ -85,5 +85,8 @@
     "transformIgnorePatterns": [
       "/node_modules/(?!(jose)/)"
     ]
+  },
+  "prisma": {
+    "seed": "bun run prisma/seed.ts"
   }
 }

@@ -12,4 +12,13 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
+  server: {
+    proxy: {
+      "/auth": "http://localhost:3000",
+      "/health": "http://localhost:3000",
+      "/me": "http://localhost:3000",
+      "/tenants": "http://localhost:3000",
+      "/webhooks": "http://localhost:3000",
+    },
+  },
 });

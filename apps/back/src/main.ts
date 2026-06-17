@@ -4,7 +4,7 @@ import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
 import { SWAGGER_PATH, setupSwagger } from "./docs/swagger.config";
 import { logger } from "./lib/logger";
-import { redisClient } from "./lib/redis.lib";
+import { getRedisClient } from "./lib/redis.lib";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -17,7 +17,7 @@ async function bootstrap() {
 
   setupSwagger(app);
 
-  await redisClient.connect();
+  await getRedisClient().connect();
 
   await app.listen(process.env.PORT ?? 3000);
 

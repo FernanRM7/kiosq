@@ -1,20 +1,29 @@
 /** @type {import("webpack").Configuration} */
 module.exports = {
-  externals: [],
+  externals: [
+    "redis",
+    "thread-stream",
+    "swagger-ui-express",
+    "swagger-ui-dist",
+    "express",
+  ],
   module: {
     rules: [
       {
         exclude: /node_modules/u,
         test: /\.ts$/u,
         use: {
-          loader: "esbuild-loader",
+          loader: "ts-loader",
           options: {
-            loader: "ts",
-            target: "es2023",
+            transpileOnly: true,
           },
         },
       },
     ],
+  },
+  node: {
+    __dirname: false,
+    __filename: false,
   },
   output: {
     libraryTarget: "commonjs2",

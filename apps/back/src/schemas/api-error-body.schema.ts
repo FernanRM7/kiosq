@@ -4,12 +4,14 @@ export class ApiErrorBodySchema {
   @ApiProperty({
     description: "Stable error code for clients",
     example: "VALIDATION_ERROR",
+    type: String,
   })
   code: string;
 
   @ApiProperty({
     description: "Human-readable error message",
     example: "Validation failed",
+    type: String,
   })
   message: string;
 
@@ -23,6 +25,7 @@ export class ApiErrorBodySchema {
       },
     ],
     required: false,
+    type: Object,
   })
   details?: unknown;
 
@@ -30,6 +33,7 @@ export class ApiErrorBodySchema {
     description: "Request path where the error occurred",
     example: "/health",
     required: false,
+    type: String,
   })
   path?: string;
 
@@ -37,6 +41,7 @@ export class ApiErrorBodySchema {
     description: "HTTP status code",
     example: 400,
     required: false,
+    type: Number,
   })
   statusCode?: number;
 
@@ -44,6 +49,7 @@ export class ApiErrorBodySchema {
     description: "ISO 8601 timestamp of the error response",
     example: "2026-06-13T08:00:00.000Z",
     required: false,
+    type: String,
   })
   timestamp?: string;
 }

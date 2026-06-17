@@ -1,4 +1,5 @@
 import { ChevronsUpDown, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,33 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/hooks/use-auth";
+import { getMyTenant } from "@/lib/auth";
 
 export function WorkspaceSwitcher() {
+  const { user } = useAuth();
+  const [tenantName, setTenantName] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchTenant() {
+      try {
+        const result = await getMyTenant();
+        const tenant = (result as { tenant?: { name: string } } | undefined)
+          ?.tenant;
+        if (tenant?.name) {
+          setTenantName(tenant.name);
+        }
+      } catch {
+        // User may not have a tenant yet
+      }
+    }
+
+    void fetchTenant();
+  }, []);
+
+  const workspaceLabel = tenantName ?? user?.organizationId ?? "Workspace";
+  const workspaceMeta = tenantName ? "Active plan" : "Free Plan";
+
   return (
     <Popover>
       <PopoverTrigger
@@ -24,7 +50,7 @@ export function WorkspaceSwitcher() {
             className="size-full rounded-md object-cover"
           />
         </Avatar>
-        <span className="truncate font-medium text-sm">Workspace</span>
+        <span className="truncate font-medium text-sm">{workspaceLabel}</span>
         <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="w-56" side="bottom" align="end">
@@ -37,8 +63,12 @@ export function WorkspaceSwitcher() {
             />
           </Avatar>
           <div className="flex flex-col">
-            <span className="font-medium text-sm">Workspace</span>
-            <span className="text-muted-foreground text-xs">Free Plan</span>
+            <span className="max-w-40 truncate font-medium text-sm">
+              {workspaceLabel}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              {workspaceMeta}
+            </span>
           </div>
         </div>
         <Separator />

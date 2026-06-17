@@ -1,4 +1,4 @@
-import { Catch, HttpException, HttpStatus } from "@nestjs/common";
+import { Catch, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import type { Request, Response } from "express";
 
@@ -14,12 +14,21 @@ interface ExceptionPayload {
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const request = context.getRequest<Request>();
     const response = context.getResponse<Response>();
     const statusCode = this.getStatusCode(exception);
     const payload = this.getExceptionPayload(exception);
+
+    if (statusCode === HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        `Unhandled exception on ${request.method} ${request.originalUrl}`,
+        exception instanceof Error ? exception.stack : String(exception)
+      );
+    }
 
     response.status(statusCode).json(
       errorResponse({

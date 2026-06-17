@@ -11,11 +11,14 @@ import { PrismaService } from "./lib/prisma.service";
 import { AuthGuard } from "./middlewares/auth.guard";
 import { authRoutes } from "./routes/auth.routes";
 import { healthRoutes } from "./routes/health.routes";
+import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
+import { SessionRegistryService } from "./services/session-registry.service";
 import { SessionService } from "./services/session.service";
 import { SyncService } from "./services/sync.service";
+import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
 
 @Module({
@@ -25,14 +28,17 @@ import { UserService } from "./services/user.service";
     ...authRoutes,
     ...webhookRoutes,
     ...userRoutes,
+    ...tenantRoutes,
   ],
   imports: [ConfigModule.forRoot({ isGlobal: true })],
   providers: [
     AppService,
     AuthService,
     PrismaService,
+    SessionRegistryService,
     SessionService,
     SyncService,
+    TenantService,
     UserService,
     {
       provide: APP_GUARD,

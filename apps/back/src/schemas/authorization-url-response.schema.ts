@@ -7,6 +7,7 @@ export class AuthorizationUrlResponseSchema {
       "WorkOS AuthKit authorization URL. Redirect the user's browser to this URL to start authentication.",
     example:
       "https://auth.workos.com/oauth2/authorize?client_id=client_01&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fcallback&response_type=code&provider=authkit",
+    type: String,
   })
   authorizationUrl: string;
 }
