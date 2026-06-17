@@ -1,0 +1,31 @@
+name: Build Kiosq Desktop (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Pake CLI
+        run: npm install -g pake-cli
+
+      - name: Build Kiosq for Windows
+        run: pake https://kiosq-unified.vercel.app --name Kiosq --targets x64
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kiosq-Windows-x64
+          path: Kiosq_*.msi
