@@ -9,6 +9,7 @@ export function getRedisClient(): ReturnType<typeof createClient> {
     const redisConfig = loadRedisConfig();
 
     _client = createClient({
+      password: redisConfig.password,
       socket: {
         host: redisConfig.host,
         port: redisConfig.port,
