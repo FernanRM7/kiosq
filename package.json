@@ -12,7 +12,7 @@
     "build:front": "npm --prefix apps/front run build",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "husky": "^9.1.7",
