@@ -39,9 +39,11 @@ export function OnboardingDialog() {
 
       await createTenant(workspaceName.trim());
       navigate("/dashboard");
-    } catch (error) {
+    } catch (submitError) {
       setError(
-        error instanceof Error ? error.message : "Error al crear el workspace"
+        submitError instanceof Error
+          ? submitError.message
+          : "Error al crear el workspace"
       );
     } finally {
       setLoading(false);

@@ -25,9 +25,15 @@ export class SessionService {
    * Flow:
    * 1. Read the `wos-session` cookie.
    * 2. Call `session.authenticate()` to validate the current access token.
-   * 3. If the JWT is expired (`reason === 'invalid_jwt'`), automatically
+   * 3. If authenticated, verify the session is still active in Redis:
+   *    - Active (`isActive === true`): touch heartbeat and proceed.
+   *    - Revoked (`isActive === false`): reject with `session_revoked`.
+   *    - Redis unavailable (throws): fail-open — WorkOS cookie is the primary
+   *      auth mechanism; locking out all users during a Redis outage is worse
+   *      than the brief window where a revoked session might slip through.
+   * 4. If the JWT is expired (`reason === 'invalid_jwt'`), automatically
    *    call `session.refresh()` — WorkOS handles token rotation internally.
-   * 4. If refreshed, persist the new sealed session in the response cookie.
+   * 5. If refreshed, persist the new sealed session in the response cookie.
    *
    * @returns {SessionResult} Discriminated union with authenticated payload or failure reason.
    */
@@ -63,10 +69,9 @@ export class SessionService {
       const sessionId = String(result.sessionId ?? "");
       const userId = result.user.id;
 
-      // Verify the session hasn't been revoked in Redis.
-      // If Redis is unavailable or the session wasn't registered (e.g., on first
-      // login before Redis registration completes), still allow the request through —
-      // the sealed session cookie from WorkOS is the primary auth mechanism.
+      // Strict revocation check: if the session is absent from Redis it was
+      // explicitly revoked. Only a genuine Redis error (throw) is treated as
+      // non-critical (fail-open) — a clean false return means revoked.
       if (sessionId) {
         try {
           const isActive = await this.sessionRegistry.isSessionActive(
@@ -74,13 +79,26 @@ export class SessionService {
             sessionId
           );
 
-          await (isActive
-            ? this.sessionRegistry.touchSession(userId, sessionId).catch(() => {
-                // Non-critical
-              })
-            : this.sessionRegistry.registerDummySession(userId, sessionId));
+          if (!isActive) {
+            this.logger.warn(
+              `Session ${sessionId} is not active in Redis — rejecting (session_revoked)`
+            );
+            return { authenticated: false, reason: "session_revoked" };
+          }
+
+          // Session is active — update the heartbeat timestamp (non-critical)
+          await this.sessionRegistry
+            .touchSession(userId, sessionId)
+            .catch(() => {
+              // Non-critical: a failed heartbeat does not invalidate the session
+            });
         } catch {
-          // Redis unavailable — non-critical, allow auth to proceed
+          // Redis is unavailable — fail-open. WorkOS sealed session is the
+          // primary auth mechanism; we cannot revoke sessions while Redis is down,
+          // but we should not lock out all users either.
+          this.logger.warn(
+            `Redis unavailable during session check for ${sessionId} — allowing request through`
+          );
         }
       }
 
@@ -190,11 +208,21 @@ export class SessionService {
       const sessionId = String(refreshResult.sessionId ?? "");
       const userId = refreshResult.user.id;
 
-      // Check if this session has been revoked
-      const isActive = await this.sessionRegistry.isSessionActive(
-        userId,
-        sessionId
-      );
+      // Check if this session has been revoked — wrap in try/catch so a Redis
+      // outage during refresh does not kill the entire refresh flow.
+      let isActive = true;
+      try {
+        isActive = await this.sessionRegistry.isSessionActive(
+          userId,
+          sessionId
+        );
+      } catch {
+        // Redis unavailable — fail-open for the same reason as authenticateSession
+        this.logger.warn(
+          `Redis unavailable during refresh session check for ${sessionId} — allowing refresh through`
+        );
+      }
+
       if (!isActive && sessionId) {
         this.logger.warn(`Refreshed session ${sessionId} has been revoked`);
         return { authenticated: false, reason: "session_revoked" };

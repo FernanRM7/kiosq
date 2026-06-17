@@ -21,7 +21,11 @@ export class TenantController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Body("name") name: string
   ) {
-    const tenant = await this.tenantService.createTenant(session.userId, name);
+    const tenant = await this.tenantService.createTenant(session.userId, name, {
+      email: session.user.email,
+      firstName: session.user.firstName,
+      lastName: session.user.lastName,
+    });
     return { tenant };
   }
 

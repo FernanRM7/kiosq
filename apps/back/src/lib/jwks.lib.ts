@@ -1,4 +1,4 @@
-import type { JWTVerifyGetKey } from "jose";
+import { JWTVerifyGetKey, createRemoteJWKSet } from "jose";
 
 /** WorkOS JWKS endpoint for User Management tokens */
 const WORKOS_JWKS_URL = (clientId: string) =>
@@ -7,14 +7,8 @@ const WORKOS_JWKS_URL = (clientId: string) =>
 /**
  * Creates a cached JWKS key set for WorkOS token verification.
  * Keys are cached for 10 minutes to avoid fetching on every request.
- *
- * Uses dynamic import() for jose because it's ESM-only and the package
- * runs in a CommonJS context (no "type": "module" in package.json).
  */
-export async function createWorkosJwks(
-  clientId: string
-): Promise<JWTVerifyGetKey> {
-  const { createRemoteJWKSet } = await import("jose");
+export function createWorkosJwks(clientId: string): JWTVerifyGetKey {
   return createRemoteJWKSet(new URL(WORKOS_JWKS_URL(clientId)), {
     cacheMaxAge: 10 * 60 * 1000,
   });

@@ -75,7 +75,7 @@ export class SessionRegistryService {
           return null;
         }
 
-        return data as unknown as SessionMetadata;
+        return this.parseSessionMetadata(data);
       })
     );
 
@@ -144,34 +144,26 @@ export class SessionRegistryService {
   // ─── Private ──────────────────────────────────────────────────────────────
 
   /**
-   * Registers a minimal session entry so isSessionActive returns true.
-   * Used when the post-login registration failed (Redis unavailable, etc.)
-   * and the first authenticated request needs to create the record.
+   * Safely maps a Redis hGetAll result (Record<string, string>) to a typed
+   * SessionMetadata object. Acts as a data integrity barrier: if any field is
+   * missing or the hash is partially corrupt, it defaults to an empty string
+   * rather than surfacing a runtime type mismatch.
+   *
+   * This prevents the unsafe `as unknown as SessionMetadata` cast and ensures
+   * that adding typed fields (e.g. booleans, numbers) to SessionMetadata in the
+   * future will produce a compile-time error that forces explicit conversion.
    */
-  async registerDummySession(userId: string, sessionId: string): Promise<void> {
-    const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
-    const userSessionsKey = `${USER_SESSIONS_PREFIX}${userId}`;
-
-    const redis = getRedisClient();
-    await Promise.all([
-      redis.hSet(sessionKey, {
-        createdAt: new Date().toISOString(),
-        deviceInfo: "auto-registered",
-        ipAddress: "unknown",
-        lastActiveAt: new Date().toISOString(),
-        sessionId,
-        userEmail: "",
-        userId,
-        userName: "User",
-      }),
-      redis.expire(sessionKey, SESSION_TTL_SECONDS),
-      redis.sAdd(userSessionsKey, sessionId),
-      redis.expire(userSessionsKey, SESSION_TTL_SECONDS),
-    ]);
-
-    this.logger.debug(
-      `Dummy session registered: ${sessionId} for user ${userId}`
-    );
+  private parseSessionMetadata(data: Record<string, string>): SessionMetadata {
+    return {
+      createdAt: data["createdAt"] ?? "",
+      deviceInfo: data["deviceInfo"] ?? "",
+      ipAddress: data["ipAddress"] ?? "",
+      lastActiveAt: data["lastActiveAt"] ?? "",
+      sessionId: data["sessionId"] ?? "",
+      userEmail: data["userEmail"] ?? "",
+      userId: data["userId"] ?? "",
+      userName: data["userName"] ?? "",
+    };
   }
 
   private getSessionIdsForUser(userId: string): Promise<string[]> {
