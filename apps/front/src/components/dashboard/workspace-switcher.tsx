@@ -20,8 +20,7 @@ export function WorkspaceSwitcher() {
     async function fetchTenant() {
       try {
         const result = await getMyTenant();
-        const tenant = (result as { tenant?: { name: string } } | undefined)
-          ?.tenant;
+        const tenant = result?.tenant;
         if (tenant?.name) {
           setTenantName(tenant.name);
         }

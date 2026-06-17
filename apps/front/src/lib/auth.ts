@@ -207,6 +207,22 @@ export function createTenant(
   });
 }
 
-export function getMyTenant(): Promise<{ user: { tenant: object } }> {
+export interface MyTenantData {
+  id: string;
+  tenantId: string;
+  tenant: {
+    id: string;
+    name: string;
+    slug: string;
+    planId: string;
+    status: string;
+  } | null;
+  name: string;
+  role: string;
+  email: string | null;
+  workosUserId: string | null;
+}
+
+export function getMyTenant(): Promise<MyTenantData> {
   return request("/tenants/me");
 }
