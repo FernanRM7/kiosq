@@ -111,7 +111,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
 
       try {
-        await checkHealth();
+        try {
+          await checkHealth();
+        } catch {
+          /* health endpoint no es requerido para el flujo auth */
+        }
+
         const authorizationUrl = await getAuthorizationUrl();
         window.location.assign(authorizationUrl);
       } catch (authError) {

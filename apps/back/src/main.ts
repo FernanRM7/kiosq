@@ -1,3 +1,4 @@
+import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 
 import { AppModule } from "./app.module";
@@ -6,7 +7,11 @@ import { SWAGGER_PATH, setupSwagger } from "./docs/swagger.config";
 import { logger } from "./lib/logger";
 import { getRedisClient } from "./lib/redis.lib";
 
-async function bootstrap() {
+// ─── Bootstrap ────────────────────────────────────────────────────────────────
+
+let _cachedApp: INestApplication;
+
+async function bootstrap(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     // rawBody is required for WorkOS webhook signature verification.
     // WebhookController reads request.rawBody to compute the HMAC.
@@ -15,16 +20,51 @@ async function bootstrap() {
 
   setupApp(app);
 
+  const apiPrefix = process.env.API_PREFIX;
+
+  if (apiPrefix) {
+    app.setGlobalPrefix(apiPrefix);
+  }
+
   setupSwagger(app);
 
-  await getRedisClient().connect();
+  try {
+    await getRedisClient().connect();
+  } catch (redisError) {
+    logger.warn(
+      { error: redisError },
+      "Redis no disponible — sesiones activas no disponibles"
+    );
+  }
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.init();
 
-  logger.info("Backend iniciado correctamente");
-
-  const port = process.env.PORT ?? 3000;
-  logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);
-  logger.info(`OpenAPI JSON: http://localhost:${port}/${SWAGGER_PATH}-json`);
+  _cachedApp = app;
+  return app;
 }
-bootstrap();
+
+// ─── Local Development ────────────────────────────────────────────────────────
+
+if (!process.env.VERCEL) {
+  (async () => {
+    const app = await bootstrap();
+    await app.listen(process.env.PORT ?? 3000);
+
+    const port = process.env.PORT ?? 3000;
+    logger.info(`Backend iniciado correctamente en el puerto ${port}`);
+    logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);
+    logger.info(`OpenAPI JSON: http://localhost:${port}/${SWAGGER_PATH}-json`);
+  })();
+}
+
+// ─── Vercel Serverless Handler ────────────────────────────────────────────────
+
+async function handler(req: unknown, res: unknown): Promise<void> {
+  if (!_cachedApp) {
+    _cachedApp = await bootstrap();
+  }
+
+  _cachedApp.getHttpAdapter().getInstance()(req, res);
+}
+
+export default handler;

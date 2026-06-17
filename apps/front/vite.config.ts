@@ -14,11 +14,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/auth": "http://localhost:3000",
-      "/health": "http://localhost:3000",
-      "/me": "http://localhost:3000",
-      "/tenants": "http://localhost:3000",
-      "/webhooks": "http://localhost:3000",
+      "/api": {
+        rewrite: (reqPath) => reqPath.replace(/^\/api/iu, ""),
+        target: "http://localhost:3000",
+      },
     },
   },
 });

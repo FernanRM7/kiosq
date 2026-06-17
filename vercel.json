@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npm run build:vercel",
+  "installCommand": "npm install",
+  "framework": null,
+  "outputDirectory": "apps/front/dist",
+  "builds": [
+    {
+      "src": "apps/back/dist/main.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/:path*",
+      "dest": "apps/back/dist/main.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}

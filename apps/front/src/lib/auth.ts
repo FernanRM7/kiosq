@@ -9,8 +9,7 @@
 
 /** Base URL for the NestJS backend. Injected at build time via Vite. */
 export const API_BASE_URL =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ??
-  "http://localhost:3000";
+  (import.meta.env["VITE_API_URL"] as string | undefined) ?? "";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -149,17 +148,17 @@ export function isUnauthenticatedError(error: unknown): boolean {
 }
 
 export function checkHealth(): Promise<HealthStatus> {
-  return request<HealthStatus>("/health");
+  return request<HealthStatus>("/api/health");
 }
 
 export async function getAuthorizationUrl(): Promise<string> {
-  const data = await request<AuthorizationUrlData>("/auth/login");
+  const data = await request<AuthorizationUrlData>("/api/auth/login");
 
   return data.authorizationUrl;
 }
 
 export function logoutSession(): Promise<LogoutData> {
-  return request<LogoutData>("/auth/logout", { method: "POST" });
+  return request<LogoutData>("/api/auth/logout", { method: "POST" });
 }
 
 /**
@@ -171,7 +170,7 @@ export function logoutSession(): Promise<LogoutData> {
  */
 export async function getMe(): Promise<MeResponse | null> {
   try {
-    const data = await request<MeUser>("/me");
+    const data = await request<MeUser>("/api/me");
 
     return { data, success: true };
   } catch (error) {
@@ -185,14 +184,14 @@ export async function getMe(): Promise<MeResponse | null> {
 
 /** Retrieves all active sessions for the current user. */
 export function getActiveSessions(): Promise<ActiveSession[]> {
-  return request<ActiveSession[]>("/me/sessions");
+  return request<ActiveSession[]>("/api/me/sessions");
 }
 
 /** Revokes a specific session by ID. Returns false if it was the current session. */
 export function revokeSession(
   sessionId: string
 ): Promise<{ success: boolean }> {
-  return request<{ success: boolean }>(`/me/sessions/${sessionId}`, {
+  return request<{ success: boolean }>(`/api/me/sessions/${sessionId}`, {
     method: "DELETE",
   });
 }
@@ -200,7 +199,7 @@ export function revokeSession(
 export function createTenant(
   name: string
 ): Promise<{ tenant: { id: string; name: string; slug: string } }> {
-  return request("/tenants", {
+  return request("/api/tenants", {
     body: JSON.stringify({ name }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -224,5 +223,5 @@ export interface MyTenantData {
 }
 
 export function getMyTenant(): Promise<MyTenantData> {
-  return request("/tenants/me");
+  return request("/api/tenants/me");
 }

@@ -7,6 +7,9 @@
   ],
   "type": "module",
   "scripts": {
+    "build:vercel": "npm run build:back && npm run build:front",
+    "build:back": "npm --prefix apps/back run build",
+    "build:front": "npm --prefix apps/front run build",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "prepare": "husky"
