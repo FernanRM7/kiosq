@@ -25,7 +25,7 @@ export class SessionRegistryService {
 
   private async withRedis<T>(
     operation: () => Promise<T>,
-    fallback: T
+    fallback?: T
   ): Promise<T> {
     try {
       return await operation();
@@ -34,7 +34,7 @@ export class SessionRegistryService {
         { error },
         "Redis no disponible — operacion de sesion omitida"
       );
-      return fallback;
+      return fallback as T;
     }
   }
 
