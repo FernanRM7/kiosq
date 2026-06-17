@@ -1,6 +1,7 @@
 /** @type {import("webpack").Configuration} */
 module.exports = {
   externals: [
+    "@prisma/client",
     "redis",
     "thread-stream",
     "swagger-ui-express",
