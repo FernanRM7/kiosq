@@ -1,11 +1,5 @@
-/**
- * Centralized AuthKit HTTP client.
- *
- * All communication with the NestJS backend related to authentication
- * is funneled through this module. Using a single base URL source
- * ensures Tauri compatibility: swap VITE_API_URL for the desktop
- * environment URL and the rest of the app adapts automatically.
- */
+import { AxiosError, create } from "axios";
+import type { AxiosRequestConfig } from "axios";
 
 /** Base URL for the NestJS backend. Injected at build time via Vite. */
 export const API_BASE_URL =
@@ -84,57 +78,41 @@ export interface ActiveSession {
 
 // ─── API client ───────────────────────────────────────────────────────────────
 
-/**
- * Lightweight fetch wrapper for auth-related endpoints.
- * Always sends cookies (`credentials: 'include'`) so the
- * `wos-session` HttpOnly cookie is forwarded to the backend.
- */
-const authFetch = (path: string, init?: RequestInit): Promise<Response> =>
-  fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-  });
-
-function parseApiResponse<TData>(
-  response: Response
-): Promise<ApiResponse<TData> | null> {
-  if (response.status === 204) {
-    return Promise.resolve(null);
-  }
-
-  return response.json() as Promise<ApiResponse<TData>>;
-}
+const api = create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 async function request<TData>(
   path: string,
-  init?: RequestInit
+  config?: Omit<AxiosRequestConfig, "url">
 ): Promise<TData> {
-  let response: Response;
+  let response;
 
   try {
-    response = await authFetch(path, init);
-  } catch {
+    response = await api.request<ApiResponse<TData>>({
+      ...config,
+      url: path,
+    });
+  } catch (error) {
+    if (error instanceof AxiosError && error.response) {
+      const body = error.response.data as ApiFailure | null;
+
+      throw new ApiClientError(
+        body?.error?.message ?? "La solicitud no pudo completarse.",
+        { code: body?.error?.code, status: error.response.status }
+      );
+    }
+
     throw new ApiClientError(
       "No se pudo conectar con el backend. Verifica que Nest y Redis esten activos.",
       { status: 0 }
     );
   }
 
-  const body = await parseApiResponse<TData>(response);
+  const body = response.data;
 
-  if (!response.ok || body?.success === false) {
-    throw new ApiClientError(
-      body?.success === false && body.error?.message
-        ? body.error.message
-        : "La solicitud no pudo completarse.",
-      {
-        code: body?.success === false ? body.error?.code : undefined,
-        status: response.status,
-      }
-    );
-  }
-
-  if (!body || body.success !== true) {
+  if (body.success !== true) {
     throw new ApiClientError("El backend devolvio una respuesta inesperada.", {
       status: response.status,
     });
@@ -161,13 +139,6 @@ export function logoutSession(): Promise<LogoutData> {
   return request<LogoutData>("/api/auth/logout", { method: "POST" });
 }
 
-/**
- * Retrieves the current user profile from the backend.
- *
- * - Returns `MeResponse` when a valid `wos-session` cookie exists.
- * - Throws on network error.
- * - Returns `null` on any non-2xx status (e.g. 401 Unauthorized).
- */
 export async function getMe(): Promise<MeResponse | null> {
   try {
     const data = await request<MeUser>("/api/me");
@@ -200,8 +171,7 @@ export function createTenant(
   name: string
 ): Promise<{ tenant: { id: string; name: string; slug: string } }> {
   return request("/api/tenants", {
-    body: JSON.stringify({ name }),
-    headers: { "Content-Type": "application/json" },
+    data: { name },
     method: "POST",
   });
 }
