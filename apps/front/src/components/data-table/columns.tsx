@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { createColumnHelper } from "@tanstack/react-table";
 
-import type { Product } from "@/data/products";
+import type { Product } from "@/lib/products";
 
 import { ProductActions } from "./product-actions";
 
@@ -12,18 +12,18 @@ export function getProductColumns(
   onDelete: (product: Product) => void
 ) {
   return [
-    columnHelper.accessor("id", {
-      header: "ID",
+    columnHelper.accessor("sku", {
+      header: "SKU",
     }),
-    columnHelper.accessor("nombre", {
+    columnHelper.accessor("name", {
       header: "Nombre",
     }),
-    columnHelper.accessor("precio", {
+    columnHelper.accessor("price", {
       cell: (info) => `$${info.getValue().toFixed(2)}`,
       header: "Precio",
     }),
-    columnHelper.accessor("stock", {
-      header: "Stock",
+    columnHelper.accessor("totalStock", {
+      header: "Stock total",
     }),
     columnHelper.display({
       cell: (props) => (

@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 
+import { ProductFormFields } from "@/components/dialogs/product-form-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,17 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import type { Product } from "@/data/products";
-
-const editProductSchema = z.object({
-  nombre: z.string().min(2, "Nombre debe tener al menos 2 caracteres"),
-  precio: z.number().min(0, "Precio debe ser mayor a 0"),
-  stock: z.number().int().min(0, "Stock no puede ser negativo"),
-});
-
-type EditProductFormData = z.infer<typeof editProductSchema>;
+import {
+  defaultProductFormValues,
+  productFormSchema,
+  productFormToPayload,
+  productToFormData,
+} from "@/lib/product-form";
+import type { ProductFormData } from "@/lib/product-form";
+import type { Product } from "@/lib/products";
+import { updateProduct } from "@/lib/products";
 
 interface EditProductDialogProps {
   product: Product | null;
@@ -37,91 +35,82 @@ export function EditProductDialog({
   onOpenChange,
   onSave,
 }: EditProductDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<EditProductFormData>({
-    resolver: zodResolver(editProductSchema),
+  } = useForm<ProductFormData>({
+    defaultValues: defaultProductFormValues,
+    resolver: zodResolver(productFormSchema),
   });
 
   useEffect(() => {
     if (product) {
-      reset({
-        nombre: product.nombre,
-        precio: product.precio,
-        stock: product.stock,
-      });
+      reset(productToFormData(product));
+      setError(null);
     }
   }, [product, reset]);
 
-  const onSubmit = (data: EditProductFormData) => {
+  const onSubmit = async (data: ProductFormData) => {
     if (!product) {
       return;
     }
-    onSave({ ...product, ...data });
-    onOpenChange(false);
-    reset();
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      const updatedProduct = await updateProduct(
+        product.id,
+        productFormToPayload(data)
+      );
+      onSave(updatedProduct);
+      onOpenChange(false);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "No se pudo actualizar el producto"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
-            Modifica los detalles del producto {product?.nombre}
+            Modifica los detalles del producto {product?.name}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nombre">Nombre</Label>
-            <Input id="nombre" {...register("nombre")} />
-            {errors.nombre && (
-              <p className="text-destructive text-sm">
-                {errors.nombre.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="precio">Precio</Label>
-            <Input
-              id="precio"
-              type="number"
-              step="0.01"
-              {...register("precio", { valueAsNumber: true })}
-            />
-            {errors.precio && (
-              <p className="text-destructive text-sm">
-                {errors.precio.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="stock">Stock</Label>
-            <Input
-              id="stock"
-              type="number"
-              {...register("stock", { valueAsNumber: true })}
-            />
-            {errors.stock && (
-              <p className="text-destructive text-sm">{errors.stock.message}</p>
-            )}
-          </div>
+          <ProductFormFields
+            disabled={loading}
+            errors={errors}
+            idPrefix="edit-product"
+            register={register}
+          />
+          {error && <p className="text-destructive text-sm">{error}</p>}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
+              disabled={loading}
               onClick={() => onOpenChange(false)}
             >
               Cancelar
             </Button>
-            <Button type="submit">Guardar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Guardando..." : "Guardar"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
