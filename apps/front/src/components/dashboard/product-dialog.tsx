@@ -1,5 +1,8 @@
-import type { FormEvent } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 
+import { ProductFormFields } from "@/components/dialogs/product-form-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,8 +12,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  defaultProductFormValues,
+  productFormSchema,
+  productFormToPayload,
+} from "@/lib/product-form";
+import type { ProductFormData } from "@/lib/product-form";
+import { createProduct, PRODUCTS_CHANGED_EVENT } from "@/lib/products";
 
 interface ProductDialogProps {
   open: boolean;
@@ -18,42 +26,68 @@ interface ProductDialogProps {
 }
 
 export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    onOpenChange(false);
-  }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    defaultValues: defaultProductFormValues,
+    resolver: zodResolver(productFormSchema),
+  });
+
+  const onSubmit = async (data: ProductFormData) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      await createProduct(productFormToPayload(data));
+      window.dispatchEvent(new Event(PRODUCTS_CHANGED_EVENT));
+      reset(defaultProductFormValues);
+      onOpenChange(false);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "No se pudo crear el producto"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add Product</DialogTitle>
+          <DialogTitle>Agregar producto</DialogTitle>
           <DialogDescription>
-            Enter the details for the new product.
+            Captura los datos del catálogo. El inventario se gestiona por
+            separado.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="productName">Product Name</Label>
-            <Input id="productName" placeholder="e.g. Wireless Mouse" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="productPrice">Price</Label>
-            <Input id="productPrice" type="number" placeholder="0.00" />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="productSku">SKU</Label>
-            <Input id="productSku" placeholder="e.g. WM-001" />
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+          <ProductFormFields
+            disabled={loading}
+            errors={errors}
+            idPrefix="create-product"
+            register={register}
+          />
+          {error && <p className="text-destructive text-sm">{error}</p>}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
+              disabled={loading}
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              Cancelar
             </Button>
-            <Button type="submit">Add Product</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Guardando..." : "Agregar producto"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -2,7 +2,7 @@ import type { Row } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { Product } from "@/data/products";
+import type { Product } from "@/lib/products";
 
 interface ProductActionsProps {
   row: Row<Product>;
