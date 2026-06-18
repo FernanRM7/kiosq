@@ -1,17 +1,16 @@
 import type { FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PasswordInput } from "@/components/ui/password-input";
+import { useAuth } from "@/hooks/use-auth";
 
 export function RegisterForm() {
-  const navigate = useNavigate();
+  const { error, pendingAction, register } = useAuth();
+  const isSubmitting = pendingAction === "register";
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate("/dashboard");
+    void register();
   }
 
   return (
@@ -22,28 +21,20 @@ export function RegisterForm() {
           Create account
         </h1>
         <p className="text-muted-foreground text-sm">
-          Enter your details to get started
+          WorkOS AuthKit will guide you through account setup
         </p>
       </div>
+      {error ? (
+        <div
+          className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
       <form onSubmit={onSubmit} className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="name">Name</Label>
-          <Input id="name" placeholder="John Doe" />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="name@example.com" />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="password">Password</Label>
-          <PasswordInput id="password" placeholder="••••••••" />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
-          <PasswordInput id="confirmPassword" placeholder="••••••••" />
-        </div>
-        <Button type="submit" className="w-full">
-          Create account
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Opening WorkOS..." : "Continue with WorkOS"}
         </Button>
       </form>
       <p className="text-center text-muted-foreground text-sm">

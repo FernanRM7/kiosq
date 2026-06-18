@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -13,13 +14,40 @@ import {
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createTenant } from "@/lib/auth";
 
 export function OnboardingDialog() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    navigate("/dashboard");
+    setError(null);
+    setLoading(true);
+
+    try {
+      const form = e.target as HTMLFormElement;
+      const data = new FormData(form);
+      const workspaceName = data.get("workspaceName") as string;
+
+      if (!workspaceName?.trim()) {
+        setError("El nombre del local es obligatorio");
+        setLoading(false);
+        return;
+      }
+
+      await createTenant(workspaceName.trim());
+      navigate("/dashboard");
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Error al crear el workspace"
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -44,14 +72,16 @@ export function OnboardingDialog() {
               </Label>
               <Input
                 id="workspaceName"
+                name="workspaceName"
                 placeholder="Mi Local"
                 className="text-center"
               />
             </div>
           </div>
+          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
           <DialogFooter>
-            <Button type="submit" className="w-full">
-              Continue
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating..." : "Continue"}
             </Button>
           </DialogFooter>
         </form>

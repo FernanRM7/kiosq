@@ -6,6 +6,7 @@ import {
   Logger,
   Post,
   Query,
+  Req,
   Res,
 } from "@nestjs/common";
 import {
@@ -16,7 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 
 import {
   SESSION_COOKIE_NAME,
@@ -214,10 +215,11 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
     @Query("code") code: string | undefined,
     @Query("error") error: string | undefined,
     @Query("error_description") errorDescription: string | undefined,
-    @Res() response: Response
+    @Res() response: Response,
+    @Req() request: Request
   ): Promise<void> {
     const loginUrl = `${this.authService.appUrl}/login`;
-    const dashboardUrl = `${this.authService.appUrl}/dashboard`;
+    const onboardingUrl = `${this.authService.appUrl}/onboarding`;
 
     // ── 1. Handle WorkOS-side errors ─────────────────────────────────────────
     if (error) {
@@ -259,11 +261,32 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
         SESSION_COOKIE_OPTIONS
       );
 
+      // Register session in Redis for tracking
+      try {
+        const loadResult =
+          await this.authService.workos.userManagement.loadSealedSession({
+            cookiePassword: this.authService.cookiePassword,
+            sessionData: sealedSession,
+          });
+        const authResult = await loadResult.authenticate();
+
+        if (authResult.authenticated) {
+          await this.sessionService.registerSession(
+            userId,
+            String(authResult.sessionId ?? ""),
+            authResult.user,
+            request
+          );
+        }
+      } catch (regError) {
+        this.logger.warn(`Failed to register session in Redis: ${regError}`);
+      }
+
       this.logger.log(
         `Session established for user ${userId}${organizationId ? ` (org: ${organizationId})` : ""}`
       );
 
-      response.redirect(dashboardUrl);
+      response.redirect(onboardingUrl);
     } catch (exchangeError) {
       const reason =
         exchangeError instanceof Error
@@ -346,11 +369,21 @@ configured in the WorkOS dashboard (typically \`/login\`).
       "No valid session cookie found. Session may have already expired or been revoked.",
     status: HttpStatus.UNAUTHORIZED,
   })
-  logout(
+  async logout(
     @CurrentUser() session: AuthenticatedSessionResult,
     @Res({ passthrough: true }) response: Response
-  ): LogoutResponseData {
+  ): Promise<LogoutResponseData> {
     const logoutUrl = this.authService.getLogoutUrl(session.sessionId);
+
+    // Revoke session from Redis
+    try {
+      await this.sessionService.revokeSession(
+        session.userId,
+        session.sessionId
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to revoke session from Redis: ${error}`);
+    }
 
     // Clear the local cookie immediately — the session is considered terminated
     // from the backend's perspective even if the client hasn't visited logoutUrl yet.

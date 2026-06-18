@@ -26,11 +26,13 @@ export class AuthService implements OnModuleInit {
 
   constructor() {
     this.config = loadAuthConfig();
-    this.workos = new WorkOS(this.config.apiKey);
+    this.workos = new WorkOS(this.config.apiKey, {
+      clientId: this.config.clientId,
+    });
   }
 
-  async onModuleInit() {
-    this.jwks = await createWorkosJwks(this.config.clientId);
+  onModuleInit() {
+    this.jwks = createWorkosJwks(this.config.clientId);
   }
 
   get clientId(): string {
@@ -98,7 +100,10 @@ export class AuthService implements OnModuleInit {
    * @param sessionId - The `sessionId` from the authenticated session result
    */
   getLogoutUrl(sessionId: string): string {
-    return this.workos.userManagement.getLogoutUrl({ sessionId });
+    return this.workos.userManagement.getLogoutUrl({
+      returnTo: this.config.appUrl,
+      sessionId,
+    });
   }
 
   /**

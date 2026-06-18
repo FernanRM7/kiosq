@@ -6,8 +6,9 @@ export class HealthSuccessResponseSchema {
   @ApiProperty({
     description: "Indicates whether the request succeeded",
     example: true,
+    type: Boolean,
   })
-  success: true;
+  success: boolean;
 
   @ApiProperty({
     description: "Health response payload",

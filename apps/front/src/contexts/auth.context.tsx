@@ -8,12 +8,18 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { getMe } from "@/lib/auth";
+import {
+  checkHealth,
+  getAuthorizationUrl,
+  getMe,
+  logoutSession,
+} from "@/lib/auth";
 import type { MeUser } from "@/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+type AuthAction = "login" | "register" | "logout" | null;
 
 export interface AuthState {
   /**
@@ -27,6 +33,21 @@ export interface AuthState {
 
   /** Authenticated user profile. Only defined when `status === 'authenticated'`. */
   user: MeUser | null;
+
+  /** The auth action currently waiting on the backend. */
+  pendingAction: AuthAction;
+
+  /** User-facing error produced by login, registration, logout, or hydration. */
+  error: string | null;
+
+  /** Starts the WorkOS-hosted login flow through the backend. */
+  login: () => Promise<void>;
+
+  /** Starts the WorkOS-hosted registration flow through the backend. */
+  register: () => Promise<void>;
+
+  /** Clears the backend session and redirects to the WorkOS logout URL. */
+  logout: () => Promise<void>;
 
   /**
    * Re-fetches `/me` to sync the context with the current cookie state.
@@ -59,6 +80,8 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<MeUser | null>(null);
+  const [pendingAction, setPendingAction] = useState<AuthAction>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const hydrate = useCallback(async () => {
     try {
@@ -71,10 +94,66 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(null);
         setStatus("unauthenticated");
       }
-    } catch {
-      // Network failure — treat as unauthenticated to avoid infinite loading
+    } catch (hydrateError) {
       setUser(null);
       setStatus("unauthenticated");
+      setError(
+        hydrateError instanceof Error
+          ? hydrateError.message
+          : "No se pudo validar la sesion."
+      );
+    }
+  }, []);
+
+  const startAuthFlow = useCallback(
+    async (action: Exclude<AuthAction, null>) => {
+      setPendingAction(action);
+      setError(null);
+
+      try {
+        try {
+          await checkHealth();
+        } catch {
+          /* health endpoint no es requerido para el flujo auth */
+        }
+
+        const authorizationUrl = await getAuthorizationUrl();
+        window.location.assign(authorizationUrl);
+      } catch (authError) {
+        setError(
+          authError instanceof Error
+            ? authError.message
+            : "No se pudo iniciar la autenticacion."
+        );
+        setPendingAction(null);
+      }
+    },
+    []
+  );
+
+  const login = useCallback(() => startAuthFlow("login"), [startAuthFlow]);
+
+  const register = useCallback(
+    () => startAuthFlow("register"),
+    [startAuthFlow]
+  );
+
+  const logout = useCallback(async () => {
+    setPendingAction("logout");
+    setError(null);
+
+    try {
+      const { logoutUrl } = await logoutSession();
+      setUser(null);
+      setStatus("unauthenticated");
+      window.location.assign(logoutUrl);
+    } catch (logoutError) {
+      setError(
+        logoutError instanceof Error
+          ? logoutError.message
+          : "No se pudo cerrar la sesion."
+      );
+      setPendingAction(null);
     }
   }, []);
 
@@ -83,8 +162,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [hydrate]);
 
   const value = useMemo<AuthState>(
-    () => ({ refresh: hydrate, status, user }),
-    [status, user, hydrate]
+    () => ({
+      error,
+      login,
+      logout,
+      pendingAction,
+      refresh: hydrate,
+      register,
+      status,
+      user,
+    }),
+    [error, login, logout, pendingAction, register, status, user, hydrate]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

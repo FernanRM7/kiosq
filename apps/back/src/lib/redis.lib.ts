@@ -2,15 +2,24 @@ import { createClient } from "redis";
 
 import { loadRedisConfig } from "../config/redis.config";
 
-const redisConfig = loadRedisConfig();
+let _client: ReturnType<typeof createClient> | undefined;
 
-export const redisClient = createClient({
-  socket: {
-    host: redisConfig.host,
-    port: redisConfig.port,
-  },
-});
+export function getRedisClient(): ReturnType<typeof createClient> {
+  if (!_client) {
+    const redisConfig = loadRedisConfig();
 
-redisClient.on("error", (error) => {
-  console.error("Error de Redis:", error);
-});
+    _client = createClient({
+      password: redisConfig.password,
+      socket: {
+        host: redisConfig.host,
+        port: redisConfig.port,
+      },
+    });
+
+    _client.on("error", (error) => {
+      console.error("Error de Redis:", error);
+    });
+  }
+
+  return _client;
+}

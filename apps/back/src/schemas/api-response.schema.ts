@@ -6,8 +6,9 @@ export class ApiErrorResponseSchema {
   @ApiProperty({
     description: "Indicates whether the request succeeded",
     example: false,
+    type: Boolean,
   })
-  success: false;
+  success: boolean;
 
   @ApiProperty({
     description: "Error response payload",
