@@ -20,7 +20,7 @@ export function getProductColumns(
     }),
     columnHelper.accessor("price", {
       cell: (info) => `$${info.getValue().toFixed(2)}`,
-      header: "Precio",
+      header: "Precio de venta",
     }),
     columnHelper.accessor("totalStock", {
       header: "Stock total",

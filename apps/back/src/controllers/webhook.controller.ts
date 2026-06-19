@@ -103,15 +103,13 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     // ── 1. Verify signature ────────────────────────────────────────────────
     if (!signature) {
       this.logger.warn("Webhook received without workos-signature header");
-      throw new BadRequestException("Missing workos-signature header");
+      throw new BadRequestException("Falta la cabecera de verificación");
     }
 
     const { rawBody } = request;
 
     if (!rawBody) {
-      throw new BadRequestException(
-        "Raw body unavailable — ensure rawBody: true is set in NestJS bootstrap"
-      );
+      throw new BadRequestException("Error interno al verificar la solicitud");
     }
 
     let payload: unknown;
@@ -129,7 +127,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
           ? error.message
           : "Signature verification failed";
       this.logger.warn(`Webhook signature verification failed: ${message}`);
-      throw new BadRequestException("Invalid webhook signature");
+      throw new BadRequestException("Firma de webhook inválida");
     }
 
     // ── 2. Validate and dispatch known events ──────────────────────────────
@@ -148,7 +146,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
       const message = error instanceof Error ? error.message : "Sync failed";
       this.logger.error(`Failed to process WorkOS event: ${message}`, error);
       throw new UnprocessableEntityException(
-        "Event received but processing failed. WorkOS will retry."
+        "Error al procesar el evento. Se reintentará automáticamente."
       );
     }
 

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { decodeJwt } from "jose";
 
 import {
   SESSION_COOKIE_NAME,
@@ -9,6 +10,13 @@ import type { SessionResult } from "../types/session.type";
 import { AuthService } from "./auth.service";
 import { SessionRegistryService } from "./session-registry.service";
 import type { SessionMetadata } from "./session-registry.service";
+
+/**
+ * Proactive refresh triggers when the JWT remaining lifetime is below
+ * this many seconds. Set to 1 hour to ensure the WorkOS inactivity timer
+ * (typically ≤ 1 hour) gets reset before the session is killed.
+ */
+const PROACTIVE_REFRESH_SECONDS = 60 * 60;
 
 @Injectable()
 export class SessionService {
@@ -104,7 +112,7 @@ export class SessionService {
 
       this.logger.debug(`Session authenticated for user ${userId}`);
 
-      return {
+      const authenticatedResult: SessionResult = {
         accessToken: result.accessToken,
         authenticated: true,
         organizationId: result.organizationId
@@ -115,6 +123,27 @@ export class SessionService {
         user: result.user,
         userId,
       };
+
+      // Proactive refresh: when the JWT is close to expiring, call session.refresh()
+      // to reset the WorkOS inactivity timer. This prevents sessions from being
+      // killed due to inactivity while the user is actively using the app.
+      if (sessionId && this.shouldProactivelyRefresh(result.accessToken)) {
+        this.logger.debug("JWT near expiry — proactively refreshing session");
+
+        try {
+          const refreshed = await this.refreshSession(session, response);
+
+          if (refreshed.authenticated) {
+            return refreshed;
+          }
+        } catch {
+          this.logger.warn(
+            "Proactive refresh failed — continuing with current session"
+          );
+        }
+      }
+
+      return authenticatedResult;
     }
 
     // Automatic refresh when the JWT is expired.
@@ -255,5 +284,30 @@ export class SessionService {
     this.logger.warn(`Session refresh failed: ${refreshResult.reason}`);
 
     return { authenticated: false, reason: refreshResult.reason };
+  }
+
+  /**
+   * Decodes the JWT without verification and checks if it is close to expiry.
+   *
+   * Triggers when the remaining lifetime is under {@link PROACTIVE_REFRESH_SECONDS}.
+   * This ensures the WorkOS inactivity timer gets reset before the session is killed,
+   * regardless of how aggressively it's configured in the WorkOS Dashboard.
+   *
+   * @param accessToken - Raw RS256 JWT from WorkOS
+   */
+  private shouldProactivelyRefresh(accessToken: string): boolean {
+    try {
+      const payload = decodeJwt(accessToken);
+      const now = Math.floor(Date.now() / 1000);
+      const exp = payload.exp as number | undefined;
+
+      if (!exp) {
+        return false;
+      }
+
+      return exp - now < PROACTIVE_REFRESH_SECONDS;
+    } catch {
+      return false;
+    }
   }
 }

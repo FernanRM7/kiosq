@@ -1,7 +1,7 @@
 import type { z } from "zod";
 
 export const VALIDATION_ERROR_CODE = "VALIDATION_ERROR";
-export const VALIDATION_ERROR_MESSAGE = "Validation failed";
+export const VALIDATION_ERROR_MESSAGE = "Datos inválidos";
 
 export interface ZodValidationIssue {
   code: string;

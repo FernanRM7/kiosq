@@ -118,3 +118,24 @@ export interface MyTenantData {
 export function getMyTenant(): Promise<MyTenantData> {
   return request("/api/tenants/me");
 }
+
+export interface TenantListItem {
+  id: string;
+  name: string;
+  role: string;
+  slug: string;
+  status: string;
+  joinedAt: string;
+}
+
+export function listTenants(): Promise<TenantListItem[]> {
+  return request<TenantListItem[]>("/api/tenants");
+}
+
+export function switchTenant(
+  tenantId: string
+): Promise<{ tenant: { id: string; name: string; slug: string } }> {
+  return request(`/api/tenants/${tenantId}/switch`, {
+    method: "POST",
+  });
+}

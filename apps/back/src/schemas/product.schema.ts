@@ -39,6 +39,7 @@ export const CreateProductSchema = z.object({
     .max(160),
   price: moneySchema,
   sku: z.string().trim().min(1, "El SKU es obligatorio").max(64),
+  stock: z.coerce.number().int().min(0).optional(),
   taxRate: taxRateSchema.optional(),
 });
 

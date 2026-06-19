@@ -101,6 +101,23 @@ export class ProductService {
           include: productInclude,
         });
 
+        if (input.stock && input.stock > 0) {
+          const branchId = await this.resolveBranchId(
+            tx,
+            tenantId,
+            session.userId
+          );
+          if (branchId) {
+            await tx.productBranch.create({
+              data: {
+                branchId,
+                productId: product.id,
+                stock: input.stock,
+              },
+            });
+          }
+        }
+
         return this.toResponse(product);
       });
     } catch (error) {
@@ -116,6 +133,7 @@ export class ProductService {
     const tenantId = await this.getTenantId(session.userId);
 
     try {
+      // eslint-disable-next-line complexity
       return await this.prisma.$transaction(async (tx) => {
         const product = await tx.product.findFirst({
           select: { id: true },
@@ -166,6 +184,31 @@ export class ProductService {
           where: { id: productId },
         });
 
+        if (
+          "stock" in input &&
+          input.stock !== undefined &&
+          input.stock !== null
+        ) {
+          const branchId = await this.resolveBranchId(
+            tx,
+            tenantId,
+            session.userId
+          );
+          if (branchId) {
+            await tx.productBranch.upsert({
+              create: {
+                branchId,
+                productId,
+                stock: input.stock,
+              },
+              update: { stock: input.stock },
+              where: {
+                productId_branchId: { branchId, productId },
+              },
+            });
+          }
+        }
+
         return this.toResponse(updatedProduct);
       });
     } catch (error) {
@@ -210,6 +253,42 @@ export class ProductService {
     }
 
     return user.tenantId;
+  }
+
+  private async resolveBranchId(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string
+  ): Promise<string | null> {
+    const user = await tx.user.findUnique({
+      select: { branchId: true },
+      where: { workosUserId: userId },
+    });
+
+    if (user?.branchId) {
+      return user.branchId;
+    }
+
+    const branch = await tx.branch.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+      where: { tenantId },
+    });
+
+    if (branch) {
+      return branch.id;
+    }
+
+    const defaultBranch = await tx.branch.create({
+      data: { name: "Sucursal principal", tenantId },
+    });
+
+    await tx.user.update({
+      data: { branchId: defaultBranch.id },
+      where: { workosUserId: userId },
+    });
+
+    return defaultBranch.id;
   }
 
   private async resolveCategoryId(

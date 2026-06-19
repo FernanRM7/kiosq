@@ -12,11 +12,13 @@ import { AuthGuard } from "./middlewares/auth.guard";
 import { authRoutes } from "./routes/auth.routes";
 import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
+import { saleRoutes } from "./routes/sale.routes";
 import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { ProductService } from "./services/product.service";
+import { SaleService } from "./services/sale.service";
 import { SessionRegistryService } from "./services/session-registry.service";
 import { SessionService } from "./services/session.service";
 import { SyncService } from "./services/sync.service";
@@ -32,6 +34,7 @@ import { UserService } from "./services/user.service";
     ...userRoutes,
     ...tenantRoutes,
     ...productRoutes,
+    ...saleRoutes,
   ],
   imports: [ConfigModule.forRoot({ isGlobal: true })],
   providers: [
@@ -39,6 +42,7 @@ import { UserService } from "./services/user.service";
     AuthService,
     PrismaService,
     ProductService,
+    SaleService,
     SessionRegistryService,
     SessionService,
     SyncService,
