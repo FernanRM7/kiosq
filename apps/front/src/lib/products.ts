@@ -27,6 +27,7 @@ export interface ProductPayload {
   barcode?: string | null;
   description?: string | null;
   cost?: number | null;
+  stock?: number;
   taxRate?: number;
   categoryId?: string | null;
   imageUrl?: string | null;

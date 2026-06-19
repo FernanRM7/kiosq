@@ -66,7 +66,7 @@ export class AuthGuard implements CanActivate {
     );
 
     if (!result.authenticated) {
-      throw new UnauthorizedException("Authentication required");
+      throw new UnauthorizedException("Inicia sesión para continuar");
     }
 
     // Inject the authenticated session into the request so @CurrentUser()

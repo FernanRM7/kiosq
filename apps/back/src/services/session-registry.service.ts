@@ -155,16 +155,22 @@ export class SessionRegistryService {
   }
 
   /**
-   * Updates the lastActiveAt timestamp for a session (heartbeat).
+   * Updates the lastActiveAt timestamp for a session (heartbeat)
+   * and extends the Redis key TTL to prevent silent expiration.
    */
   async touchSession(userId: string, sessionId: string): Promise<void> {
     await this.withRedis(async () => {
       const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
-      await getRedisClient().hSet(
-        sessionKey,
-        "lastActiveAt",
-        new Date().toISOString()
-      );
+      const userSessionsKey = `${USER_SESSIONS_PREFIX}${userId}`;
+      await Promise.all([
+        getRedisClient().hSet(
+          sessionKey,
+          "lastActiveAt",
+          new Date().toISOString()
+        ),
+        getRedisClient().expire(sessionKey, SESSION_TTL_SECONDS),
+        getRedisClient().expire(userSessionsKey, SESSION_TTL_SECONDS),
+      ]);
     });
   }
 

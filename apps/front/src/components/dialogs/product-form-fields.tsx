@@ -11,6 +11,7 @@ interface ProductFormFieldsProps {
   register: UseFormRegister<ProductFormData>;
 }
 
+// eslint-disable-next-line complexity
 export function ProductFormFields({
   disabled,
   errors,
@@ -45,9 +46,9 @@ export function ProductFormFields({
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-4">
         <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-price`}>Precio</Label>
+          <Label htmlFor={`${idPrefix}-price`}>Precio de venta</Label>
           <Input
             id={`${idPrefix}-price`}
             type="number"
@@ -62,7 +63,7 @@ export function ProductFormFields({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-cost`}>Costo</Label>
+          <Label htmlFor={`${idPrefix}-cost`}>Precio de adquisición</Label>
           <Input
             id={`${idPrefix}-cost`}
             type="number"
@@ -81,18 +82,36 @@ export function ProductFormFields({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-taxRate`}>Impuesto</Label>
+          <Label htmlFor={`${idPrefix}-taxPercent`}>Impuesto (%)</Label>
           <Input
-            id={`${idPrefix}-taxRate`}
+            id={`${idPrefix}-taxPercent`}
             type="number"
             min="0"
-            max="1"
-            step="0.0001"
+            max="100"
+            step="0.01"
+            placeholder="Ej. 8"
             disabled={disabled}
-            {...register("taxRate", { valueAsNumber: true })}
+            {...register("taxPercent", { valueAsNumber: true })}
           />
-          {errors.taxRate?.message && (
-            <p className="text-destructive text-sm">{errors.taxRate.message}</p>
+          {errors.taxPercent?.message && (
+            <p className="text-destructive text-sm">
+              {errors.taxPercent.message}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor={`${idPrefix}-stock`}>Stock inicial</Label>
+          <Input
+            id={`${idPrefix}-stock`}
+            type="number"
+            min="0"
+            step="1"
+            disabled={disabled}
+            {...register("stock", { valueAsNumber: true })}
+          />
+          {errors.stock?.message && (
+            <p className="text-destructive text-sm">{errors.stock.message}</p>
           )}
         </div>
       </div>
@@ -154,11 +173,6 @@ export function ProductFormFields({
           <p className="text-destructive text-sm">{errors.imageUrl.message}</p>
         )}
       </div>
-
-      <p className="rounded-lg bg-muted px-3 py-2 text-muted-foreground text-sm">
-        El inventario no se ajusta desde este formulario. El stock mostrado es
-        solo lectura y debe moverse mediante operaciones de inventario.
-      </p>
     </div>
   );
 }

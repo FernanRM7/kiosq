@@ -332,8 +332,7 @@ export class SyncService {
 
     if (!plan) {
       throw new Error(
-        "No active plans found. Cannot create tenant from WorkOS webhook. " +
-          "Seed at least one plan before enabling WorkOS sync."
+        "No hay planes disponibles. No se puede crear el tenant desde el webhook de WorkOS."
       );
     }
 

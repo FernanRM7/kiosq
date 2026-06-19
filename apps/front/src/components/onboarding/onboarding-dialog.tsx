@@ -16,10 +16,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createTenant } from "@/lib/auth";
 
-export function OnboardingDialog() {
+interface OnboardingDialogProps {
+  open?: boolean;
+  onComplete?: (tenantName: string) => void;
+}
+
+export function OnboardingDialog({
+  open: controlledOpen,
+  onComplete,
+}: OnboardingDialogProps) {
   const navigate = useNavigate();
+  const [internalOpen, setInternalOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  function close() {
+    if (isControlled) {
+      onComplete?.("");
+    } else {
+      setInternalOpen(false);
+      navigate("/dashboard");
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -37,8 +58,14 @@ export function OnboardingDialog() {
         return;
       }
 
-      await createTenant(workspaceName.trim());
-      navigate("/dashboard");
+      const result = await createTenant(workspaceName.trim());
+
+      if (onComplete) {
+        onComplete(result.tenant.name);
+      } else {
+        setInternalOpen(false);
+        navigate("/dashboard");
+      }
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -50,13 +77,19 @@ export function OnboardingDialog() {
     }
   }
 
+  function handleOpenChange(isOpen: boolean) {
+    if (!loading && !isOpen) {
+      close();
+    }
+  }
+
   return (
-    <Dialog open onOpenChange={() => navigate("/dashboard")}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Welcome</DialogTitle>
+          <DialogTitle>Nuevo Workspace</DialogTitle>
           <DialogDescription>
-            Set up your workspace to get started.
+            Configura tu espacio de trabajo para comenzar.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="grid gap-4">
@@ -81,7 +114,7 @@ export function OnboardingDialog() {
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
           <DialogFooter>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating..." : "Continue"}
+              {loading ? "Creando..." : "Crear Workspace"}
             </Button>
           </DialogFooter>
         </form>

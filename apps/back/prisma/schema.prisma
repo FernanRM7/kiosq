@@ -193,6 +193,7 @@ model Tenant {
 
   subscriptions  Subscription[]
   users          User[]
+  userTenants    UserTenant[]
   branches       Branch[]
   devices        Device[]
   categories     Category[]
@@ -248,6 +249,7 @@ model User {
 
   sessions           Session[]
   sales              Sale[]
+  userTenants        UserTenant[]
   // FIX: dos relaciones nombradas para distinguir permisos propios vs permisos otorgados
   permissions        UserPermission[] @relation("UserPermissions")
   grantedPermissions UserPermission[] @relation("GrantedPermissions")
@@ -313,6 +315,20 @@ model Device {
   @@unique([tenantId, fingerprint])
   @@index([tenantId])
   @@map("devices")
+}
+
+// ── WORKSPACE / USER-TENANT ────────────────────────
+
+model UserTenant {
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role     Role    @default(ADMIN)
+  joinedAt DateTime @default(now())
+
+  @@id([userId, tenantId])
+  @@map("user_tenants")
 }
 
 // ── ESTRUCTURA COMERCIAL ───────────────────────────

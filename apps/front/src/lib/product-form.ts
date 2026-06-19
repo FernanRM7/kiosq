@@ -14,12 +14,17 @@ const moneySchema = z
   .min(0, "Debe ser mayor o igual a 0")
   .refine(maxTwoDecimals, "Usa máximo 2 decimales");
 
-const taxRateSchema = z
+const taxPercentSchema = z
   .number()
   .finite()
   .min(0, "Debe ser mayor o igual a 0")
-  .max(1, "Usa un valor entre 0 y 1")
+  .max(100, "Usa un valor entre 0 y 100")
   .refine(maxFourDecimals, "Usa máximo 4 decimales");
+
+const stockSchema = z
+  .number()
+  .int("Debe ser un número entero")
+  .min(0, "Debe ser mayor o igual a 0");
 
 export const productFormSchema = z.object({
   barcode: z.string().trim().max(64, "Máximo 64 caracteres"),
@@ -41,7 +46,8 @@ export const productFormSchema = z.object({
     .trim()
     .min(1, "El SKU es obligatorio")
     .max(64, "Máximo 64 caracteres"),
-  taxRate: taxRateSchema,
+  stock: stockSchema,
+  taxPercent: taxPercentSchema,
 });
 
 export type ProductFormData = z.infer<typeof productFormSchema>;
@@ -61,7 +67,8 @@ export const defaultProductFormValues: ProductFormData = {
   name: "",
   price: 0,
   sku: "",
-  taxRate: 0,
+  stock: 0,
+  taxPercent: 0,
 };
 
 export function productToFormData(product: Product): ProductFormData {
@@ -74,7 +81,8 @@ export function productToFormData(product: Product): ProductFormData {
     name: product.name,
     price: product.price,
     sku: product.sku,
-    taxRate: product.taxRate,
+    stock: product.totalStock,
+    taxPercent: Math.round(product.taxRate * 100 * 1e4) / 1e4,
   };
 }
 
@@ -88,6 +96,7 @@ export function productFormToPayload(data: ProductFormData): ProductPayload {
     name: data.name.trim(),
     price: data.price,
     sku: data.sku.trim(),
-    taxRate: data.taxRate,
+    stock: data.stock,
+    taxRate: Number((data.taxPercent / 100).toFixed(4)),
   };
 }

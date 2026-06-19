@@ -1,4 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 
 import { PrismaService } from "../lib/prisma.service";
 
@@ -25,11 +31,18 @@ export class TenantService {
     });
 
     if (!plan) {
-      throw new Error("No active plan found. Seed at least one plan.");
+      throw new BadRequestException(
+        "No hay planes disponibles. Contacta al administrador."
+      );
     }
 
     const tenant = await this.prisma.tenant.create({
-      data: { name, planId: plan.id, slug },
+      data: {
+        name,
+        planId: plan.id,
+        settings: { createdByWorkosUserId: userId },
+        slug,
+      },
     });
 
     const userName =
@@ -39,7 +52,7 @@ export class TenantService {
       where: { workosUserId: userId },
     });
 
-    await (existingUser
+    const dbUser = await (existingUser
       ? this.prisma.user.update({
           data: { role: "ADMIN", tenantId: tenant.id },
           where: { workosUserId: userId },
@@ -54,6 +67,20 @@ export class TenantService {
           },
         }));
 
+    try {
+      await this.prisma.userTenant.upsert({
+        create: { role: "ADMIN", tenantId: tenant.id, userId: dbUser.id },
+        update: {},
+        where: {
+          userId_tenantId: { tenantId: tenant.id, userId: dbUser.id },
+        },
+      });
+    } catch {
+      this.logger.warn(
+        "user_tenants table may not exist yet — run prisma migrate deploy"
+      );
+    }
+
     this.logger.log(`Tenant created: ${tenant.id} for user ${userId}`);
     return tenant;
   }
@@ -65,37 +92,199 @@ export class TenantService {
     });
   }
 
+  async listUserTenants(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      include: {
+        tenant: { select: { id: true, name: true, slug: true, status: true } },
+      },
+      where: { workosUserId: userId },
+    });
+
+    if (!user) {
+      return [];
+    }
+
+    try {
+      const userTenants = await this.prisma.userTenant.findMany({
+        include: { tenant: true },
+        orderBy: { joinedAt: "asc" },
+        where: { userId: user.id },
+      });
+
+      return userTenants.map((ut) => ({
+        id: ut.tenant.id,
+        joinedAt: ut.joinedAt.toISOString(),
+        name: ut.tenant.name,
+        role: ut.role,
+        slug: ut.tenant.slug,
+        status: ut.tenant.status,
+      }));
+    } catch {
+      // Fallback: query tenants by creator (stored in settings JSON) for when
+      // the user_tenants migration hasn't been applied yet.
+      const rows = await this.prisma.$queryRaw<
+        {
+          id: string;
+          name: string;
+          slug: string;
+          status: string;
+          createdAt: Date;
+        }[]
+      >`
+        SELECT id, name, slug, status::text, "createdAt"
+        FROM tenants
+        WHERE settings->>'createdByWorkosUserId' = ${userId}
+        ORDER BY "createdAt" ASC
+      `;
+
+      const seen = new Set<string>();
+      const result: {
+        id: string;
+        joinedAt: string;
+        name: string;
+        role: string;
+        slug: string;
+        status: string;
+      }[] = [];
+
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          seen.add(row.id);
+          result.push({
+            id: row.id,
+            joinedAt: new Date(row.createdAt).toISOString(),
+            name: row.name,
+            role: user.role,
+            slug: row.slug,
+            status: row.status,
+          });
+        }
+      }
+
+      if (user.tenant && !seen.has(user.tenant.id)) {
+        result.push({
+          id: user.tenant.id,
+          joinedAt: user.createdAt.toISOString(),
+          name: user.tenant.name,
+          role: user.role,
+          slug: user.tenant.slug,
+          status: user.tenant.status,
+        });
+      }
+
+      return result;
+    }
+  }
+
+  async switchTenant(
+    userId: string,
+    tenantId: string
+  ): Promise<{ id: string; name: string; slug: string }> {
+    const user = await this.prisma.user.findUnique({
+      select: { id: true },
+      where: { workosUserId: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    try {
+      const membership = await this.prisma.userTenant.findUnique({
+        include: { tenant: { select: { id: true, name: true, slug: true } } },
+        where: {
+          userId_tenantId: { tenantId, userId: user.id },
+        },
+      });
+
+      if (!membership) {
+        throw new ForbiddenException("No perteneces a este workspace");
+      }
+    } catch (error) {
+      if (
+        !(error instanceof ForbiddenException) &&
+        !(error instanceof NotFoundException)
+      ) {
+        // Table may not exist — verify tenant exists
+        const tenant = await this.prisma.tenant.findUnique({
+          select: { id: true, name: true, slug: true },
+          where: { id: tenantId },
+        });
+
+        if (!tenant) {
+          throw new NotFoundException("El workspace no existe");
+        }
+
+        // Verify ownership via creator in settings JSON
+        const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM tenants
+          WHERE id = ${tenantId}
+            AND settings->>'createdByWorkosUserId' = ${userId}
+        `;
+
+        if (rows.length === 0) {
+          throw new ForbiddenException("No perteneces a este workspace");
+        }
+
+        await this.prisma.user.update({
+          data: { tenantId },
+          where: { id: user.id },
+        });
+
+        this.logger.log(
+          `User ${userId} switched to tenant ${tenantId} (fallback)`
+        );
+
+        return {
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+        };
+      }
+
+      throw error;
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true, name: true, slug: true },
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException("El workspace no existe");
+    }
+
+    await this.prisma.user.update({
+      data: { tenantId },
+      where: { id: user.id },
+    });
+
+    this.logger.log(`User ${userId} switched to tenant ${tenantId}`);
+
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+    };
+  }
+
   // ─── Private ──────────────────────────────────────────────────────────────
 
-  /**
-   * Converts a name to a URL-safe slug using the same robust pipeline as
-   * SyncService: NFD normalization, diacritic stripping, non-alphanumeric
-   * replacement, and leading/trailing hyphen trimming.
-   *
-   * If the result is empty (e.g. input was entirely emojis or symbols),
-   * a random UUID-based fallback is returned to avoid empty-slug DB errors.
-   */
   private toSlug(name: string): string {
     const cleaned = name
       .toLowerCase()
       .normalize("NFD")
-      // Strip combining diacritical marks after NFD decomposition
       .replaceAll(/[\u0300-\u036F]/gu, "")
       .replaceAll(/[^a-z0-9]+/gu, "-")
       .replaceAll(/^-+|-+$/gu, "");
 
     if (!cleaned) {
-      // Fallback for names composed entirely of non-Latin characters
       return `tenant-${crypto.randomUUID().slice(0, 8)}`;
     }
 
     return cleaned;
   }
 
-  /**
-   * Appends a numeric suffix to a slug if it is already taken, ensuring
-   * every tenant gets a unique slug at creation time.
-   */
   private async resolveUniqueSlug(base: string): Promise<string> {
     const existing = await this.prisma.tenant.findMany({
       select: { slug: true },

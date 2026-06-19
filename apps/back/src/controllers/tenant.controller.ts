@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
 } from "@nestjs/common";
 
@@ -14,6 +15,12 @@ import type { AuthenticatedSessionResult } from "../types/session.type";
 @Controller("tenants")
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  list(@CurrentUser() session: AuthenticatedSessionResult) {
+    return this.tenantService.listUserTenants(session.userId);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -33,5 +40,18 @@ export class TenantController {
   @HttpCode(HttpStatus.OK)
   getMyTenant(@CurrentUser() session: AuthenticatedSessionResult) {
     return this.tenantService.getTenantByUserId(session.userId);
+  }
+
+  @Post(":id/switch")
+  @HttpCode(HttpStatus.OK)
+  async switchTenant(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("id") tenantId: string
+  ) {
+    const tenant = await this.tenantService.switchTenant(
+      session.userId,
+      tenantId
+    );
+    return { tenant };
   }
 }
