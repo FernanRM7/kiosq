@@ -27,8 +27,7 @@ import { SyncService } from "./services/sync.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
 
-const isVercel =
-  process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME;
+const isDev = process.env.NODE_ENV === "development";
 
 @Module({
   controllers: [
@@ -45,7 +44,13 @@ const isVercel =
     ConfigModule.forRoot({ isGlobal: true }),
     LoggerModule.forRoot({
       pinoHttp: {
+        autoLogging: {
+          ignore: (req) =>
+            typeof req.url === "string" &&
+            /^\/(?:health|ping|metrics|ready|live)/u.test(req.url),
+        },
         genReqId: () => randomUUID(),
+        level: process.env.LOG_LEVEL ?? "info",
         redact: [
           "req.headers.authorization",
           "req.headers.cookie",
@@ -62,13 +67,13 @@ const isVercel =
             statusCode: res.statusCode,
           }),
         },
-        ...(isVercel
-          ? {}
-          : {
+        ...(isDev
+          ? {
               transport: {
                 target: "pino-pretty",
               },
-            }),
+            }
+          : {}),
       },
     }),
   ],

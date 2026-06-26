@@ -1,6 +1,7 @@
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
+import { Logger } from "nestjs-pino";
 
 import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
@@ -17,8 +18,11 @@ async function bootstrap(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     // rawBody is required for WorkOS webhook signature verification.
     // WebhookController reads request.rawBody to compute the HMAC.
+    bufferLogs: true,
     rawBody: true,
   });
+
+  app.useLogger(app.get(Logger));
 
   app.use(helmet());
   app.useGlobalFilters(new GlobalExceptionFilter());
