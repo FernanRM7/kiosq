@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
 } from "@nestjs/common";
 import {
@@ -29,6 +30,8 @@ import type { AuthenticatedSessionResult } from "../types/session.type";
 @ApiBearerAuth("access-token")
 @Controller("me")
 export class UserController {
+  private readonly logger = new Logger(UserController.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly sessionRegistry: SessionRegistryService,
@@ -61,6 +64,7 @@ cookie in the response before returning this endpoint's data.
     type: ApiErrorResponseSchema,
   })
   getMe(@CurrentUser() session: AuthenticatedSessionResult): MeResponseSchema {
+    this.logger.log(`GET /me`, { userId: session.userId });
     return this.userService.buildMeResponse(session);
   }
 
@@ -87,14 +91,29 @@ and last activity timestamp. The current session is included in the list.
   async getSessions(
     @CurrentUser() session: AuthenticatedSessionResult
   ): Promise<Record<string, unknown>[]> {
-    const sessions = await this.sessionRegistry.getSessionsForUser(
-      session.userId
-    );
+    try {
+      const sessions = await this.sessionRegistry.getSessionsForUser(
+        session.userId
+      );
 
-    return sessions.map((s) => ({
-      ...s,
-      isCurrent: s.sessionId === session.sessionId,
-    }));
+      this.logger.log(`GET /me/sessions: ${sessions.length} sessions`, {
+        userId: session.userId,
+      });
+
+      return sessions.map((s) => ({
+        ...s,
+        isCurrent: s.sessionId === session.sessionId,
+      }));
+    } catch (error) {
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId: session.userId,
+        },
+        "Failed to fetch sessions"
+      );
+      throw error;
+    }
   }
 
   @Delete("sessions/:sessionId")
@@ -128,8 +147,20 @@ be valid for authentication. The current session cannot be revoked via this endp
       return { success: false };
     }
 
-    await this.sessionService.revokeSession(session.userId, sessionId);
-
-    return { success: true };
+    try {
+      await this.sessionService.revokeSession(session.userId, sessionId);
+      this.logger.log(`Session revoked`, { sessionId, userId: session.userId });
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          sessionId,
+          userId: session.userId,
+        },
+        "Failed to revoke session"
+      );
+      throw error;
+    }
   }
 }
