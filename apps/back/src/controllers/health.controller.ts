@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus } from "@nestjs/common";
+import { Controller, Get, HttpCode, HttpStatus, Logger } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 
 import { Public } from "../decorators/public.decorator";
@@ -9,6 +9,7 @@ import { HealthSuccessResponseSchema } from "../schemas/health-success-response.
 @ApiTags("Health")
 @Controller("health")
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
