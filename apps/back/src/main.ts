@@ -1,5 +1,6 @@
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import helmet from "helmet";
 
 import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
@@ -18,6 +19,7 @@ async function bootstrap(): Promise<INestApplication> {
     rawBody: true,
   });
 
+  app.use(helmet());
   setupApp(app);
 
   const apiPrefix = process.env.API_PREFIX;
