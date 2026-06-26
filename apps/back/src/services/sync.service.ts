@@ -86,25 +86,32 @@ export class SyncService {
    * subsequent updates preserve the existing slug to avoid breaking URLs.
    */
   private async upsertTenant(workosOrgId: string, name: string): Promise<void> {
-    const slug = this.toSlug(name);
+    try {
+      const slug = this.toSlug(name);
 
-    const tenant = await this.prisma.tenant.upsert({
-      create: {
-        name,
-        planId: await this.getDefaultPlanId(),
-        slug: await this.resolveUniqueSlug(slug),
-        workosOrgId,
-      },
-      update: {
-        name,
-        // Slug is intentionally NOT updated to preserve existing URLs
-      },
-      where: { workosOrgId },
-    });
+      const tenant = await this.prisma.tenant.upsert({
+        create: {
+          name,
+          planId: await this.getDefaultPlanId(),
+          slug: await this.resolveUniqueSlug(slug),
+          workosOrgId,
+        },
+        update: {
+          name,
+        },
+        where: { workosOrgId },
+      });
 
-    this.logger.log(
-      `Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
-    );
+      this.logger.log(
+        `Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
+      );
+    } catch (error) {
+      this.logger.error(
+        { err: error, workosOrgId },
+        `Failed to upsert tenant: ${workosOrgId}`
+      );
+      throw error;
+    }
   }
 
   /**
@@ -120,27 +127,35 @@ export class SyncService {
     firstName: string | null | undefined;
     lastName: string | null | undefined;
   }): Promise<void> {
-    const name = this.buildName(data.firstName, data.lastName, data.email);
+    try {
+      const name = this.buildName(data.firstName, data.lastName, data.email);
 
-    const existing = await this.prisma.user.findUnique({
-      select: { tenantId: true },
-      where: { workosUserId: data.workosUserId },
-    });
-
-    if (existing) {
-      await this.prisma.user.update({
-        data: { email: data.email, name },
+      const existing = await this.prisma.user.findUnique({
+        select: { tenantId: true },
         where: { workosUserId: data.workosUserId },
       });
 
-      this.logger.log(
-        `User updated: workosUserId=${data.workosUserId} email="${data.email}"`
+      if (existing) {
+        await this.prisma.user.update({
+          data: { email: data.email, name },
+          where: { workosUserId: data.workosUserId },
+        });
+
+        this.logger.log(
+          `User updated: workosUserId=${data.workosUserId} email="${data.email}"`
+        );
+      } else {
+        this.logger.debug(
+          `user.created/updated event for unknown user ${data.workosUserId} — ` +
+            `awaiting organization_membership.created to create and link.`
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        { err: error, workosUserId: data.workosUserId },
+        `Failed to upsert user: ${data.workosUserId}`
       );
-    } else {
-      this.logger.debug(
-        `user.created/updated event for unknown user ${data.workosUserId} — ` +
-          `awaiting organization_membership.created to create and link.`
-      );
+      throw error;
     }
   }
 
@@ -168,78 +183,88 @@ export class SyncService {
     organizationId: string;
     roleSlug: string | undefined;
   }): Promise<void> {
-    // ── 1. Resolve Tenant ─────────────────────────────────────────────────
-    const tenant = await this.prisma.tenant.findUnique({
-      select: { id: true },
-      where: { workosOrgId: data.organizationId },
-    });
+    try {
+      // ── 1. Resolve Tenant ─────────────────────────────────────────────────
+      const tenant = await this.prisma.tenant.findUnique({
+        select: { id: true },
+        where: { workosOrgId: data.organizationId },
+      });
 
-    if (!tenant) {
-      this.logger.warn(
-        `Tenant not found for workosOrgId="${data.organizationId}" ` +
-          `(membership: ${data.membershipId}). ` +
-          `Ensure organization.created is processed before membership events.`
+      if (!tenant) {
+        this.logger.warn(
+          `Tenant not found for workosOrgId="${data.organizationId}" ` +
+            `(membership: ${data.membershipId}). ` +
+            `Ensure organization.created is processed before membership events.`
+        );
+        return;
+      }
+
+      const role = this.mapRole(data.roleSlug);
+
+      // ── 2. Upsert User ─────────────────────────────────────────────────────
+      const existing = await this.prisma.user.findUnique({
+        select: { id: true, tenantId: true },
+        where: { workosUserId: data.userId },
+      });
+
+      if (existing) {
+        await this.prisma.user.update({
+          data: { role, tenantId: tenant.id },
+          where: { workosUserId: data.userId },
+        });
+
+        this.logger.log(
+          `Membership synced (existing user): workosUserId=${data.userId} ` +
+            `tenantId=${tenant.id} role=${role}`
+        );
+
+        return;
+      }
+
+      // User doesn't exist locally — fetch profile from WorkOS API and create
+      const workosUser = await this.authService.workos.userManagement.getUser(
+        data.userId
       );
-      return;
-    }
 
-    const role = this.mapRole(data.roleSlug);
+      const name = this.buildName(
+        workosUser.firstName,
+        workosUser.lastName,
+        workosUser.email
+      );
 
-    // ── 2. Upsert User ─────────────────────────────────────────────────────
-    const existing = await this.prisma.user.findUnique({
-      select: { id: true, tenantId: true },
-      where: { workosUserId: data.userId },
-    });
-
-    if (existing) {
-      // User already exists — update tenantId and role (idempotent)
-      await this.prisma.user.update({
-        data: { role, tenantId: tenant.id },
+      await this.prisma.user.upsert({
+        create: {
+          email: workosUser.email,
+          name,
+          role,
+          tenantId: tenant.id,
+          workosUserId: data.userId,
+        },
+        update: {
+          email: workosUser.email,
+          name,
+          role,
+          tenantId: tenant.id,
+        },
         where: { workosUserId: data.userId },
       });
 
       this.logger.log(
-        `Membership synced (existing user): workosUserId=${data.userId} ` +
-          `tenantId=${tenant.id} role=${role}`
+        `Membership synced (new user created): workosUserId=${data.userId} ` +
+          `email="${workosUser.email}" tenantId=${tenant.id} role=${role}`
       );
-
-      return;
+    } catch (error) {
+      this.logger.error(
+        {
+          err: error,
+          membershipId: data.membershipId,
+          organizationId: data.organizationId,
+          workosUserId: data.userId,
+        },
+        `Failed to sync membership: ${data.membershipId}`
+      );
+      throw error;
     }
-
-    // User doesn't exist locally — fetch profile from WorkOS API and create
-    const workosUser = await this.authService.workos.userManagement.getUser(
-      data.userId
-    );
-
-    const name = this.buildName(
-      workosUser.firstName,
-      workosUser.lastName,
-      workosUser.email
-    );
-
-    // Upsert (not create) to guard against race conditions where user.created
-    // fires between our findUnique and this point
-    await this.prisma.user.upsert({
-      create: {
-        email: workosUser.email,
-        name,
-        role,
-        tenantId: tenant.id,
-        workosUserId: data.userId,
-      },
-      update: {
-        email: workosUser.email,
-        name,
-        role,
-        tenantId: tenant.id,
-      },
-      where: { workosUserId: data.userId },
-    });
-
-    this.logger.log(
-      `Membership synced (new user created): workosUserId=${data.userId} ` +
-        `email="${workosUser.email}" tenantId=${tenant.id} role=${role}`
-    );
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────────

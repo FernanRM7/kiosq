@@ -52,6 +52,16 @@ const isVercel =
           "password",
           "token",
         ],
+        serializers: {
+          req: (req) => ({
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res) => ({
+            responseTime: `${res.responseTime ?? 0}ms`,
+            statusCode: res.statusCode,
+          }),
+        },
         ...(isVercel
           ? {}
           : {
