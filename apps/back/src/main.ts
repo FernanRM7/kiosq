@@ -4,6 +4,7 @@ import helmet from "helmet";
 
 import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
+import { GlobalExceptionFilter } from "./common/filters/global-exception.filter";
 import { SWAGGER_PATH, setupSwagger } from "./docs/swagger.config";
 import { logger } from "./lib/logger";
 import { getRedisClient } from "./lib/redis.lib";
@@ -20,6 +21,7 @@ async function bootstrap(): Promise<INestApplication> {
   });
 
   app.use(helmet());
+  app.useGlobalFilters(new GlobalExceptionFilter());
   setupApp(app);
 
   const apiPrefix = process.env.API_PREFIX;
