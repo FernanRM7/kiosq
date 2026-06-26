@@ -21,6 +21,7 @@ export default function ProductsPage() {
       const data = await listProducts();
       setProducts(data);
     } catch (fetchError) {
+      console.error("[Products] Failed to fetch products", fetchError);
       setError(
         fetchError instanceof Error
           ? fetchError.message

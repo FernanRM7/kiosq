@@ -39,15 +39,15 @@ export function SalesDrawer() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [successSale, setSuccessSale] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     try {
       const data = await listProducts();
       setProducts(data);
-    } catch {
-      // silent
+    } catch (error) {
+      console.error("[SalesDrawer] Failed to fetch products", error);
     }
   }, []);
 
@@ -134,7 +134,7 @@ export function SalesDrawer() {
       return;
     }
 
-    setError(null);
+    setApiError(null);
     setLoading(true);
 
     try {
@@ -151,7 +151,8 @@ export function SalesDrawer() {
       setSuccessSale(true);
       window.dispatchEvent(new Event(SALES_CHANGED_EVENT));
     } catch (submitError) {
-      setError(
+      console.error("[SalesDrawer] Failed to complete sale", submitError);
+      setApiError(
         submitError instanceof Error
           ? submitError.message
           : "No se pudo completar la venta"
@@ -290,7 +291,9 @@ export function SalesDrawer() {
                   <span className="tabular-nums">${total.toFixed(2)}</span>
                 </div>
               </div>
-              {error && <p className="text-destructive text-sm">{error}</p>}
+              {apiError && (
+                <p className="text-destructive text-sm">{apiError}</p>
+              )}
               <Button
                 className="mt-2 w-full"
                 onClick={completeSale}

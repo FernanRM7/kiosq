@@ -41,6 +41,7 @@ export function DeleteProductDialog({
       onDelete(product);
       onOpenChange(false);
     } catch (deleteError) {
+      console.error("[DeleteProduct] Failed to delete product", deleteError);
       setError(
         deleteError instanceof Error
           ? deleteError.message

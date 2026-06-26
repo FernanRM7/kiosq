@@ -26,7 +26,8 @@ export default function OnboardingPage() {
             setChecking(false);
           }, 800);
         }
-      } catch {
+      } catch (error) {
+        console.error("[Onboarding] Failed to check tenant", error);
         setChecking(false);
       }
     }
