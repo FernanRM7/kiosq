@@ -149,7 +149,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     }
 
     try {
-      this.logger.info(
+      this.logger.log(
         `Processing WorkOS event: type=${parsed.data.event}, id=${parsed.data.id}`
       );
       await this.syncService.handleEvent(parsed.data);
