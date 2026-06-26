@@ -69,6 +69,7 @@ export async function getMe(): Promise<MeResponse | null> {
     return { data, success: true };
   } catch (error) {
     if (isUnauthenticatedError(error)) {
+      console.warn("[Auth] Session expired detected");
       return null;
     }
 
