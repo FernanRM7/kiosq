@@ -48,6 +48,7 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
       reset(defaultProductFormValues);
       onOpenChange(false);
     } catch (submitError) {
+      console.error("[ProductDialog] Failed to create product", submitError);
       setError(
         submitError instanceof Error
           ? submitError.message

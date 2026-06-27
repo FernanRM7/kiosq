@@ -30,15 +30,15 @@ export function WorkspaceSwitcher() {
         setActiveTenantId(result.tenant.id);
         setActiveTenantName(result.tenant.name);
       }
-    } catch {
-      // silent
+    } catch (error) {
+      console.error("[Workspace] Failed to fetch my tenant", error);
     }
 
     try {
       const allTenants = await listTenants();
       setWorkspaces(allTenants);
-    } catch {
-      // silent
+    } catch (error) {
+      console.error("[Workspace] Failed to list tenants", error);
     }
   }, []);
 
@@ -58,8 +58,8 @@ export function WorkspaceSwitcher() {
       await switchTenant(tenantId);
       setPopoverOpen(false);
       window.location.replace("/dashboard");
-    } catch {
-      // silently fail
+    } catch (error) {
+      console.error("[Workspace] Failed to switch tenant", error);
     } finally {
       setSwitching(null);
     }

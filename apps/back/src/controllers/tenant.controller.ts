@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
 } from "@nestjs/common";
@@ -14,6 +15,8 @@ import type { AuthenticatedSessionResult } from "../types/session.type";
 
 @Controller("tenants")
 export class TenantController {
+  private readonly logger = new Logger(TenantController.name);
+
   constructor(private readonly tenantService: TenantService) {}
 
   @Get()
@@ -33,6 +36,10 @@ export class TenantController {
       firstName: session.user.firstName,
       lastName: session.user.lastName,
     });
+    this.logger.log(`Tenant created`, {
+      tenantId: tenant.id,
+      userId: session.userId,
+    });
     return { tenant };
   }
 
@@ -48,10 +55,16 @@ export class TenantController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Param("id") tenantId: string
   ) {
+    const current = await this.tenantService.getTenantByUserId(session.userId);
     const tenant = await this.tenantService.switchTenant(
       session.userId,
       tenantId
     );
+    this.logger.log(`Tenant switched`, {
+      from: current?.id,
+      to: tenantId,
+      userId: session.userId,
+    });
     return { tenant };
   }
 }

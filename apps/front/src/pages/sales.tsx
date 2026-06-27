@@ -24,6 +24,7 @@ export default function SalesPage() {
       const data = await listSales();
       setSales(data);
     } catch (fetchError) {
+      console.error("[Sales] Failed to fetch sales", fetchError);
       setError(
         fetchError instanceof Error
           ? fetchError.message

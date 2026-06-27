@@ -67,6 +67,7 @@ export function OnboardingDialog({
         navigate("/dashboard");
       }
     } catch (submitError) {
+      console.error("[Onboarding] Failed to create tenant", submitError);
       setError(
         submitError instanceof Error
           ? submitError.message

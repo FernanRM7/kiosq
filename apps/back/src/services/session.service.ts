@@ -202,14 +202,28 @@ export class SessionService {
       userName: name,
     };
 
-    await this.sessionRegistry.registerSession(metadata);
+    try {
+      await this.sessionRegistry.registerSession(metadata);
+    } catch (error) {
+      this.logger.error(
+        { err: error, sessionId, userId },
+        "Failed to register session in Redis"
+      );
+    }
   }
 
   /**
    * Revokes a specific session (removes from Redis).
    */
   async revokeSession(userId: string, sessionId: string): Promise<void> {
-    await this.sessionRegistry.removeSession(userId, sessionId);
+    try {
+      await this.sessionRegistry.removeSession(userId, sessionId);
+    } catch (error) {
+      this.logger.error(
+        { err: error, sessionId, userId },
+        "Failed to revoke session in Redis"
+      );
+    }
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

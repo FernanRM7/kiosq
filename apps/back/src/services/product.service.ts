@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -52,6 +53,8 @@ export interface ProductResponse {
 
 @Injectable()
 export class ProductService {
+  private readonly logger = new Logger(ProductService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listProducts(
@@ -121,6 +124,10 @@ export class ProductService {
         return this.toResponse(product);
       });
     } catch (error) {
+      this.logger.error(
+        { err: error, tenantId, userId: session.userId },
+        "Failed to create product"
+      );
       this.handlePrismaError(error);
     }
   }
@@ -212,6 +219,10 @@ export class ProductService {
         return this.toResponse(updatedProduct);
       });
     } catch (error) {
+      this.logger.error(
+        { err: error, productId, tenantId, userId: session.userId },
+        "Failed to update product"
+      );
       this.handlePrismaError(error);
     }
   }
@@ -222,24 +233,32 @@ export class ProductService {
   ): Promise<ProductResponse> {
     const tenantId = await this.getTenantId(session.userId);
 
-    return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({
-        select: { id: true },
-        where: { id: productId, isActive: true, tenantId },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const product = await tx.product.findFirst({
+          select: { id: true },
+          where: { id: productId, isActive: true, tenantId },
+        });
+
+        if (!product) {
+          throw new NotFoundException("Producto no encontrado");
+        }
+
+        const deletedProduct = await tx.product.update({
+          data: { isActive: false },
+          include: productInclude,
+          where: { id: productId },
+        });
+
+        return this.toResponse(deletedProduct);
       });
-
-      if (!product) {
-        throw new NotFoundException("Producto no encontrado");
-      }
-
-      const deletedProduct = await tx.product.update({
-        data: { isActive: false },
-        include: productInclude,
-        where: { id: productId },
-      });
-
-      return this.toResponse(deletedProduct);
-    });
+    } catch (error) {
+      this.logger.error(
+        { err: error, productId, tenantId, userId: session.userId },
+        "Failed to delete product"
+      );
+      throw error;
+    }
   }
 
   private async getTenantId(userId: string): Promise<string> {

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 
@@ -52,6 +53,8 @@ export interface SaleResponse {
 
 @Injectable()
 export class SaleService {
+  private readonly logger = new Logger(SaleService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listSales(
@@ -100,123 +103,133 @@ export class SaleService {
       throw new BadRequestException("La sucursal no existe o no es tuya");
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const productIds = input.items.map((item) => item.productId);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const productIds = input.items.map((item) => item.productId);
 
-      const products = await tx.product.findMany({
-        select: { id: true, name: true, price: true, taxRate: true },
-        where: { id: { in: productIds }, isActive: true, tenantId },
-      });
+        const products = await tx.product.findMany({
+          select: { id: true, name: true, price: true, taxRate: true },
+          where: { id: { in: productIds }, isActive: true, tenantId },
+        });
 
-      if (products.length !== productIds.length) {
-        throw new BadRequestException(
-          "Algunos productos no existen o no están activos"
+        if (products.length !== productIds.length) {
+          throw new BadRequestException(
+            "Algunos productos no existen o no están activos"
+          );
+        }
+
+        const productMap = new Map(products.map((p) => [p.id, p]));
+
+        const branchStocks = await tx.productBranch.findMany({
+          select: { productId: true, stock: true },
+          where: {
+            branchId,
+            productId: { in: productIds },
+          },
+        });
+
+        const stockMap = new Map(
+          branchStocks.map((s) => [s.productId, s.stock])
         );
-      }
 
-      const productMap = new Map(products.map((p) => [p.id, p]));
+        for (const item of input.items) {
+          const available = stockMap.get(item.productId) ?? 0;
 
-      const branchStocks = await tx.productBranch.findMany({
-        select: { productId: true, stock: true },
-        where: {
-          branchId,
-          productId: { in: productIds },
-        },
-      });
-
-      const stockMap = new Map(branchStocks.map((s) => [s.productId, s.stock]));
-
-      for (const item of input.items) {
-        const available = stockMap.get(item.productId) ?? 0;
-
-        if (item.quantity > available) {
-          throw new BadRequestException(
-            `Stock insuficiente para "${productMap.get(item.productId)?.name ?? item.productId}". Disponible: ${available}`
-          );
-        }
-      }
-
-      const saleItemsData = input.items.map((item) => {
-        const product = productMap.get(item.productId);
-
-        if (!product) {
-          throw new BadRequestException(
-            `Producto "${item.productId}" no encontrado`
-          );
+          if (item.quantity > available) {
+            throw new BadRequestException(
+              `Stock insuficiente para "${productMap.get(item.productId)?.name ?? item.productId}". Disponible: ${available}`
+            );
+          }
         }
 
-        const unitPrice = Number(product.price.toString());
-        const taxRate = Number(product.taxRate.toString());
-        const subtotal = Number((unitPrice * item.quantity).toFixed(2));
+        const saleItemsData = input.items.map((item) => {
+          const product = productMap.get(item.productId);
 
-        return {
-          productId: product.id,
-          quantity: item.quantity,
-          subtotal: subtotal.toFixed(2),
-          taxRate: taxRate.toFixed(4),
-          unitPrice: unitPrice.toFixed(2),
-        };
-      });
+          if (!product) {
+            throw new BadRequestException(
+              `Producto "${item.productId}" no encontrado`
+            );
+          }
 
-      const saleSubtotal = saleItemsData.reduce(
-        (sum, item) => sum + Number(item.subtotal),
-        0
-      );
-      const saleTax = saleItemsData.reduce(
-        (sum, item) =>
-          sum +
-          Number((Number(item.subtotal) * Number(item.taxRate)).toFixed(2)),
-        0
-      );
-      const saleTotal = Number((saleSubtotal + saleTax).toFixed(2));
+          const unitPrice = Number(product.price.toString());
+          const taxRate = Number(product.taxRate.toString());
+          const subtotal = Number((unitPrice * item.quantity).toFixed(2));
 
-      const sale = await tx.sale.create({
-        data: {
-          branchId,
-          discountAmount: "0.00",
-          items: {
-            create: saleItemsData,
-          },
-          payments: {
-            create: {
-              amount: saleTotal.toFixed(2),
-              method: input.paymentMethod,
-              status: "COMPLETED",
+          return {
+            productId: product.id,
+            quantity: item.quantity,
+            subtotal: subtotal.toFixed(2),
+            taxRate: taxRate.toFixed(4),
+            unitPrice: unitPrice.toFixed(2),
+          };
+        });
+
+        const saleSubtotal = saleItemsData.reduce(
+          (sum, item) => sum + Number(item.subtotal),
+          0
+        );
+        const saleTax = saleItemsData.reduce(
+          (sum, item) =>
+            sum +
+            Number((Number(item.subtotal) * Number(item.taxRate)).toFixed(2)),
+          0
+        );
+        const saleTotal = Number((saleSubtotal + saleTax).toFixed(2));
+
+        const sale = await tx.sale.create({
+          data: {
+            branchId,
+            discountAmount: "0.00",
+            items: {
+              create: saleItemsData,
             },
-          },
-          status: "COMPLETED",
-          subtotal: saleSubtotal.toFixed(2),
-          taxAmount: saleTax.toFixed(2),
-          tenantId,
-          total: saleTotal.toFixed(2),
-          userId: dbUser.id,
-        },
-        include: saleInclude,
-      });
-
-      await Promise.all(
-        input.items.map((item) =>
-          Promise.all([
-            tx.productBranch.updateMany({
-              data: { stock: { decrement: item.quantity } },
-              where: { branchId, productId: item.productId },
-            }),
-            tx.stockMovement.create({
-              data: {
-                branchId,
-                productId: item.productId,
-                quantity: item.quantity,
-                tenantId,
-                type: "SALE",
-                userId: dbUser.id,
+            payments: {
+              create: {
+                amount: saleTotal.toFixed(2),
+                method: input.paymentMethod,
+                status: "COMPLETED",
               },
-            }),
-          ])
-        )
-      );
+            },
+            status: "COMPLETED",
+            subtotal: saleSubtotal.toFixed(2),
+            taxAmount: saleTax.toFixed(2),
+            tenantId,
+            total: saleTotal.toFixed(2),
+            userId: dbUser.id,
+          },
+          include: saleInclude,
+        });
 
-      return this.toResponse(sale);
-    });
+        await Promise.all(
+          input.items.map((item) =>
+            Promise.all([
+              tx.productBranch.updateMany({
+                data: { stock: { decrement: item.quantity } },
+                where: { branchId, productId: item.productId },
+              }),
+              tx.stockMovement.create({
+                data: {
+                  branchId,
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  tenantId,
+                  type: "SALE",
+                  userId: dbUser.id,
+                },
+              }),
+            ])
+          )
+        );
+
+        return this.toResponse(sale);
+      });
+    } catch (error) {
+      this.logger.error(
+        { branchId, err: error, tenantId, userId: session.userId },
+        "Failed to create sale"
+      );
+      throw error;
+    }
   }
 
   private async getTenantId(userId: string): Promise<string> {

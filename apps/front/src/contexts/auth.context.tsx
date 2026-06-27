@@ -90,13 +90,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (result?.success) {
         setUser(result.data);
         setStatus("authenticated");
+        console.log("[Auth] Session hydrated: authenticated");
       } else {
         setUser(null);
         setStatus("unauthenticated");
+        console.log("[Auth] Session hydrated: unauthenticated (no cookie)");
       }
     } catch (hydrateError) {
       setUser(null);
       setStatus("unauthenticated");
+      console.error("[Auth] Session hydration failed", hydrateError);
       setError(
         hydrateError instanceof Error
           ? hydrateError.message
@@ -110,16 +113,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPendingAction(action);
       setError(null);
 
+      console.log(`[Auth] Starting auth flow: ${action}`);
+
       try {
         try {
           await checkHealth();
         } catch {
-          /* health endpoint no es requerido para el flujo auth */
+          console.warn("[Auth] Health check failed, continuing auth flow");
         }
 
         const authorizationUrl = await getAuthorizationUrl();
         window.location.assign(authorizationUrl);
       } catch (authError) {
+        console.error("[Auth] Auth flow failed", authError);
         setError(
           authError instanceof Error
             ? authError.message
@@ -142,12 +148,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setPendingAction("logout");
     setError(null);
 
+    console.log("[Auth] Starting logout");
+
     try {
       const { logoutUrl } = await logoutSession();
       setUser(null);
       setStatus("unauthenticated");
       window.location.assign(logoutUrl);
     } catch (logoutError) {
+      console.error("[Auth] Logout failed", logoutError);
       setError(
         logoutError instanceof Error
           ? logoutError.message

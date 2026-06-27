@@ -25,14 +25,15 @@ export class SessionRegistryService {
 
   private async withRedis<T>(
     operation: () => Promise<T>,
+    context: string,
     fallback?: T
   ): Promise<T> {
     try {
       return await operation();
     } catch (error) {
-      this.logger.warn(
-        { error },
-        "Redis no disponible — operacion de sesion omitida"
+      this.logger.error(
+        { error, key: context },
+        `Redis operation failed: ${context}`
       );
       return fallback as T;
     }
@@ -67,38 +68,46 @@ export class SessionRegistryService {
       this.logger.debug(
         `Session registered: ${metadata.sessionId} for user ${metadata.userId}`
       );
-    });
+    }, `registerSession:${metadata.userId}`);
   }
 
   /**
    * Retrieves all active sessions for a user.
    */
   getSessionsForUser(userId: string): Promise<SessionMetadata[]> {
-    return this.withRedis(async () => {
-      const userSessionsKey = `${USER_SESSIONS_PREFIX}${userId}`;
-      const sessionIds = await getRedisClient().sMembers(userSessionsKey);
+    return this.withRedis(
+      async () => {
+        const userSessionsKey = `${USER_SESSIONS_PREFIX}${userId}`;
+        const sessionIds = await getRedisClient().sMembers(userSessionsKey);
 
-      if (sessionIds.length === 0) {
-        return [];
-      }
+        if (sessionIds.length === 0) {
+          this.logger.debug(`Cache miss: no sessions for user ${userId}`);
+          return [];
+        }
 
-      const sessions = await Promise.all(
-        sessionIds.map(async (sessionId) => {
-          const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
-          const data = await getRedisClient().hGetAll(sessionKey);
+        const sessions = await Promise.all(
+          sessionIds.map(async (sessionId) => {
+            const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
+            const data = await getRedisClient().hGetAll(sessionKey);
 
-          if (!data || Object.keys(data).length === 0) {
-            // Stale reference — clean up
-            await getRedisClient().sRem(userSessionsKey, sessionId);
-            return null;
-          }
+            if (!data || Object.keys(data).length === 0) {
+              await getRedisClient().sRem(userSessionsKey, sessionId);
+              return null;
+            }
 
-          return this.parseSessionMetadata(data);
-        })
-      );
+            return this.parseSessionMetadata(data);
+          })
+        );
 
-      return sessions.filter((s): s is SessionMetadata => s !== null);
-    }, []);
+        const result = sessions.filter((s): s is SessionMetadata => s !== null);
+        this.logger.debug(
+          `Cache hit: ${result.length} sessions for user ${userId}`
+        );
+        return result;
+      },
+      `getSessionsForUser:${userId}`,
+      []
+    );
   }
 
   /**
@@ -115,7 +124,7 @@ export class SessionRegistryService {
       ]);
 
       this.logger.debug(`Session removed: ${sessionId} for user ${userId}`);
-    });
+    }, `removeSession:${userId}`);
   }
 
   /**
@@ -141,17 +150,25 @@ export class SessionRegistryService {
       this.logger.debug(
         `All sessions removed for user ${userId} (${sessionIds.length} sessions)`
       );
-    });
+    }, `removeAllSessions:${userId}`);
   }
 
   /**
    * Checks if a specific session is still active (not revoked).
    */
   isSessionActive(userId: string, sessionId: string): Promise<boolean> {
-    return this.withRedis(async () => {
-      const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
-      return (await getRedisClient().exists(sessionKey)) === 1;
-    }, true);
+    return this.withRedis(
+      async () => {
+        const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
+        const active = (await getRedisClient().exists(sessionKey)) === 1;
+        this.logger.debug(
+          `Session ${sessionId} for user ${userId}: ${active ? "active" : "inactive"}`
+        );
+        return active;
+      },
+      `isSessionActive:${userId}`,
+      true
+    );
   }
 
   /**
@@ -171,7 +188,7 @@ export class SessionRegistryService {
         getRedisClient().expire(sessionKey, SESSION_TTL_SECONDS),
         getRedisClient().expire(userSessionsKey, SESSION_TTL_SECONDS),
       ]);
-    });
+    }, `touchSession:${userId}`);
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

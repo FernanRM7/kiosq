@@ -65,8 +65,8 @@ export default function SettingsPage() {
     try {
       const data = await getActiveSessions();
       setSessions(data);
-    } catch {
-      // Silently fail — sessions are non-critical
+    } catch (error) {
+      console.error("[Settings] Failed to fetch sessions", error);
     } finally {
       setLoading(false);
     }
@@ -83,8 +83,8 @@ export default function SettingsPage() {
       if (result.success) {
         setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
       }
-    } catch {
-      // Ignore errors on revoke
+    } catch (error) {
+      console.error("[Settings] Failed to revoke session", error);
     } finally {
       setRevokingId(null);
     }

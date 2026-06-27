@@ -1,10 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 
 import type { MeResponseSchema } from "../schemas/me-response.schema";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
   /**
    * Builds the GET /me response from the authenticated session.
    * Maps WorkOS user fields to the public response schema.

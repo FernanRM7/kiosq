@@ -1,10 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { LoggerModule } from "nestjs-pino";
 
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
-import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ApiResponseInterceptor } from "./common/interceptors/api-response.interceptor";
 import { ZodValidationPipe } from "./common/pipes/zod-validation.pipe";
 import { PrismaService } from "./lib/prisma.service";
@@ -25,6 +27,8 @@ import { SyncService } from "./services/sync.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
 
+const isDev = process.env.NODE_ENV === "development";
+
 @Module({
   controllers: [
     AppController,
@@ -36,7 +40,43 @@ import { UserService } from "./services/user.service";
     ...productRoutes,
     ...saleRoutes,
   ],
-  imports: [ConfigModule.forRoot({ isGlobal: true })],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        autoLogging: {
+          ignore: (req) =>
+            typeof req.url === "string" &&
+            /^\/(?:health|ping|metrics|ready|live)/u.test(req.url),
+        },
+        genReqId: () => randomUUID(),
+        level: process.env.LOG_LEVEL ?? "info",
+        redact: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "password",
+          "token",
+        ],
+        serializers: {
+          req: (req) => ({
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res) => ({
+            responseTime: `${res.responseTime ?? 0}ms`,
+            statusCode: res.statusCode,
+          }),
+        },
+        ...(isDev
+          ? {
+              transport: {
+                target: "pino-pretty",
+              },
+            }
+          : {}),
+      },
+    }),
+  ],
   providers: [
     AppService,
     AuthService,
@@ -59,10 +99,6 @@ import { UserService } from "./services/user.service";
     {
       provide: APP_INTERCEPTOR,
       useClass: ApiResponseInterceptor,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
     },
   ],
 })

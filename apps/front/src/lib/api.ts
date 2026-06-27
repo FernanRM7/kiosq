@@ -49,6 +49,12 @@ export async function request<TData>(
       url: path,
     });
   } catch (error) {
+    console.error("[API Error]", {
+      message: error instanceof Error ? error.message : String(error),
+      status: error instanceof AxiosError ? error.response?.status : undefined,
+      url: path,
+    });
+
     if (error instanceof AxiosError && error.response) {
       const body = error.response.data as ApiFailure | null;
 

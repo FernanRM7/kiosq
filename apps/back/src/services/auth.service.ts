@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { WorkOS } from "@workos-inc/node";
 import type { JWTVerifyGetKey } from "jose";
 
@@ -20,6 +20,7 @@ export interface CodeExchangeResult {
 
 @Injectable()
 export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
   readonly workos: WorkOS;
   private readonly config: AuthConfig;
   private jwks!: JWTVerifyGetKey;
@@ -64,20 +65,28 @@ export class AuthService implements OnModuleInit {
    * @throws {WorkOS API error} When the code is invalid, expired, or already used
    */
   async exchangeCodeForSession(code: string): Promise<CodeExchangeResult> {
-    const result = await this.workos.userManagement.authenticateWithCode({
-      clientId: this.config.clientId,
-      code,
-      session: {
-        cookiePassword: this.config.cookiePassword,
-        sealSession: true,
-      },
-    });
+    try {
+      const result = await this.workos.userManagement.authenticateWithCode({
+        clientId: this.config.clientId,
+        code,
+        session: {
+          cookiePassword: this.config.cookiePassword,
+          sealSession: true,
+        },
+      });
 
-    return {
-      organizationId: result.organizationId ?? undefined,
-      sealedSession: result.sealedSession ?? "",
-      userId: result.user.id,
-    };
+      return {
+        organizationId: result.organizationId ?? undefined,
+        sealedSession: result.sealedSession ?? "",
+        userId: result.user.id,
+      };
+    } catch (error) {
+      this.logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Failed to exchange WorkOS code"
+      );
+      throw error;
+    }
   }
 
   /**

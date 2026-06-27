@@ -76,8 +76,9 @@ export class TenantService {
         },
       });
     } catch {
-      this.logger.warn(
-        "user_tenants table may not exist yet — run prisma migrate deploy"
+      this.logger.error(
+        { dbUserId: dbUser.id, tenantId: tenant.id, userId },
+        "user_tenants table may not exist — run prisma migrate deploy"
       );
     }
 
@@ -205,6 +206,10 @@ export class TenantService {
         !(error instanceof ForbiddenException) &&
         !(error instanceof NotFoundException)
       ) {
+        this.logger.error(
+          { tenantId, userDbId: user.id, userId },
+          "user_tenants lookup failed — attempting fallback"
+        );
         // Table may not exist — verify tenant exists
         const tenant = await this.prisma.tenant.findUnique({
           select: { id: true, name: true, slug: true },

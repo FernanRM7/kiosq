@@ -70,6 +70,7 @@ export function EditProductDialog({
       onSave(updatedProduct);
       onOpenChange(false);
     } catch (submitError) {
+      console.error("[EditProduct] Failed to update product", submitError);
       setError(
         submitError instanceof Error
           ? submitError.message

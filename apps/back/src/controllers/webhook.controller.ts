@@ -126,11 +126,19 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
         error instanceof Error
           ? error.message
           : "Signature verification failed";
-      this.logger.warn(`Webhook signature verification failed: ${message}`);
+      this.logger.error(
+        { err: error },
+        `Webhook signature verification failed: ${message}`
+      );
       throw new BadRequestException("Firma de webhook inválida");
     }
 
-    // ── 2. Validate and dispatch known events ──────────────────────────────
+    // ── 2. Log event reception ─────────────────────────────────────────────
+    const rawEventType =
+      (payload as Record<string, unknown>)?.event ?? "unknown";
+    this.logger.log(`WorkOS webhook received: ${String(rawEventType)}`);
+
+    // ── 3. Validate and dispatch known events ──────────────────────────────
     const parsed = WorkosEventSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -141,6 +149,9 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     }
 
     try {
+      this.logger.log(
+        `Processing WorkOS event: type=${parsed.data.event}, id=${parsed.data.id}`
+      );
       await this.syncService.handleEvent(parsed.data);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Sync failed";
