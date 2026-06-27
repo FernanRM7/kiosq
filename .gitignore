@@ -9,3 +9,4 @@ apps/.DS_Store
 schema.sql
 .vscode/
 .vercel
+.opencode

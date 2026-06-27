@@ -12,6 +12,7 @@ import { ZodValidationPipe } from "./common/pipes/zod-validation.pipe";
 import { PrismaService } from "./lib/prisma.service";
 import { AuthGuard } from "./middlewares/auth.guard";
 import { authRoutes } from "./routes/auth.routes";
+import { categoryRoutes } from "./routes/category.routes";
 import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
 import { saleRoutes } from "./routes/sale.routes";
@@ -19,6 +20,7 @@ import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
+import { CategoryService } from "./services/category.service";
 import { ProductService } from "./services/product.service";
 import { SaleService } from "./services/sale.service";
 import { SessionRegistryService } from "./services/session-registry.service";
@@ -38,6 +40,7 @@ const isDev = process.env.NODE_ENV === "development";
     ...userRoutes,
     ...tenantRoutes,
     ...productRoutes,
+    ...categoryRoutes,
     ...saleRoutes,
   ],
   imports: [
@@ -82,6 +85,7 @@ const isDev = process.env.NODE_ENV === "development";
     AuthService,
     PrismaService,
     ProductService,
+    CategoryService,
     SaleService,
     SessionRegistryService,
     SessionService,

@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { AuthProvider } from "@/contexts/auth.context";
+import CategoriesPage from "@/pages/categories";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
@@ -29,6 +30,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="products" element={<ProductsPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
             <Route path="sales" element={<SalesPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="settings" element={<SettingsPage />} />
