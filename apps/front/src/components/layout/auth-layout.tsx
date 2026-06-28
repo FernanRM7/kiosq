@@ -2,8 +2,8 @@ import { Outlet } from "react-router-dom";
 
 export default function AuthLayout() {
   return (
-    <div className="flex min-h-svh">
-      <div className="hidden w-1/2 bg-muted lg:block">
+    <div className="min-h-svh overflow-hidden bg-slate-950 text-white lg:grid lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="relative hidden lg:block">
         <video
           autoPlay
           loop
@@ -14,9 +14,11 @@ export default function AuthLayout() {
         >
           <source src="/bgauth.webm" type="video/webm" />
         </video>
+        <div className="absolute inset-0 bg-slate-950/25" />
       </div>
-      <div className="flex w-full items-center justify-center p-6 lg:w-1/2">
-        <div className="w-full max-w-sm">
+
+      <div className="flex items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-slate-950/95 p-10 shadow-2xl shadow-black/30 backdrop-blur-xl">
           <Outlet />
         </div>
       </div>
