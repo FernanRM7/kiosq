@@ -88,18 +88,25 @@ export function WorkspaceSwitcher() {
           render={
             <Button
               variant="ghost"
-              className="w-full justify-start gap-2 px-2"
+              className="w-full justify-start gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl px-3 py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90"
             />
           }
         >
-          <Avatar className="size-6 rounded-md">
+          <Avatar className="size-7 rounded-2xl ring-1 ring-sidebar-border/60">
             <img
               src="/logo.jpg"
               alt="Workspace"
-              className="size-full rounded-md object-cover"
+              className="size-full rounded-2xl object-cover"
             />
           </Avatar>
-          <span className="truncate font-medium text-sm">{workspaceLabel}</span>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-semibold text-sm text-sidebar-foreground">
+              {workspaceLabel}
+            </span>
+            <span className="truncate text-xs text-sidebar-foreground/60">
+              {workspaceMeta}
+            </span>
+          </div>
           <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
         </PopoverTrigger>
         <PopoverContent className="w-60" side="bottom" align="end">
