@@ -53,7 +53,7 @@ export function ProductFormFields({
             id={`${idPrefix}-price`}
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             disabled={disabled}
             {...register("price", { valueAsNumber: true })}
           />
@@ -68,7 +68,7 @@ export function ProductFormFields({
             id={`${idPrefix}-cost`}
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             placeholder="Opcional"
             disabled={disabled}
             {...register("cost", {
@@ -78,25 +78,6 @@ export function ProductFormFields({
           />
           {errors.cost?.message && (
             <p className="text-destructive text-sm">{errors.cost.message}</p>
-          )}
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-taxPercent`}>Impuesto (%)</Label>
-          <Input
-            id={`${idPrefix}-taxPercent`}
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            placeholder="Ej. 8"
-            disabled={disabled}
-            {...register("taxPercent", { valueAsNumber: true })}
-          />
-          {errors.taxPercent?.message && (
-            <p className="text-destructive text-sm">
-              {errors.taxPercent.message}
-            </p>
           )}
         </div>
 
