@@ -35,15 +35,25 @@ export function UserNav() {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" className="w-full justify-start gap-2 px-2" />
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl px-3 py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90"
+          />
         }
       >
-        <Avatar className="size-6 rounded-md">
-          <AvatarFallback className="rounded-md text-xs">
+        <Avatar className="size-7 rounded-full ring-1 ring-sidebar-border/60">
+          <AvatarFallback className="rounded-full text-xs">
             {initials}
           </AvatarFallback>
         </Avatar>
-        <span className="truncate font-medium text-sm">{displayName}</span>
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate font-semibold text-sm text-sidebar-foreground">
+            {displayName}
+          </span>
+          <span className="truncate text-xs text-sidebar-foreground/60">
+            Perfil
+          </span>
+        </div>
         <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="w-56 p-1" side="top" align="start">
