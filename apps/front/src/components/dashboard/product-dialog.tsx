@@ -29,8 +29,9 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const {
-    register,
+    control,
     handleSubmit,
+    register,
     reset,
     formState: { errors },
   } = useForm<ProductFormData>({
@@ -71,6 +72,7 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
           <ProductFormFields
+            control={control}
             disabled={loading}
             errors={errors}
             idPrefix="create-product"
