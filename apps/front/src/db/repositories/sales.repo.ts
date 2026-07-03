@@ -9,34 +9,29 @@ export async function createLocalSale(sale: Omit<Sale, "id" | "createdAt">) {
   const createdAt = new Date().toISOString();
   const record: Sale = { id, offlineId, ...sale, createdAt } as Sale;
 
-  await (db as any).transaction(
-    "rw",
-    (db as any).sales,
-    (db as any).syncEvents,
-    async () => {
-      await (db as any).sales.put(record);
-      const ev: SyncEvent = {
-        createdAt,
-        offlineId,
-        payload: record,
-        status: "PENDING",
-        type: "CREATE_SALE",
-      };
-      await (db as any).syncEvents.add(ev);
-    }
-  );
+  await db.transaction("rw", db.sales, db.syncEvents, async () => {
+    await db.sales.put(record);
+    const ev: SyncEvent = {
+      createdAt,
+      offlineId,
+      payload: record,
+      status: "PENDING",
+      type: "CREATE_SALE",
+    };
+    await db.syncEvents.add(ev);
+  });
 
   return record;
 }
 
-export async function getPendingSyncCount() {
+export function getPendingSyncCount() {
   return db.syncEvents.where("status").equals("PENDING").count();
 }
 
-export async function getPendingEvents(limit = 50) {
+export function getPendingEvents(limit = 50) {
   return db.syncEvents.where("status").equals("PENDING").limit(limit).toArray();
 }
 
-export async function markEventApplied(id: number) {
-  return db.syncEvents.update(id, { status: "APPLIED" });
+export function markEventApplied(id: number | string) {
+  return db.syncEvents.update(Number(id), { status: "APPLIED" });
 }

@@ -57,7 +57,10 @@ export function createSale(payload: CreateSalePayload): Promise<Sale> {
       quantity: it.quantity,
     }));
     const total = items.reduce((s, it) => s + (it.price ?? 0) * it.quantity, 0);
-    return createLocalSale({ items, total } as any) as unknown as Promise<Sale>;
+    return createLocalSale({
+      items,
+      total,
+    }) as unknown as Promise<Sale>;
   }
 
   return request<Sale>("/api/sales", {

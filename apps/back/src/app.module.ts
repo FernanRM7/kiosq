@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { Module } from "@nestjs/common";
 // ConfigModule removed from AppModule to avoid runtime export validation error during dev.
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
@@ -30,8 +28,6 @@ import { SessionService } from "./services/session.service";
 import { SyncService } from "./services/sync.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
-
-const isDev = process.env.NODE_ENV === "development";
 
 @Module({
   controllers: [

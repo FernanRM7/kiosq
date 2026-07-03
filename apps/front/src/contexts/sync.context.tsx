@@ -15,7 +15,7 @@ const SyncContext = createContext({
   isOnline: true,
   pendingCount: 0,
   status: "idle" as SyncStatus,
-  syncNow: async () => {},
+  syncNow: () => Promise.resolve(),
 });
 
 export const useSync = () => useContext(SyncContext);
@@ -67,9 +67,9 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
         method: "POST",
       });
       if (res?.applied?.length) {
-        for (const id of res.applied) {
-          await salesRepo.markEventApplied(id);
-        }
+        await Promise.all(
+          res.applied.map((id) => salesRepo.markEventApplied(id))
+        );
       }
 
       setStatus("idle");
