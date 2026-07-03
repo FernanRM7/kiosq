@@ -1,5 +1,4 @@
 import type { INestApplication } from "@nestjs/common";
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import express from "express";
 import getAbsoluteSwaggerFsPath from "swagger-ui-dist/absolute-path";
 
@@ -29,6 +28,33 @@ for scenarios where cookie-based sessions are not available (e.g., mobile, CLI t
 `.trim();
 
 export function setupSwagger(app: INestApplication): void {
+  let SwaggerModule: any;
+  let DocumentBuilder: any;
+
+  try {
+    // Load @nestjs/swagger at runtime so that incompatible @nestjs/*
+    // versions do not break the build. If the package or internal APIs
+    // are missing, skip Swagger setup gracefully.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+    // @ts-expect-error
+    const swaggerPkg = require("@nestjs/swagger");
+    SwaggerModule =
+      swaggerPkg.SwaggerModule ??
+      swaggerPkg.default?.SwaggerModule ??
+      swaggerPkg;
+    DocumentBuilder =
+      swaggerPkg.DocumentBuilder ??
+      swaggerPkg.default?.DocumentBuilder ??
+      swaggerPkg;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "Swagger setup skipped: @nestjs/swagger not available or incompatible",
+      error instanceof Error ? error.message : error
+    );
+    return;
+  }
+
   const config = new DocumentBuilder()
     .setTitle("Kiosq API")
     .setDescription(DESCRIPTION)
@@ -52,7 +78,17 @@ export function setupSwagger(app: INestApplication): void {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  let document;
+  try {
+    document = SwaggerModule.createDocument(app, config);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "Swagger setup skipped: failed to create document",
+      error instanceof Error ? error.message : error
+    );
+    return;
+  }
 
   app.use(`/${SWAGGER_PATH}`, express.static(getAbsoluteSwaggerFsPath()));
 

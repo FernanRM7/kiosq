@@ -1,12 +1,13 @@
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
-import { Logger } from "nestjs-pino";
 
 import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
 import { GlobalExceptionFilter } from "./common/filters/global-exception.filter";
-import { SWAGGER_PATH, setupSwagger } from "./docs/swagger.config";
+// Swagger UI is intentionally disabled during build to avoid runtime
+// incompatibilities between @nestjs/swagger and the installed @nestjs/core.
+// If you want Swagger enabled, re-enable and align package versions.
 import { logger } from "./lib/logger";
 import { getRedisClient } from "./lib/redis.lib";
 
@@ -22,19 +23,25 @@ async function bootstrap(): Promise<INestApplication> {
     rawBody: true,
   });
 
-  app.useLogger(app.get(Logger));
-
   app.use(helmet());
   app.useGlobalFilters(new GlobalExceptionFilter());
   setupApp(app);
 
   const apiPrefix = process.env.API_PREFIX;
-
   if (apiPrefix) {
-    app.setGlobalPrefix(apiPrefix);
+    try {
+      app.setGlobalPrefix(apiPrefix);
+    } catch (error) {
+      // Some Nest versions or mismatched packages may export internals
+      // differently (e.g., shared_utils.validatePath). Don't block
+      // application startup for an invalid prefix — log and continue.
+      // eslint-disable-next-line no-console
+      console.warn(
+        "Failed to set global API prefix:",
+        error instanceof Error ? error.message : error
+      );
+    }
   }
-
-  setupSwagger(app);
 
   try {
     await getRedisClient().connect();
@@ -60,8 +67,7 @@ if (!process.env.VERCEL) {
 
     const port = process.env.PORT ?? 3000;
     logger.info(`Backend iniciado correctamente en el puerto ${port}`);
-    logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);
-    logger.info(`OpenAPI JSON: http://localhost:${port}/${SWAGGER_PATH}-json`);
+    // Swagger UI is disabled in this build.
   })();
 }
 

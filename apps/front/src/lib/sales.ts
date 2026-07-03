@@ -1,3 +1,6 @@
+import { v4 as uuidv4 } from "uuid";
+
+import { createLocalSale } from "@/db/repositories/sales.repo";
 import { request } from "@/lib/api";
 
 export const SALES_CHANGED_EVENT = "sales:changed";
@@ -45,6 +48,18 @@ export function listSales(): Promise<Sale[]> {
 }
 
 export function createSale(payload: CreateSalePayload): Promise<Sale> {
+  if (!navigator.onLine) {
+    // create a minimal local sale record and enqueue a sync event
+    const items = payload.items.map((it) => ({
+      id: `i-${uuidv4()}`,
+      price: 0,
+      productId: it.productId,
+      quantity: it.quantity,
+    }));
+    const total = items.reduce((s, it) => s + (it.price ?? 0) * it.quantity, 0);
+    return createLocalSale({ items, total } as any) as unknown as Promise<Sale>;
+  }
+
   return request<Sale>("/api/sales", {
     data: payload,
     method: "POST",
