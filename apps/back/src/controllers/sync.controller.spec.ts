@@ -1,5 +1,5 @@
-import { SyncController } from "./sync.controller";
 import { OfflineSyncService } from "../services/offline-sync.service";
+import { SyncController } from "./sync.controller";
 
 describe("SyncController (integration-style)", () => {
   it("pushes a CREATE_SALE event and gets it applied", async () => {
@@ -29,8 +29,12 @@ describe("SyncController (integration-style)", () => {
     };
 
     const prisma = {
-      $transaction: jest.fn(async (cb: any) => cb(tx)),
-    } as any;
+      /* eslint-disable-next-line promise/prefer-await-to-callbacks, node/callback-return, arrow-body-style */
+      $transaction: jest.fn(async (cb: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, promise/prefer-await-to-callbacks
+        return await (cb as any)(tx);
+      }),
+    } as unknown as { $transaction: jest.Mock };
 
     const service = new OfflineSyncService(prisma);
     const controller = new SyncController(service);
@@ -64,6 +68,7 @@ describe("SyncController (integration-style)", () => {
       ],
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await controller.push(body as any);
     expect(res.data).toBeDefined();
     expect(res.data.applied).toEqual(["evt-1"]);
