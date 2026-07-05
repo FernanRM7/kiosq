@@ -59,6 +59,68 @@ interface TransactionClient {
 export class OfflineSyncService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async validateInventory(
+    transaction: TransactionClient,
+    items: OfflineSaleItem[],
+    branchId: string,
+    tenantId: string,
+    userId: string
+  ): Promise<void> {
+    await Promise.all(
+      items.map(async (item) => {
+        const { productId } = item;
+        const quantity = Number(item.quantity ?? 0);
+
+        if (!productId || !branchId || quantity <= 0) {
+          return;
+        }
+
+        const productBranch = await transaction.productBranch.findUnique({
+          where: {
+            productId_branchId: {
+              branchId,
+              productId,
+            },
+          },
+        });
+
+        if (!productBranch) {
+          throw new Error(
+            `ProductBranch not found for ${productId}/${branchId}`
+          );
+        }
+
+        if (productBranch.stock < quantity) {
+          throw new Error(`Insufficient stock for product ${productId}`);
+        }
+
+        await transaction.productBranch.update({
+          data: {
+            stock: productBranch.stock - quantity,
+          },
+          where: {
+            productId_branchId: {
+              branchId,
+              productId,
+            },
+          },
+        });
+
+        await transaction.stockMovement.create({
+          data: {
+            branchId,
+            productId,
+            quantity: -quantity,
+            reason: "Offline sale sync",
+            tenantId,
+            type: "SALE",
+            userId,
+          },
+        });
+      })
+    );
+  }
+
   private async applyCreateSaleEvent(event: OfflineEvent): Promise<void> {
     const payload = event.payload ?? {};
     const { offlineId } = payload;
@@ -68,7 +130,7 @@ export class OfflineSyncService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const transaction = tx as TransactionClient;
+      const transaction = tx as unknown as TransactionClient;
       const { sale } = transaction;
       const existing = await sale.findUnique({ where: { offlineId } });
 
@@ -76,9 +138,22 @@ export class OfflineSyncService {
         return;
       }
 
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const branchId = payload.branchId ?? "";
+      const tenantId = payload.tenantId ?? "";
+      const userId = payload.userId ?? "";
+
+      await this.validateInventory(
+        transaction,
+        items,
+        branchId,
+        tenantId,
+        userId
+      );
+
       const createdSale = await sale.create({
         data: {
-          branchId: payload.branchId ?? "",
+          branchId,
           createdAt: payload.createdAt
             ? new Date(payload.createdAt)
             : new Date(),
@@ -88,13 +163,12 @@ export class OfflineSyncService {
           subtotal: payload.subtotal ?? 0,
           syncedAt: new Date(),
           taxAmount: payload.taxAmount ?? 0,
-          tenantId: payload.tenantId ?? "",
+          tenantId,
           total: payload.total ?? 0,
-          userId: payload.userId ?? "",
+          userId,
         },
       });
 
-      const items = Array.isArray(payload.items) ? payload.items : [];
       if (items.length > 0) {
         await transaction.saleItem.createMany({
           data: items.map((item) => ({
@@ -107,75 +181,21 @@ export class OfflineSyncService {
           })),
         });
       }
-
-      await Promise.all(
-        items.map(async (item) => {
-          const { productId } = item;
-          const branchId = payload.branchId ?? "";
-          const quantity = Number(item.quantity ?? 0);
-
-          if (!productId || !branchId || quantity <= 0) {
-            return;
-          }
-
-          const productBranch = await transaction.productBranch.findUnique({
-            where: {
-              productId_branchId: {
-                branchId,
-                productId,
-              },
-            },
-          });
-
-          if (!productBranch) {
-            throw new Error(
-              `ProductBranch not found for ${productId}/${branchId}`
-            );
-          }
-
-          if (productBranch.stock < quantity) {
-            throw new Error(`Insufficient stock for product ${productId}`);
-          }
-
-          await transaction.productBranch.update({
-            data: {
-              stock: productBranch.stock - quantity,
-            },
-            where: {
-              productId_branchId: {
-                branchId,
-                productId,
-              },
-            },
-          });
-
-          await transaction.stockMovement.create({
-            data: {
-              branchId,
-              productId,
-              quantity: -quantity,
-              reason: "Offline sale sync",
-              tenantId: payload.tenantId ?? "",
-              type: "SALE",
-              userId: payload.userId ?? "",
-            },
-          });
-        })
-      );
     });
   }
 
-  async processEvents(events: OfflineEvent[]) {
+  async processEvents(events: unknown[]) {
     const applied = await Promise.all(
-      events.map(async (event) => {
+      events.map(async (eventUnknown) => {
         try {
+          const event = eventUnknown as OfflineEvent;
           if (event.type === "CREATE_SALE") {
             await this.applyCreateSaleEvent(event);
           }
 
           return event.id;
         } catch {
-          return event.id;
+          // ignored — event failed to apply
         }
       })
     );

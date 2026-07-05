@@ -16,7 +16,7 @@ export class SyncController {
 
   @Post("push")
   async push(@Body() body: SyncPushBody) {
-    const events = body.events ?? [];
+    const events = (body.events ?? []) as unknown[];
     const result = await this.offlineSync.processEvents(events);
     return { data: result, success: true };
   }
@@ -24,7 +24,10 @@ export class SyncController {
   @Get("pull")
   async pull(@Req() req: SyncRequest) {
     const { since } = req.query ?? {};
-    const data = await this.offlineSync.getChangesSince(since);
+    const sinceStr = Array.isArray(since) ? since[0] : since;
+    const data = await this.offlineSync.getChangesSince(
+      sinceStr as string | undefined
+    );
     return { data, success: true };
   }
 }

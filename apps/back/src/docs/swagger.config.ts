@@ -1,10 +1,6 @@
-import { createRequire } from "node:module";
-
 import type { INestApplication } from "@nestjs/common";
 import express from "express";
 import getAbsoluteSwaggerFsPath from "swagger-ui-dist/absolute-path";
-
-const require = createRequire(import.meta.url);
 
 export const SWAGGER_PATH = "api-docs";
 
@@ -66,6 +62,7 @@ export function setupSwagger(app: INestApplication): void {
     // Load @nestjs/swagger at runtime so that incompatible @nestjs/*
     // versions do not break the build. If the package or internal APIs
     // are missing, skip Swagger setup gracefully.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, node/global-require, unicorn/prefer-module
     const swaggerPkg = require("@nestjs/swagger") as {
       DocumentBuilder?: DocumentBuilderCtor;
       SwaggerModule?: SwaggerModuleLike;
