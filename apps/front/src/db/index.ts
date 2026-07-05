@@ -52,28 +52,26 @@ export interface SyncEvent {
   createdAt?: string;
 }
 
-class KiosqDB extends (Dexie as unknown as { new (name?: string): unknown }) {
-  // Use the local TableType for typing table properties.
-  products!: TableType<Product, string>;
-  sales!: TableType<Sale, string>;
-  syncEvents!: TableType<SyncEvent, number>;
+// Create a runtime Dexie instance and cast to a shape the app expects.
+const rawDb = new (Dexie as unknown as { new (name?: string): unknown })(
+  "kiosq"
+) as unknown;
+interface DexieWithVersion {
+  version(n: number): { stores(schema: Record<string, string>): void };
+}
+(rawDb as unknown as DexieWithVersion).version(1).stores({
+  products: "id, name, updatedAt",
+  sales: "id, offlineId, createdAt, syncedAt",
+  syncEvents: "++id, offlineId, type, status, createdAt",
+});
 
-  constructor() {
-    // @ts-expect-error - runtime Dexie constructor is used; typing is coerced above
-    super("kiosq");
-    // The runtime Dexie instance exposes `version(...).stores(...)`.
-    // Narrowly type the `version` helper to avoid using `any`.
-    interface DexieWithVersion {
-      version(n: number): { stores(schema: Record<string, string>): void };
-    }
-    (this as unknown as DexieWithVersion).version(1).stores({
-      products: "id, name, updatedAt",
-      sales: "id, offlineId, createdAt, syncedAt",
-      syncEvents: "++id, offlineId, type, status, createdAt",
-    });
-  }
+interface KiosqDBShape {
+  transaction: (...args: unknown[]) => Promise<unknown> | unknown;
+  products: TableType<Product, string>;
+  sales: TableType<Sale, string>;
+  syncEvents: TableType<SyncEvent, number>;
 }
 
-export const db = new KiosqDB();
+export const db = rawDb as unknown as KiosqDBShape;
 
 export default db;
