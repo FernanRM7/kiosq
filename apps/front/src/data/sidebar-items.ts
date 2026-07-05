@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Package,
+  Tags,
   DollarSign,
   Truck,
   Settings,
@@ -17,6 +18,7 @@ export interface NavItem {
 export const mainNavItems: NavItem[] = [
   { icon: LayoutDashboard, title: "Dashboard", url: "/dashboard" },
   { icon: Package, title: "Products", url: "/dashboard/products" },
+  { icon: Tags, title: "Categories", url: "/dashboard/categories" },
   { icon: DollarSign, title: "Sales", url: "/dashboard/sales" },
   { icon: Truck, title: "Suppliers", url: "/dashboard/suppliers" },
 ];

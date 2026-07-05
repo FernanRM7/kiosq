@@ -38,8 +38,9 @@ export function EditProductDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const {
-    register,
+    control,
     handleSubmit,
+    register,
     reset,
     formState: { errors },
   } = useForm<ProductFormData>({
@@ -93,6 +94,7 @@ export function EditProductDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <ProductFormFields
+            control={control}
             disabled={loading}
             errors={errors}
             idPrefix="edit-product"

@@ -1,10 +1,16 @@
-import type { FieldErrors, UseFormRegister } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { Controller } from "react-hook-form";
+import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Category } from "@/lib/categories";
+import { listCategories, CATEGORIES_CHANGED_EVENT } from "@/lib/categories";
 import type { ProductFormData } from "@/lib/product-form";
+import { cn } from "@/lib/utils";
 
 interface ProductFormFieldsProps {
+  control: Control<ProductFormData>;
   disabled: boolean;
   errors: FieldErrors<ProductFormData>;
   idPrefix: string;
@@ -13,11 +19,40 @@ interface ProductFormFieldsProps {
 
 // eslint-disable-next-line complexity
 export function ProductFormFields({
+  control,
   disabled,
   errors,
   idPrefix,
   register,
 }: ProductFormFieldsProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await listCategories();
+        setCategories(data.active);
+      } catch (error) {
+        console.error("[ProductForm] Failed to load categories", error);
+      }
+    };
+
+    void fetchCategories();
+
+    const handleCategoriesChanged = () => {
+      void fetchCategories();
+    };
+
+    window.addEventListener(CATEGORIES_CHANGED_EVENT, handleCategoriesChanged);
+
+    return () => {
+      window.removeEventListener(
+        CATEGORIES_CHANGED_EVENT,
+        handleCategoriesChanged
+      );
+    };
+  }, []);
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
@@ -112,12 +147,31 @@ export function ProductFormFields({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor={`${idPrefix}-categoryId`}>ID de categoría</Label>
-          <Input
-            id={`${idPrefix}-categoryId`}
-            placeholder="Opcional"
-            disabled={disabled}
-            {...register("categoryId")}
+          <Label htmlFor={`${idPrefix}-categoryId`}>Categoría</Label>
+          <Controller
+            name="categoryId"
+            control={control}
+            render={({ field }) => (
+              <select
+                id={`${idPrefix}-categoryId`}
+                disabled={disabled}
+                value={field.value}
+                onChange={field.onChange}
+                ref={field.ref}
+                className={cn(
+                  "h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+                  "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "aria-invalid:border-destructive aria-invalid:ring-destructive/20"
+                )}
+              >
+                <option value="">Sin categoría</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            )}
           />
           {errors.categoryId?.message && (
             <p className="text-destructive text-sm">

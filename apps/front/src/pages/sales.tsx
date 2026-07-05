@@ -2,18 +2,14 @@ import { format } from "date-fns";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardPanel,
-} from "@/components/ui/card";
+import { SaleDetailDialog } from "@/components/dialogs/sale-detail-dialog";
+import { Card, CardHeader, CardTitle, CardPanel } from "@/components/ui/card";
 import { listSales, SALES_CHANGED_EVENT } from "@/lib/sales";
 import type { Sale } from "@/lib/sales";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,21 +61,37 @@ export default function SalesPage() {
     content = (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {sales.map((sale) => (
-          <Card key={sale.id}>
+          <Card
+            key={sale.id}
+            className="cursor-pointer"
+            onClick={() => setSelectedSale(sale)}
+          >
             <CardHeader>
               <CardTitle className="text-sm">
                 {format(new Date(sale.createdAt), "dd/MM/yyyy HH:mm")}
               </CardTitle>
-              <CardDescription>
-                {sale.items.length}{" "}
-                {sale.items.length === 1 ? "producto" : "productos"}
-              </CardDescription>
             </CardHeader>
             <CardPanel>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 <span className="font-semibold text-lg tabular-nums">
                   ${sale.total.toFixed(2)}
                 </span>
+
+                <div className="flex flex-col text-muted-foreground text-xs leading-relaxed">
+                  {sale.items.slice(0, 3).map((item) => (
+                    <span key={item.id} className="truncate tabular-nums">
+                      {item.product.name}{" "}
+                      <span className="text-muted-foreground/60">×</span>
+                      {item.quantity}
+                    </span>
+                  ))}
+                  {sale.items.length > 3 && (
+                    <span className="font-medium text-foreground/60">
+                      +{sale.items.length - 3} más
+                    </span>
+                  )}
+                </div>
+
                 <span className="text-muted-foreground text-xs">
                   Sub: ${sale.subtotal.toFixed(2)} | IVA: $
                   {sale.taxAmount.toFixed(2)}
@@ -97,6 +109,16 @@ export default function SalesPage() {
       <h1 className="mb-4 font-semibold text-lg">Sales</h1>
       {error && <p className="mb-4 text-destructive text-sm">{error}</p>}
       {content}
+
+      <SaleDetailDialog
+        sale={selectedSale}
+        open={selectedSale !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedSale(null);
+          }
+        }}
+      />
     </div>
   );
 }
