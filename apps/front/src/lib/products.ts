@@ -1,7 +1,5 @@
 import { request } from "@/lib/api";
 
-export const PRODUCTS_CHANGED_EVENT = "products:changed";
-
 export interface Product {
   id: string;
   sku: string;

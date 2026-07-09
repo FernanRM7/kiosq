@@ -1,5 +1,5 @@
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { listProducts } from "@/lib/products";
+import { useProducts } from "@/hooks/queries/use-products";
 import type { Product } from "@/lib/products";
 import { createSale, SALES_CHANGED_EVENT } from "@/lib/sales";
 
@@ -35,27 +35,12 @@ interface CartItem {
 
 export function SalesDrawer() {
   const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const { data: products = [] } = useProducts();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [successSale, setSuccessSale] = useState(false);
-
-  const fetchProducts = useCallback(async () => {
-    try {
-      const data = await listProducts();
-      setProducts(data);
-    } catch (error) {
-      console.error("[SalesDrawer] Failed to fetch products", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      void fetchProducts();
-    }
-  }, [open, fetchProducts]);
 
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase().trim();
