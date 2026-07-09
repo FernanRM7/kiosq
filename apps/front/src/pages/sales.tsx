@@ -1,55 +1,19 @@
 import { format } from "date-fns";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { SaleDetailDialog } from "@/components/dialogs/sale-detail-dialog";
 import { Card, CardHeader, CardTitle, CardPanel } from "@/components/ui/card";
-import { listSales, SALES_CHANGED_EVENT } from "@/lib/sales";
+import { useSales } from "@/hooks/queries/use-sales";
 import type { Sale } from "@/lib/sales";
 
 export default function SalesPage() {
-  const [sales, setSales] = useState<Sale[]>([]);
+  const { data: sales = [], error, isLoading } = useSales();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchSales = useCallback(async () => {
-    setError(null);
-
-    try {
-      const data = await listSales();
-      setSales(data);
-    } catch (fetchError) {
-      console.error("[Sales] Failed to fetch sales", fetchError);
-      setError(
-        fetchError instanceof Error
-          ? fetchError.message
-          : "No se pudieron cargar las ventas"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchSales();
-  }, [fetchSales]);
-
-  useEffect(() => {
-    const handleSalesChanged = () => {
-      void fetchSales();
-    };
-
-    window.addEventListener(SALES_CHANGED_EVENT, handleSalesChanged);
-
-    return () => {
-      window.removeEventListener(SALES_CHANGED_EVENT, handleSalesChanged);
-    };
-  }, [fetchSales]);
 
   let content: ReactNode;
 
-  if (loading) {
+  if (isLoading) {
     content = (
       <p className="text-muted-foreground text-sm">Cargando ventas...</p>
     );
@@ -107,7 +71,13 @@ export default function SalesPage() {
   return (
     <div>
       <h1 className="mb-4 font-semibold text-lg">Sales</h1>
-      {error && <p className="mb-4 text-destructive text-sm">{error}</p>}
+      {error && (
+        <p className="mb-4 text-destructive text-sm">
+          {error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las ventas"}
+        </p>
+      )}
       {content}
 
       <SaleDetailDialog

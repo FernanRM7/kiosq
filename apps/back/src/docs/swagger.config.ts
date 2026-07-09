@@ -1,7 +1,5 @@
 import type { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import express from "express";
-import getAbsoluteSwaggerFsPath from "swagger-ui-dist/absolute-path";
 
 export const SWAGGER_PATH = "api-docs";
 
@@ -54,9 +52,8 @@ export function setupSwagger(app: INestApplication): void {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  app.use(`/${SWAGGER_PATH}`, express.static(getAbsoluteSwaggerFsPath()));
-
   SwaggerModule.setup(SWAGGER_PATH, app, document, {
     customSiteTitle: "Kiosq API Docs",
+    explorer: false,
   });
 }

@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { ProductFormFields } from "@/components/dialogs/product-form-fields";
@@ -12,13 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useCreateProduct } from "@/hooks/mutations/use-create-product";
 import {
   defaultProductFormValues,
   productFormSchema,
   productFormToPayload,
 } from "@/lib/product-form";
 import type { ProductFormData } from "@/lib/product-form";
-import { createProduct, PRODUCTS_CHANGED_EVENT } from "@/lib/products";
 
 interface ProductDialogProps {
   open: boolean;
@@ -26,8 +25,7 @@ interface ProductDialogProps {
 }
 
 export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const createProductMutation = useCreateProduct();
   const {
     control,
     handleSubmit,
@@ -39,25 +37,13 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
     resolver: zodResolver(productFormSchema),
   });
 
-  const onSubmit = async (data: ProductFormData) => {
-    setError(null);
-    setLoading(true);
-
-    try {
-      await createProduct(productFormToPayload(data));
-      window.dispatchEvent(new Event(PRODUCTS_CHANGED_EVENT));
-      reset(defaultProductFormValues);
-      onOpenChange(false);
-    } catch (submitError) {
-      console.error("[ProductDialog] Failed to create product", submitError);
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "No se pudo crear el producto"
-      );
-    } finally {
-      setLoading(false);
-    }
+  const onSubmit = (data: ProductFormData) => {
+    createProductMutation.mutate(productFormToPayload(data), {
+      onSuccess: () => {
+        reset(defaultProductFormValues);
+        onOpenChange(false);
+      },
+    });
   };
 
   return (
@@ -73,23 +59,31 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
           <ProductFormFields
             control={control}
-            disabled={loading}
+            disabled={createProductMutation.isPending}
             errors={errors}
             idPrefix="create-product"
             register={register}
           />
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {createProductMutation.error && (
+            <p className="text-destructive text-sm">
+              {createProductMutation.error instanceof Error
+                ? createProductMutation.error.message
+                : "No se pudo crear el producto"}
+            </p>
+          )}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              disabled={loading}
+              disabled={createProductMutation.isPending}
               onClick={() => onOpenChange(false)}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Agregar producto"}
+            <Button type="submit" disabled={createProductMutation.isPending}>
+              {createProductMutation.isPending
+                ? "Guardando..."
+                : "Agregar producto"}
             </Button>
           </DialogFooter>
         </form>

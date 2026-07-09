@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,11 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useDeleteCategory } from "@/hooks/mutations/use-delete-category";
 import type { Category } from "@/lib/categories";
-import {
-  deleteCategory as deleteCategoryRequest,
-  CATEGORIES_CHANGED_EVENT,
-} from "@/lib/categories";
 
 interface DeleteCategoryDialogProps {
   category: Category | null;
@@ -28,32 +23,19 @@ export function DeleteCategoryDialog({
   onOpenChange,
   onDelete,
 }: DeleteCategoryDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const deleteMutation = useDeleteCategory();
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!category) {
       return;
     }
 
-    setError(null);
-    setLoading(true);
-
-    try {
-      await deleteCategoryRequest(category.id);
-      window.dispatchEvent(new CustomEvent(CATEGORIES_CHANGED_EVENT));
-      onDelete(category);
-      onOpenChange(false);
-    } catch (deleteError) {
-      console.error("[DeleteCategory] Failed to delete category", deleteError);
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "No se pudo eliminar la categoría"
-      );
-    } finally {
-      setLoading(false);
-    }
+    deleteMutation.mutate(category.id, {
+      onSuccess: () => {
+        onDelete(category);
+        onOpenChange(false);
+      },
+    });
   };
 
   return (
@@ -71,21 +53,27 @@ export function DeleteCategoryDialog({
             asignación hasta que los edites.
           </DialogDescription>
         </DialogHeader>
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        {deleteMutation.error && (
+          <p className="text-destructive text-sm">
+            {deleteMutation.error instanceof Error
+              ? deleteMutation.error.message
+              : "No se pudo eliminar la categoría"}
+          </p>
+        )}
         <DialogFooter>
           <Button
             variant="outline"
-            disabled={loading}
+            disabled={deleteMutation.isPending}
             onClick={() => onOpenChange(false)}
           >
             Cancelar
           </Button>
           <Button
             variant="destructive"
-            disabled={loading}
+            disabled={deleteMutation.isPending}
             onClick={handleDelete}
           >
-            {loading ? "Eliminando..." : "Eliminar"}
+            {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogFooter>
       </DialogContent>
