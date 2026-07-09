@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { OnboardingDialog } from "@/components/onboarding/onboarding-dialog";
 import { Avatar } from "@/components/ui/avatar";
@@ -10,41 +10,22 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { useMyTenant, useTenants } from "@/hooks/queries/use-tenants";
 import { useAuth } from "@/hooks/use-auth";
-import { getMyTenant, listTenants, switchTenant } from "@/lib/auth";
+import { switchTenant } from "@/lib/auth";
 import type { TenantListItem } from "@/lib/auth";
 
 export function WorkspaceSwitcher() {
   const { user } = useAuth();
-  const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
-  const [activeTenantName, setActiveTenantName] = useState<string | null>(null);
-  const [workspaces, setWorkspaces] = useState<TenantListItem[]>([]);
+  const { data: myTenant } = useMyTenant();
+  const { data: tenants = [] } = useTenants();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
 
-  const fetchWorkspaces = useCallback(async () => {
-    try {
-      const result = await getMyTenant();
-      if (result?.tenant) {
-        setActiveTenantId(result.tenant.id);
-        setActiveTenantName(result.tenant.name);
-      }
-    } catch (error) {
-      console.error("[Workspace] Failed to fetch my tenant", error);
-    }
-
-    try {
-      const allTenants = await listTenants();
-      setWorkspaces(allTenants);
-    } catch (error) {
-      console.error("[Workspace] Failed to list tenants", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchWorkspaces();
-  }, [fetchWorkspaces]);
+  const activeTenantId = myTenant?.tenant?.id ?? null;
+  const activeTenantName = myTenant?.tenant?.name ?? null;
+  const workspaces = tenants as TenantListItem[];
 
   async function handleSwitch(tenantId: string) {
     if (tenantId === activeTenantId) {
@@ -70,11 +51,8 @@ export function WorkspaceSwitcher() {
     setShowOnboarding(true);
   }
 
-  function handleOnboardingComplete(tenantName: string) {
+  function handleOnboardingComplete(_tenantName: string) {
     setShowOnboarding(false);
-    if (tenantName) {
-      void fetchWorkspaces();
-    }
   }
 
   const workspaceLabel =

@@ -1,5 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Smartphone, Tablet, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getActiveSessions, revokeSession } from "@/lib/auth";
-import type { ActiveSession } from "@/lib/auth";
+import { useSessions } from "@/hooks/queries/use-sessions";
+import { revokeSession } from "@/lib/auth";
 
 function getDeviceIcon(deviceInfo: string): React.ReactNode {
   const lower = deviceInfo.toLowerCase();
@@ -57,32 +58,15 @@ function formatDate(iso: string): string {
 }
 
 export default function SettingsPage() {
-  const [sessions, setSessions] = useState<ActiveSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: sessions = [], isLoading } = useSessions();
+  const queryClient = useQueryClient();
   const [revokingId, setRevokingId] = useState<string | null>(null);
-
-  const fetchSessions = useCallback(async () => {
-    try {
-      const data = await getActiveSessions();
-      setSessions(data);
-    } catch (error) {
-      console.error("[Settings] Failed to fetch sessions", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchSessions();
-  }, [fetchSessions]);
 
   const handleRevoke = async (sessionId: string) => {
     setRevokingId(sessionId);
     try {
-      const result = await revokeSession(sessionId);
-      if (result.success) {
-        setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
-      }
+      await revokeSession(sessionId);
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
     } catch (error) {
       console.error("[Settings] Failed to revoke session", error);
     } finally {
@@ -108,7 +92,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardPanel>
-          {loading && (
+          {isLoading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -122,13 +106,13 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {!loading && sessions.length === 0 && (
+          {!isLoading && sessions.length === 0 && (
             <p className="py-4 text-center text-muted-foreground text-sm">
               No active sessions found.
             </p>
           )}
 
-          {!loading && sessions.length > 0 && (
+          {!isLoading && sessions.length > 0 && (
             <div className="space-y-1">
               {sessions.map((session) => (
                 <div
