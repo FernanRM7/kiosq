@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCreateCategory } from "@/hooks/mutations/use-create-category";
 import type { Category } from "@/lib/categories";
-import { createCategory, CATEGORIES_CHANGED_EVENT } from "@/lib/categories";
 import {
   categoryFormSchema,
   categoryFormToPayload,
@@ -30,21 +30,18 @@ export function CreateCategoryDialog({
   onOpenChange,
   onCreated,
 }: CreateCategoryDialogProps) {
+  const createCategoryMutation = useCreateCategory();
   const [name, setName] = useState(defaultCategoryFormValues.name);
-  const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const handleClose = () => {
     setName("");
-    setError(null);
     setFieldError(null);
     onOpenChange(false);
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
     setFieldError(null);
 
     const parsed = categoryFormSchema.safeParse({ name });
@@ -54,23 +51,12 @@ export function CreateCategoryDialog({
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const category = await createCategory(categoryFormToPayload(parsed.data));
-      window.dispatchEvent(new CustomEvent(CATEGORIES_CHANGED_EVENT));
-      onCreated?.(category);
-      handleClose();
-    } catch (submitError) {
-      console.error("[CreateCategory] Failed to create category", submitError);
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "No se pudo crear la categoría"
-      );
-    } finally {
-      setLoading(false);
-    }
+    createCategoryMutation.mutate(categoryFormToPayload(parsed.data), {
+      onSuccess: (category) => {
+        onCreated?.(category);
+        handleClose();
+      },
+    });
   };
 
   return (
@@ -98,7 +84,7 @@ export function CreateCategoryDialog({
             <Input
               id="create-category-name"
               placeholder="Ej. Bebidas"
-              disabled={loading}
+              disabled={createCategoryMutation.isPending}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
@@ -107,19 +93,25 @@ export function CreateCategoryDialog({
             )}
           </div>
 
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {createCategoryMutation.error && (
+            <p className="text-destructive text-sm">
+              {createCategoryMutation.error instanceof Error
+                ? createCategoryMutation.error.message
+                : "No se pudo crear la categoría"}
+            </p>
+          )}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              disabled={loading}
+              disabled={createCategoryMutation.isPending}
               onClick={handleClose}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creando..." : "Crear"}
+            <Button type="submit" disabled={createCategoryMutation.isPending}>
+              {createCategoryMutation.isPending ? "Creando..." : "Crear"}
             </Button>
           </DialogFooter>
         </form>

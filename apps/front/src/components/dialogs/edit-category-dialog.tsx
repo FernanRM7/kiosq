@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUpdateCategory } from "@/hooks/mutations/use-update-category";
 import type { Category } from "@/lib/categories";
-import { updateCategory, CATEGORIES_CHANGED_EVENT } from "@/lib/categories";
 import {
   categoryFormSchema,
   categoryFormToPayload,
@@ -36,6 +36,7 @@ export function EditCategoryDialog({
   onOpenChange,
   onSave,
 }: EditCategoryDialogProps) {
+  const updateCategoryMutation = useUpdateCategory();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const {
@@ -64,11 +65,10 @@ export function EditCategoryDialog({
     setLoading(true);
 
     try {
-      const updatedCategory = await updateCategory(
-        category.id,
-        categoryFormToPayload(data)
-      );
-      window.dispatchEvent(new CustomEvent(CATEGORIES_CHANGED_EVENT));
+      const updatedCategory = await updateCategoryMutation.mutateAsync({
+        categoryId: category.id,
+        payload: categoryFormToPayload(data),
+      });
       onSave(updatedCategory);
       onOpenChange(false);
     } catch (submitError) {
