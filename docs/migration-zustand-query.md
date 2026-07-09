@@ -263,3 +263,73 @@ zustand          — ^5.x (store global)
 | 2 | Listado de productos/categorías/ventas carga y se actualiza tras crear/editar/eliminar. El select de categoría en el formulario de producto se refresca. No quedan `dispatchEvent` de dominio. |
 | 3 | Workspace switcher lista tenants y permite cambiar. Settings muestra sesiones. Onboarding crea tenant y redirige. |
 | 4 | `grep -r "dispatchEvent\|addEventListener" src/` solo muestra main.tsx y sidebar.tsx (infraestructura). |
+
+---
+
+## Estado post-migración (2026-07-08)
+
+### Migrado a Zustand
+
+| Store | Archivo | Middleware | Reemplaza a |
+|-------|---------|------------|-------------|
+| `authStore` | `src/stores/auth.store.ts` | `devtools("auth-store")` | `AuthContext` (`src/contexts/auth.context.tsx`, **eliminado**) |
+
+### Migrado a TanStack Query
+
+| Recurso | Query hook | QueryKey | Mutaciones | Reemplaza fetch manual en |
+|---------|-----------|----------|------------|---------------------------|
+| `/api/me` | `useMe()` (`queries/use-me.ts`) | `["me"]` | — | `AuthProvider.hydrate()` |
+| `/api/products` | `useProducts()` (`queries/use-products.ts`) | `["products"]` | `useCreateProduct`, `useDeleteProduct` | `ProductsPage`, `SalesDrawer`, `ProductFormFields` (vía `useCategories`) |
+| `/api/categories` | `useCategories()` (`queries/use-categories.ts`) | `["categories"]` | `useCreateCategory`, `useUpdateCategory`, `useDeleteCategory`, `useRestoreCategory` | `CategoriesPage`, `ProductFormFields` |
+| `/api/sales` | `useSales()` (`queries/use-sales.ts`) | `["sales"]` | `useCreateSale` (invalida `["products"]` + `["sales"]`) | `SalesPage`, `SalesDrawer` |
+| `/api/tenants/me` | `useMyTenant()` (`queries/use-tenants.ts`) | `["my-tenant"]` | `useCreateTenant` (invalida `["my-tenant"]` + `["tenants"]`) | `WorkspaceSwitcher`, `OnboardingPage` |
+| `/api/tenants` | `useTenants()` (`queries/use-tenants.ts`) | `["tenants"]` | — | `WorkspaceSwitcher` |
+| `/api/me/sessions` | `useSessions()` (`queries/use-sessions.ts`) | `["sessions"]` | — (revoke usa `queryClient.invalidateQueries`) | `SettingsPage` |
+
+### Event bus eliminado
+
+| Constante | Archivo original | Estado |
+|-----------|-----------------|--------|
+| `PRODUCTS_CHANGED_EVENT` | `src/lib/products.ts:3` | Eliminada (3 emisores, 1 oyente) |
+| `CATEGORIES_CHANGED_EVENT` | `src/lib/categories.ts:3` | Eliminada (5 emisores, 2 oyentes) |
+| `SALES_CHANGED_EVENT` | `src/lib/sales.ts:3` | Eliminada (1 emisor, 1 oyente) |
+
+### Verificación final
+
+```
+$ grep -rn "dispatchEvent\|addEventListener" apps/front/src
+apps/front/src/components/ui/sidebar.tsx:100    window.addEventListener("keydown", ...)   ← atajo de teclado (infra)
+apps/front/src/hooks/use-mobile.ts:9            mql.addEventListener("change", ...)      ← MediaQueryList (infra)
+apps/front/src/main.tsx:16,26                   window.addEventListener("error"/"unhandledrejection", ...)  ← global error logging (infra)
+apps/front/src/hooks/mutations/README.md:46                                               ← documentación
+```
+
+Cero `dispatchEvent` de dominio. Cero `addEventListener` de event bus.
+
+### Contexts locales preservados (React Context, NO Zustand)
+
+| Context | Archivo | Scope |
+|---------|---------|-------|
+| `SidebarContext` | `src/components/ui/sidebar.tsx:44` | Sidebar abierto/cerrado, mobile |
+| `ChartContext` | `src/components/evilcharts/ui/chart.tsx:50` | Tema/colores de chart |
+| `PieChartContext` | `src/components/evilcharts/charts/pie-chart.tsx:68` | Datos de pie chart |
+| `PieShapeContext` | `src/components/evilcharts/charts/pie-chart.tsx:313` | Estado por segmento |
+| `HighlightedIndexContext` | `src/components/evilcharts/blocks/hover-trace-bar-chart.tsx:85` | Índice hovereado |
+
+### Archivos eliminados
+
+- `src/contexts/auth.context.tsx` (204 líneas) — reemplazado por `auth.store.ts` + `use-me.ts` + `sync-auth.tsx`
+- `src/contexts/` — directorio vacío (eliminado automáticamente al borrar el único archivo)
+
+### Conteo final
+
+| Métrica | Antes | Después |
+|---------|-------|---------|
+| `useState` + `useEffect` para fetch | 9 | 0 |
+| `window.dispatchEvent` de dominio | 7 | 0 |
+| `window.addEventListener` de dominio | 3 | 0 |
+| Hooks de React Query creados | 0 | 6 queries + 8 mutations |
+| Stores de Zustand creados | 0 | 1 |
+| Archivos modificados | — | 17 |
+| Archivos nuevos | — | 15 |
+| Archivos eliminados | — | 1 |
