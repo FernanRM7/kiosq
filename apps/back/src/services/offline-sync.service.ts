@@ -5,6 +5,7 @@ import {
   Logger,
 } from "@nestjs/common";
 
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../lib/prisma.service";
 import type {
   SyncEventInput,
@@ -202,7 +203,9 @@ export class OfflineSyncService {
     });
   }
 
-  private deriveSyncStatus(failureCode: string): string | null {
+  private deriveSyncStatus(
+    failureCode: string
+  ): "APPLIED" | "CONFLICT" | "REJECTED" | null {
     // Errores transitorios — el cliente reintenta, no se persisten
     if (failureCode === "INTERNAL_ERROR") {
       return null;
@@ -244,8 +247,8 @@ export class OfflineSyncService {
         entityId: event.payload.offlineId ?? "unknown",
         entityType: "Sale",
         operation: "CREATE",
-        payload: event.payload as Record<string, unknown>,
-        status,
+        payload: event.payload as Prisma.InputJsonValue,
+        status: status as "APPLIED" | "CONFLICT" | "REJECTED",
         tenantId: ctx.tenantId,
       },
     });

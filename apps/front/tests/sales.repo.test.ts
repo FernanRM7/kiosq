@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { Product } from "../index";
+import type { Product } from "@/db";
 import {
   createLocalSale,
   getPendingEvents,
   getPendingSyncCount,
   markEventApplied,
-} from "./sales.repo";
+} from "@/db/repositories/sales.repo";
 
 const testProducts: Product[] = [
   {
@@ -42,7 +42,7 @@ const testProducts: Product[] = [
 ];
 
 async function seedProducts() {
-  const { populateProducts } = await import("./products.repo");
+  const { populateProducts } = await import("@/db/repositories/products.repo");
   await populateProducts(testProducts);
 }
 

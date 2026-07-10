@@ -6,13 +6,13 @@ import {
   it,
 } from "vitest";
 
-import type { Product } from "../index";
+import type { Product } from "@/db";
 import {
   clearLocalProducts,
   getLocalProduct,
   getLocalProducts,
   populateProducts,
-} from "./products.repo";
+} from "@/db/repositories/products.repo";
 
 const mockProducts: Product[] = [
   {
