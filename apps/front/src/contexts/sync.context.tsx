@@ -1,15 +1,20 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
-  useCallback,
 } from "react";
 
 import * as salesRepo from "@/db/repositories/sales.repo";
 import { request } from "@/lib/api";
 
 type SyncStatus = "idle" | "syncing" | "error";
+
+interface SyncPushResponse {
+  applied: number[];
+  failed: { id: number; code: string; message: string }[];
+}
 
 const SyncContext = createContext({
   isOnline: true,
@@ -61,15 +66,19 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      // send to server using API client's signature
-      const res = await request<{ applied: number[] }>("/api/sync/push", {
+      const res = await request<SyncPushResponse>("/api/sync/push", {
         data: { events },
         method: "POST",
       });
-      if (res?.applied?.length) {
+
+      if (res.applied.length > 0) {
         await Promise.all(
           res.applied.map((id) => salesRepo.markEventApplied(id))
         );
+      }
+
+      if (res.failed.length > 0) {
+        console.warn("[sync] eventos fallidos:", res.failed);
       }
 
       setStatus("idle");
@@ -81,7 +90,6 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     if (isOnline) {
-      // attempt sync after short delay
       const t = setTimeout(() => {
         syncNow();
       }, 1000);

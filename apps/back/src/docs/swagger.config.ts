@@ -26,67 +26,7 @@ The WorkOS access token (RS256 JWT) is also accepted via \`Authorization: Bearer
 for scenarios where cookie-based sessions are not available (e.g., mobile, CLI tools).
 `.trim();
 
-interface SwaggerModuleLike {
-  createDocument: (app: INestApplication, config: unknown) => unknown;
-  setup: (
-    path: string,
-    app: INestApplication,
-    document: unknown,
-    options?: Record<string, string>
-  ) => void;
-}
-
-interface DocumentBuilderLike {
-  addBearerAuth: (
-    options: Record<string, string>,
-    name: string
-  ) => DocumentBuilderLike;
-  addCookieAuth: (
-    name: string,
-    options: Record<string, string>
-  ) => DocumentBuilderLike;
-  build: () => unknown;
-  setDescription: (description: string) => DocumentBuilderLike;
-  setTitle: (title: string) => DocumentBuilderLike;
-  setVersion: (version: string) => DocumentBuilderLike;
-}
-
-type DocumentBuilderCtor = new () => DocumentBuilderLike;
-
 export function setupSwagger(app: INestApplication): void {
-  let SwaggerModule: SwaggerModuleLike | undefined;
-  let DocumentBuilder: DocumentBuilderCtor | undefined;
-
-  try {
-    // Load @nestjs/swagger at runtime so that incompatible @nestjs/*
-    // versions do not break the build. If the package or internal APIs
-    // are missing, skip Swagger setup gracefully.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, node/global-require, unicorn/prefer-module
-    const swaggerPkg = require("@nestjs/swagger") as {
-      DocumentBuilder?: DocumentBuilderCtor;
-      SwaggerModule?: SwaggerModuleLike;
-      default?: {
-        DocumentBuilder?: DocumentBuilderCtor;
-        SwaggerModule?: SwaggerModuleLike;
-      };
-    };
-    SwaggerModule =
-      swaggerPkg.SwaggerModule ?? swaggerPkg.default?.SwaggerModule;
-    DocumentBuilder =
-      swaggerPkg.DocumentBuilder ?? swaggerPkg.default?.DocumentBuilder;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "Swagger setup skipped: @nestjs/swagger not available or incompatible",
-      error instanceof Error ? error.message : error
-    );
-    return;
-  }
-
-  if (!SwaggerModule || !DocumentBuilder) {
-    return;
-  }
-
   const config = new DocumentBuilder()
     .setTitle("Kiosq API")
     .setDescription(DESCRIPTION)
@@ -110,17 +50,7 @@ export function setupSwagger(app: INestApplication): void {
     )
     .build();
 
-  let document: unknown;
-  try {
-    document = SwaggerModule.createDocument(app, config);
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "Swagger setup skipped: failed to create document",
-      error instanceof Error ? error.message : error
-    );
-    return;
-  }
+  const document = SwaggerModule.createDocument(app, config);
 
   SwaggerModule.setup(SWAGGER_PATH, app, document, {
     customSiteTitle: "Kiosq API Docs",

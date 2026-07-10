@@ -1,33 +1,84 @@
-import { Body, Controller, Get, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+  Query,
+} from "@nestjs/common";
+import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 
+import { CurrentUser } from "../decorators/current-user.decorator";
+import { SyncPullQueryDto } from "../schemas/sync-pull-query.dto";
+import { SyncPullSuccessResponseSchema } from "../schemas/sync-pull-success-response.schema";
+import { SyncPushSuccessResponseSchema } from "../schemas/sync-push-success-response.schema";
+import { SyncPushDto } from "../schemas/sync-push.dto";
 import { OfflineSyncService } from "../services/offline-sync.service";
+import type { AuthenticatedSessionResult } from "../types/session.type";
 
-interface SyncPushBody {
-  events?: Record<string, unknown>[];
-}
-
-interface SyncRequest {
-  query?: Record<string, string | string[] | undefined>;
-}
-
+/**
+ * Sincronización offline-first para ventas.
+ *
+ * ## Push (`POST /api/sync/push`)
+ * Recibe `{ events: [{ id: number, type: "CREATE_SALE", payload: { offlineId, createdAt, items, subtotal, taxAmount, total } }] }`.
+ * Idempotente por `offlineId` — si ya existe una venta con ese `offlineId`, se omite pero se reporta el `id` como "applied".
+ * Responde `{ success: true, data: { applied: number[], failed: [{ id, code, message }] } }`.
+ *
+ * ## Pull (`GET /api/sync/pull?since=ISO8601`)
+ * Devuelve ventas del tenant autenticado (max 200), filtradas opcionalmente por `syncedAt >= since`.
+ *
+ * **Seguridad:** `tenantId`, `userId` y `branchId` se derivan de la sesión WorkOS autenticada.
+ * El payload del cliente **nunca** sobrescribe estos valores (brecha mitigada).
+ */
+@ApiTags("Sync")
 @Controller("api/sync")
 export class SyncController {
+  private readonly logger = new Logger(SyncController.name);
+
   constructor(private readonly offlineSync: OfflineSyncService) {}
 
   @Post("push")
-  async push(@Body() body: SyncPushBody) {
-    const events = (body.events ?? []) as unknown[];
-    const result = await this.offlineSync.processEvents(events);
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    description:
+      "Recibe eventos offline del cliente (ej. CREATE_SALE) y los aplica de forma idempotente. " +
+      "Los IDs de tenant y usuario se derivan de la sesión autenticada, no del body. " +
+      "La idempotencia se garantiza por `offlineId` en el payload.",
+    summary: "Push de eventos offline al servidor",
+  })
+  @ApiResponse({
+    description: "Eventos procesados correctamente",
+    status: HttpStatus.OK,
+    type: SyncPushSuccessResponseSchema,
+  })
+  async push(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: SyncPushDto
+  ) {
+    const result = await this.offlineSync.processEvents(body.events, session);
     return { data: result, success: true };
   }
 
   @Get("pull")
-  async pull(@Req() req: SyncRequest) {
-    const { since } = req.query ?? {};
-    const sinceStr = Array.isArray(since) ? since[0] : since;
-    const data = await this.offlineSync.getChangesSince(
-      sinceStr as string | undefined
-    );
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    description:
+      "Devuelve ventas sincronizadas para el tenant autenticado, opcionalmente filtradas desde un timestamp. " +
+      "El tenantId se deriva de la sesión, no del query. Máximo 200 resultados.",
+    summary: "Pull de cambios desde el servidor",
+  })
+  @ApiResponse({
+    description: "Cambios obtenidos correctamente",
+    status: HttpStatus.OK,
+    type: SyncPullSuccessResponseSchema,
+  })
+  async pull(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Query() query: SyncPullQueryDto
+  ) {
+    const data = await this.offlineSync.getChangesSince(query.since, session);
     return { data, success: true };
   }
 }
