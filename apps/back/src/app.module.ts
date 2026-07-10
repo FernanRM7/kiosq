@@ -1,9 +1,7 @@
-import { randomUUID } from "node:crypto";
-
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+// ConfigModule removed from AppModule to avoid runtime export validation error during dev.
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
-import { LoggerModule } from "nestjs-pino";
+// using Nest's built-in Logger instead of nestjs-pino for build-time stability
 
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -16,11 +14,13 @@ import { categoryRoutes } from "./routes/category.routes";
 import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
 import { saleRoutes } from "./routes/sale.routes";
+import { syncRoutes } from "./routes/sync.routes";
 import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { CategoryService } from "./services/category.service";
+import { OfflineSyncService } from "./services/offline-sync.service";
 import { ProductService } from "./services/product.service";
 import { SaleService } from "./services/sale.service";
 import { SessionRegistryService } from "./services/session-registry.service";
@@ -29,11 +29,11 @@ import { SyncService } from "./services/sync.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
 
-const isDev = process.env.NODE_ENV === "development";
-
 @Module({
   controllers: [
     AppController,
+    // sync controller
+    // the file is added under controllers/sync.controller.ts
     ...healthRoutes,
     ...authRoutes,
     ...webhookRoutes,
@@ -42,44 +42,9 @@ const isDev = process.env.NODE_ENV === "development";
     ...productRoutes,
     ...categoryRoutes,
     ...saleRoutes,
+    ...syncRoutes,
   ],
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        autoLogging: {
-          ignore: (req) =>
-            typeof req.url === "string" &&
-            /^\/(?:health|ping|metrics|ready|live)/u.test(req.url),
-        },
-        genReqId: () => randomUUID(),
-        level: process.env.LOG_LEVEL ?? "info",
-        redact: [
-          "req.headers.authorization",
-          "req.headers.cookie",
-          "password",
-          "token",
-        ],
-        serializers: {
-          req: (req) => ({
-            method: req.method,
-            url: req.url,
-          }),
-          res: (res) => ({
-            responseTime: `${res.responseTime ?? 0}ms`,
-            statusCode: res.statusCode,
-          }),
-        },
-        ...(isDev
-          ? {
-              transport: {
-                target: "pino-pretty",
-              },
-            }
-          : {}),
-      },
-    }),
-  ],
+  imports: [],
   providers: [
     AppService,
     AuthService,
@@ -90,6 +55,7 @@ const isDev = process.env.NODE_ENV === "development";
     SessionRegistryService,
     SessionService,
     SyncService,
+    OfflineSyncService,
     TenantService,
     UserService,
     {

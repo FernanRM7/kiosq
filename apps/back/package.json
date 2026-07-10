@@ -25,9 +25,9 @@
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
-    "@nestjs/core": "^11.0.1",
+    "@nestjs/core": "^11.1.27",
     "@nestjs/platform-express": "^11.0.1",
-    "@nestjs/swagger": "^11.4.4",
+    "@nestjs/swagger": "^11.4.5",
     "@prisma/client": "^6.19.3",
     "@workos-inc/node": "^10.2.0",
     "cookie-parser": "^1.4.7",
@@ -40,12 +40,13 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
+    "uuid": "14.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.1",
+    "@nestjs/testing": "^11.1.27",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",

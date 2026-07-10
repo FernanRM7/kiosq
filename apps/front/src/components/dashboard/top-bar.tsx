@@ -7,13 +7,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSync } from "@/contexts/sync.context";
+
+function SyncBadge() {
+  const { isOnline, pendingCount, status } = useSync();
+  return (
+    <div className="mr-2 flex items-center gap-2 text-sm">
+      <div
+        className={`rounded px-2 py-1 ${isOnline ? "bg-emerald-100 text-emerald-800" : "bg-yellow-100 text-yellow-800"}`}
+      >
+        {isOnline ? "Online" : "Offline"}
+      </div>
+      {pendingCount > 0 && (
+        <div className="rounded bg-red-100 px-2 py-1 text-red-800">
+          {pendingCount} pending
+        </div>
+      )}
+      {status === "syncing" && (
+        <div className="rounded bg-blue-100 px-2 py-1 text-blue-800">
+          Syncing…
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TopBar() {
   const [productOpen, setProductOpen] = useState(false);
 
   return (
     <>
-      <header className="flex h-13 m-0.5 shrink-0 items-center gap-2 border-b border-b-zinc-200 px-4">
+      <header className="m-0.5 flex h-13 shrink-0 items-center gap-2 border-b border-b-zinc-200 px-4">
         <SidebarTrigger className="" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <div className="flex flex-1 items-center gap-2">
@@ -24,6 +48,7 @@ export function TopBar() {
         </div>
         <div className="flex items-center gap-2">
           <SalesDrawer />
+          <SyncBadge />
           <Button
             variant="default"
             size="sm"
