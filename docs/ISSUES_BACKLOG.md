@@ -22,13 +22,13 @@ La URI configurada en el Dashboard de WorkOS no coincide con la que usa el backe
 
 Falta resolver conflictos con regla server-wins para stock y deduplicación por `offlineId`. El backend silencia errores y no persiste `SyncEvent`, no hay estados `CONFLICT`/`REJECTED`.
 
-### 5. Offline first — Bug: total de venta offline siempre $0.00
+### ~~5. Offline first — Bug: total de venta offline siempre $0.00~~ ✅ Resuelto (HEL-54)
 
-`lib/sales.ts` (frontend) hardcodea `price: 0` por cada línea porque no resuelve precios del catálogo local en Dexie. El total calcula $0.00.
+`lib/sales.ts` (frontend) hardcodea `price: 0` por cada línea porque no resuelve precios del catálogo local en Dexie. El total calcula $0.00. Resuelto en `fix/offline-engine-hel49-54`: `createLocalSale` resuelve precios y taxRate desde `products` table en Dexie y calcula subtotal/taxAmount/total correctamente.
 
-### 6. Offline first — Tabla Dexie `products` nunca se pobla
+### ~~6. Offline first — Tabla Dexie `products` nunca se pobla~~ ✅ Resuelto (HEL-49)
 
-La tabla existe en el schema local pero ningún código escribe en ella. Sin internet no hay catálogo de productos para vender.
+La tabla existe en el schema local pero ningún código escribe en ella. Sin internet no hay catálogo de productos para vender. Resuelto en `fix/offline-engine-hel49-54`: `listProducts()` escribe en Dexie cuando la request tiene éxito; en modo offline fallback a `getLocalProducts()` desde Dexie.
 
 ### 7. Offline first — Sin retry/backoff real
 

@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Product } from "@/db";
+import { populateProducts } from "@/db/repositories/products.repo";
 import { createLocalSale } from "@/db/repositories/sales.repo";
 
 import { SyncProvider, useSync } from "./sync.context";
@@ -11,6 +13,19 @@ vi.mock(import("@/lib/api"), () => ({
 }));
 
 import { request } from "@/lib/api";
+
+const testProducts: Product[] = [
+  {
+    id: "prod-1",
+    name: "Coca Cola 600ml",
+    price: 18.5,
+    sku: "COCA-600",
+    taxRate: 0.16,
+    totalStock: 50,
+    isActive: true,
+    updatedAt: "2024-01-01T00:00:00.000Z",
+  },
+];
 
 function SyncHarness() {
   const { pendingCount, status, syncNow } = useSync();
@@ -26,8 +41,9 @@ function SyncHarness() {
 }
 
 describe(SyncProvider, () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await populateProducts(testProducts);
     Object.defineProperty(navigator, "onLine", {
       configurable: true,
       value: false,

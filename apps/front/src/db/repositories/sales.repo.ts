@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import db from "../index";
 import type { Sale, SyncEvent } from "../index";
+import { getLocalProduct } from "./products.repo";
 
 export async function createLocalSale(input: {
   items: { productId: string; quantity: number }[];
@@ -10,10 +11,43 @@ export async function createLocalSale(input: {
   const id = `local-${offlineId}`;
   const createdAt = new Date().toISOString();
 
+  const resolvedItems = await Promise.all(
+    input.items.map(async (it) => {
+      const product = await getLocalProduct(it.productId);
+
+      if (!product) {
+        throw new Error(
+          `Producto no encontrado en catálogo local: ${it.productId}`
+        );
+      }
+
+      const unitPrice = product.price;
+      const subtotal = unitPrice * it.quantity;
+
+      return {
+        productId: it.productId,
+        quantity: it.quantity,
+        unitPrice,
+        subtotal,
+        taxRate: product.taxRate,
+      };
+    })
+  );
+
+  const saleSubtotal = resolvedItems.reduce(
+    (sum, it) => sum + it.subtotal,
+    0
+  );
+  const saleTaxAmount = resolvedItems.reduce(
+    (sum, it) => sum + it.subtotal * it.taxRate,
+    0
+  );
+  const saleTotal = saleSubtotal + saleTaxAmount;
+
   // Build local Sale record for Dexie display
-  const localItems = input.items.map((it) => ({
+  const localItems = resolvedItems.map((it) => ({
     id: `i-${uuidv4()}`,
-    price: 0,
+    price: it.unitPrice,
     productId: it.productId,
     quantity: it.quantity,
   }));
@@ -22,17 +56,16 @@ export async function createLocalSale(input: {
     id,
     items: localItems,
     offlineId,
-    total: 0,
+    total: saleTotal,
   };
 
   // Build sync payload matching backend contract
-  // FIXME(HEL-XXX): resolve real prices from Dexie products catalog
-  const syncItems = input.items.map((it) => ({
+  const syncItems = resolvedItems.map((it) => ({
     productId: it.productId,
     quantity: it.quantity,
-    subtotal: 0,
-    taxRate: 0,
-    unitPrice: 0,
+    subtotal: it.subtotal,
+    taxRate: it.taxRate,
+    unitPrice: it.unitPrice,
   }));
 
   await db.transaction("rw", db.sales, db.syncEvents, async () => {
@@ -45,9 +78,9 @@ export async function createLocalSale(input: {
         discountAmount: 0,
         items: syncItems,
         offlineId,
-        subtotal: 0,
-        taxAmount: 0,
-        total: 0,
+        subtotal: saleSubtotal,
+        taxAmount: saleTaxAmount,
+        total: saleTotal,
       },
       status: "PENDING",
       type: "CREATE_SALE",
