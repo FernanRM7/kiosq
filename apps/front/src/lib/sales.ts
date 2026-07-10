@@ -45,7 +45,6 @@ export function listSales(): Promise<Sale[]> {
 
 export function createSale(payload: CreateSalePayload): Promise<Sale> {
   if (!navigator.onLine) {
-    // FIXME(HEL-XXX): resolve real prices from Dexie products catalog
     return createLocalSale({
       items: payload.items,
     }) as unknown as Promise<Sale>;

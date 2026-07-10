@@ -16,17 +16,23 @@ interface WhereReturn<T> {
 interface TableType<T, K = unknown> {
   put: (obj: T) => Promise<unknown>;
   add: (obj: T) => Promise<unknown>;
+  bulkPut: (items: T[]) => Promise<unknown>;
   update: (key: K, changes: Partial<T>) => Promise<number>;
+  clear: () => Promise<void>;
+  get: (key: K) => Promise<T | undefined>;
   where: (index: string) => WhereReturn<T>;
-  count?: () => Promise<number>;
-  toArray?: () => Promise<T[]>;
-  // add other methods as needed
+  count: () => Promise<number>;
+  toArray: () => Promise<T[]>;
 }
 
 export interface Product {
   id: string;
   name: string;
+  sku: string;
   price: number;
+  taxRate: number;
+  totalStock: number;
+  isActive: boolean;
   updatedAt?: string;
 }
 export interface SaleItem {
@@ -59,8 +65,8 @@ const rawDb = new (Dexie as unknown as { new (name?: string): unknown })(
 interface DexieWithVersion {
   version(n: number): { stores(schema: Record<string, string>): void };
 }
-(rawDb as unknown as DexieWithVersion).version(1).stores({
-  products: "id, name, updatedAt",
+(rawDb as unknown as DexieWithVersion).version(2).stores({
+  products: "id, name, sku, updatedAt",
   sales: "id, offlineId, createdAt, syncedAt",
   syncEvents: "++id, offlineId, type, status, createdAt",
 });
