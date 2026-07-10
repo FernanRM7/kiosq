@@ -1,32 +1,22 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from "@nestjs/common";
 
 import { PrismaService } from "../lib/prisma.service";
+import type {
+  SyncEventInput,
+  SyncFailedItem,
+  SyncItemInput,
+} from "../schemas/sync.schema";
+import type { AuthenticatedSessionResult } from "../types/session.type";
 
-interface OfflineSaleItem {
-  productId: string;
-  quantity?: number | string;
-  subtotal?: number | string;
-  taxRate?: number | string;
-  unitPrice?: number | string;
-}
-
-interface OfflineSalePayload {
-  branchId?: string;
-  createdAt?: string;
-  discountAmount?: number | string;
-  items?: OfflineSaleItem[];
-  offlineId?: string;
-  subtotal?: number | string;
-  taxAmount?: number | string;
-  tenantId?: string;
-  total?: number | string;
-  userId?: string;
-}
-
-interface OfflineEvent {
-  id: string | number;
-  payload?: OfflineSalePayload;
-  type: string;
+interface SyncContext {
+  tenantId: string;
+  userId: string;
+  branchId: string | null;
 }
 
 interface TransactionClient {
@@ -57,19 +47,39 @@ interface TransactionClient {
 
 @Injectable()
 export class OfflineSyncService {
+  private readonly logger = new Logger(OfflineSyncService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  private async resolveContext(
+    session: AuthenticatedSessionResult
+  ): Promise<SyncContext> {
+    const user = await this.prisma.user.findUnique({
+      select: { branchId: true, id: true, isActive: true, tenantId: true },
+      where: { workosUserId: session.userId },
+    });
+
+    if (!user?.isActive) {
+      throw new ForbiddenException("Debes tener un workspace activo");
+    }
+
+    return {
+      branchId: user.branchId,
+      tenantId: user.tenantId,
+      userId: user.id,
+    };
+  }
 
   private async validateInventory(
     transaction: TransactionClient,
-    items: OfflineSaleItem[],
+    items: SyncItemInput[],
     branchId: string,
     tenantId: string,
     userId: string
   ): Promise<void> {
     await Promise.all(
       items.map(async (item) => {
-        const { productId } = item;
-        const quantity = Number(item.quantity ?? 0);
+        const { productId, quantity } = item;
 
         if (!productId || !branchId || quantity <= 0) {
           return;
@@ -121,12 +131,23 @@ export class OfflineSyncService {
     );
   }
 
-  private async applyCreateSaleEvent(event: OfflineEvent): Promise<void> {
-    const payload = event.payload ?? {};
+  private async applyCreateSaleEvent(
+    event: SyncEventInput,
+    ctx: SyncContext
+  ): Promise<void> {
+    const { payload } = event;
     const { offlineId } = payload;
 
     if (!offlineId) {
       throw new Error("Missing offlineId in CREATE_SALE payload");
+    }
+
+    const branchId = ctx.branchId;
+
+    if (!branchId) {
+      throw new BadRequestException(
+        "No tienes una sucursal asignada. Asigna una sucursal antes de sincronizar."
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -139,16 +160,13 @@ export class OfflineSyncService {
       }
 
       const items = Array.isArray(payload.items) ? payload.items : [];
-      const branchId = payload.branchId ?? "";
-      const tenantId = payload.tenantId ?? "";
-      const userId = payload.userId ?? "";
 
       await this.validateInventory(
         transaction,
         items,
         branchId,
-        tenantId,
-        userId
+        ctx.tenantId,
+        ctx.userId
       );
 
       const createdSale = await sale.create({
@@ -163,9 +181,9 @@ export class OfflineSyncService {
           subtotal: payload.subtotal ?? 0,
           syncedAt: new Date(),
           taxAmount: payload.taxAmount ?? 0,
-          tenantId,
+          tenantId: ctx.tenantId,
           total: payload.total ?? 0,
-          userId,
+          userId: ctx.userId,
         },
       });
 
@@ -173,42 +191,83 @@ export class OfflineSyncService {
         await transaction.saleItem.createMany({
           data: items.map((item) => ({
             productId: item.productId,
-            quantity: Number(item.quantity ?? 0),
+            quantity: item.quantity,
             saleId: createdSale.id,
-            subtotal: Number(item.subtotal ?? 0),
-            taxRate: Number(item.taxRate ?? 0),
-            unitPrice: Number(item.unitPrice ?? 0),
+            subtotal: item.subtotal,
+            taxRate: item.taxRate,
+            unitPrice: item.unitPrice,
           })),
         });
       }
     });
   }
 
-  async processEvents(events: unknown[]) {
-    const applied = await Promise.all(
-      events.map(async (eventUnknown) => {
+  private mapError(eventId: number, error: unknown): SyncFailedItem {
+    if (error instanceof BadRequestException) {
+      return { id: eventId, code: "BAD_REQUEST", message: error.message };
+    }
+    if (error instanceof ForbiddenException) {
+      return { id: eventId, code: "FORBIDDEN", message: error.message };
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    let code = "INTERNAL_ERROR";
+
+    if (
+      message.includes("MISSING_OFFLINE_ID") ||
+      message.includes("Missing offlineId")
+    ) {
+      code = "MISSING_OFFLINE_ID";
+    } else if (message.includes("ProductBranch not found")) {
+      code = "PRODUCT_NOT_FOUND";
+    } else if (message.includes("Insufficient stock")) {
+      code = "INSUFFICIENT_STOCK";
+    }
+
+    return { id: eventId, code, message };
+  }
+
+  async processEvents(
+    events: SyncEventInput[],
+    session: AuthenticatedSessionResult
+  ) {
+    const ctx = await this.resolveContext(session);
+
+    const applied: number[] = [];
+    const failed: SyncFailedItem[] = [];
+
+    await Promise.all(
+      events.map(async (event) => {
         try {
-          const event = eventUnknown as OfflineEvent;
           if (event.type === "CREATE_SALE") {
-            await this.applyCreateSaleEvent(event);
+            await this.applyCreateSaleEvent(event, ctx);
+            applied.push(event.id);
+            return;
           }
 
-          return event.id;
-        } catch {
-          // ignored — event failed to apply
+          failed.push({
+            id: event.id,
+            code: "UNKNOWN_EVENT_TYPE",
+            message: `Tipo de evento desconocido: ${event.type}`,
+          });
+        } catch (error) {
+          failed.push(this.mapError(event.id, error));
         }
       })
     );
 
-    return {
-      applied: applied.filter(
-        (value): value is string | number => value !== undefined
-      ),
-    };
+    return { applied, failed };
   }
 
-  async getChangesSince(since?: string) {
-    const where = since ? { syncedAt: { gte: new Date(since) } } : {};
+  async getChangesSince(
+    since: string | undefined,
+    session: AuthenticatedSessionResult
+  ) {
+    const ctx = await this.resolveContext(session);
+    const where = {
+      tenantId: ctx.tenantId,
+      ...(since ? { syncedAt: { gte: new Date(since) } } : {}),
+    };
     const sales = await this.prisma.sale.findMany({
       orderBy: { createdAt: "asc" },
       take: 200,
