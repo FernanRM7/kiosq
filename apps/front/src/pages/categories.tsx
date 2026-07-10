@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   getCategoryColumns,
@@ -10,98 +11,34 @@ import { DeleteCategoryDialog } from "@/components/dialogs/delete-category-dialo
 import { EditCategoryDialog } from "@/components/dialogs/edit-category-dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  CATEGORIES_CHANGED_EVENT,
-  listCategories,
-  restoreCategory,
-} from "@/lib/categories";
+import { useRestoreCategory } from "@/hooks/mutations/use-restore-category";
+import { useCategories } from "@/hooks/queries/use-categories";
 import type { Category } from "@/lib/categories";
 
 const EMPTY_LIST = { active: [], deleted: [] };
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<{
-    active: Category[];
-    deleted: Category[];
-  }>(EMPTY_LIST);
+  const { data: categories = EMPTY_LIST, error, isLoading } = useCategories();
+  const queryClient = useQueryClient();
+  const restoreCategoryMutation = useRestoreCategory();
   const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [deleteCategory, setDeleteCategory] = useState<Category | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [restoringId, setRestoringId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchCategories = useCallback(async () => {
-    setError(null);
-
-    try {
-      const data = await listCategories();
-      setCategories(data);
-    } catch (fetchError) {
-      console.error("[Categories] Failed to fetch categories", fetchError);
-      setError(
-        fetchError instanceof Error
-          ? fetchError.message
-          : "No se pudieron cargar las categorías"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchCategories();
-  }, [fetchCategories]);
-
-  useEffect(() => {
-    const handleCategoriesChanged = () => {
-      void fetchCategories();
-    };
-
-    window.addEventListener(CATEGORIES_CHANGED_EVENT, handleCategoriesChanged);
-
-    return () => {
-      window.removeEventListener(
-        CATEGORIES_CHANGED_EVENT,
-        handleCategoriesChanged
-      );
-    };
-  }, [fetchCategories]);
-
-  const handleSaveCategory = (updatedCategory: Category) => {
-    setCategories((prev) => ({
-      active: prev.active.map((c) =>
-        c.id === updatedCategory.id ? updatedCategory : c
-      ),
-      deleted: prev.deleted,
-    }));
+  const handleSaveCategory = () => {
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
   };
 
-  const handleDeleteCategory = (category: Category) => {
-    setCategories((prev) => ({
-      active: prev.active.filter((c) => c.id !== category.id),
-      deleted: prev.deleted,
-    }));
+  const handleDeleteCategory = () => {
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
   };
 
-  const handleRestoreCategory = async (category: Category) => {
-    setError(null);
-    setRestoringId(category.id);
-
-    try {
-      await restoreCategory(category.id);
-      window.dispatchEvent(new CustomEvent(CATEGORIES_CHANGED_EVENT));
-    } catch (restoreError) {
-      console.error("[Categories] Failed to restore category", restoreError);
-      setError(
-        restoreError instanceof Error
-          ? restoreError.message
-          : "No se pudo restaurar la categoría"
-      );
-    } finally {
-      setRestoringId(null);
-    }
-  };
+  const handleRestoreCategory = useCallback(
+    (category: Category) => {
+      restoreCategoryMutation.mutate(category.id);
+    },
+    [restoreCategoryMutation]
+  );
 
   const activeColumns = useMemo(
     () =>
@@ -114,7 +51,7 @@ export default function CategoriesPage() {
 
   const deletedColumns = useMemo(
     () => getDeletedCategoryColumns(handleRestoreCategory),
-    []
+    [handleRestoreCategory]
   );
 
   return (
@@ -123,8 +60,14 @@ export default function CategoriesPage() {
         <h1 className="font-semibold text-lg">Categorías</h1>
         <Button onClick={() => setCreateOpen(true)}>Nueva categoría</Button>
       </div>
-      {error && <p className="mb-4 text-destructive text-sm">{error}</p>}
-      {loading ? (
+      {error && (
+        <p className="mb-4 text-destructive text-sm">
+          {error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las categorías"}
+        </p>
+      )}
+      {isLoading ? (
         <p className="text-muted-foreground text-sm">Cargando categorías...</p>
       ) : (
         <Tabs defaultValue="active">
@@ -160,7 +103,7 @@ export default function CategoriesPage() {
         </Tabs>
       )}
 
-      {restoringId && (
+      {restoreCategoryMutation.isPending && (
         <p className="mt-2 text-muted-foreground text-sm">Restaurando...</p>
       )}
 

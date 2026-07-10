@@ -1,7 +1,5 @@
 import { request } from "@/lib/api";
 
-export const CATEGORIES_CHANGED_EVENT = "categories:changed";
-
 export interface Category {
   id: string;
   name: string;

@@ -14,7 +14,7 @@ import {
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createTenant } from "@/lib/auth";
+import { useCreateTenant } from "@/hooks/mutations/use-create-tenant";
 
 interface OnboardingDialogProps {
   open?: boolean;
@@ -26,8 +26,8 @@ export function OnboardingDialog({
   onComplete,
 }: OnboardingDialogProps) {
   const navigate = useNavigate();
+  const createTenantMutation = useCreateTenant();
   const [internalOpen, setInternalOpen] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isControlled = controlledOpen !== undefined;
@@ -42,44 +42,33 @@ export function OnboardingDialog({
     }
   }
 
-  async function onSubmit(e: FormEvent) {
+  function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    try {
-      const form = e.target as HTMLFormElement;
-      const data = new FormData(form);
-      const workspaceName = data.get("workspaceName") as string;
+    const form = e.target as HTMLFormElement;
+    const data = new FormData(form);
+    const workspaceName = data.get("workspaceName") as string;
 
-      if (!workspaceName?.trim()) {
-        setError("El nombre del local es obligatorio");
-        setLoading(false);
-        return;
-      }
-
-      const result = await createTenant(workspaceName.trim());
-
-      if (onComplete) {
-        onComplete(result.tenant.name);
-      } else {
-        setInternalOpen(false);
-        navigate("/dashboard");
-      }
-    } catch (submitError) {
-      console.error("[Onboarding] Failed to create tenant", submitError);
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Error al crear el workspace"
-      );
-    } finally {
-      setLoading(false);
+    if (!workspaceName?.trim()) {
+      setError("El nombre del local es obligatorio");
+      return;
     }
+
+    createTenantMutation.mutate(workspaceName.trim(), {
+      onSuccess: (result) => {
+        if (onComplete) {
+          onComplete(result.tenant.name);
+        } else {
+          setInternalOpen(false);
+          navigate("/dashboard");
+        }
+      },
+    });
   }
 
   function handleOpenChange(isOpen: boolean) {
-    if (!loading && !isOpen) {
+    if (!createTenantMutation.isPending && !isOpen) {
       close();
     }
   }
@@ -112,10 +101,23 @@ export function OnboardingDialog({
               />
             </div>
           </div>
-          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+          {(error || createTenantMutation.error) && (
+            <p className="text-sm text-red-500 text-center">
+              {error ??
+                (createTenantMutation.error instanceof Error
+                  ? createTenantMutation.error.message
+                  : "Error al crear el workspace")}
+            </p>
+          )}
           <DialogFooter>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creando..." : "Crear Workspace"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={createTenantMutation.isPending}
+            >
+              {createTenantMutation.isPending
+                ? "Creando..."
+                : "Crear Workspace"}
             </Button>
           </DialogFooter>
         </form>

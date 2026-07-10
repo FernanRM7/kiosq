@@ -3,8 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import { createLocalSale } from "@/db/repositories/sales.repo";
 import { request } from "@/lib/api";
 
-export const SALES_CHANGED_EVENT = "sales:changed";
-
 export interface SaleItemResponse {
   id: string;
   productId: string;

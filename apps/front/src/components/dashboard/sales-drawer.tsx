@@ -1,5 +1,5 @@
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,9 +20,9 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { listProducts } from "@/lib/products";
+import { useCreateSale } from "@/hooks/mutations/use-create-sale";
+import { useProducts } from "@/hooks/queries/use-products";
 import type { Product } from "@/lib/products";
-import { createSale, SALES_CHANGED_EVENT } from "@/lib/sales";
 
 interface CartItem {
   productId: string;
@@ -35,27 +35,11 @@ interface CartItem {
 
 export function SalesDrawer() {
   const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const { data: products = [] } = useProducts();
+  const createSaleMutation = useCreateSale();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
   const [successSale, setSuccessSale] = useState(false);
-
-  const fetchProducts = useCallback(async () => {
-    try {
-      const data = await listProducts();
-      setProducts(data);
-    } catch (error) {
-      console.error("[SalesDrawer] Failed to fetch products", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      void fetchProducts();
-    }
-  }, [open, fetchProducts]);
 
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase().trim();
@@ -129,37 +113,27 @@ export function SalesDrawer() {
   );
   const total = subtotal + taxAmount;
 
-  async function completeSale() {
+  function completeSale() {
     if (cart.length === 0) {
       return;
     }
 
-    setApiError(null);
-    setLoading(true);
-
-    try {
-      await createSale({
+    createSaleMutation.mutate(
+      {
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
         })),
         paymentMethod: "CASH",
-      });
-
-      setCart([]);
-      setOpen(false);
-      setSuccessSale(true);
-      window.dispatchEvent(new Event(SALES_CHANGED_EVENT));
-    } catch (submitError) {
-      console.error("[SalesDrawer] Failed to complete sale", submitError);
-      setApiError(
-        submitError instanceof Error
-          ? submitError.message
-          : "No se pudo completar la venta"
-      );
-    } finally {
-      setLoading(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          setCart([]);
+          setOpen(false);
+          setSuccessSale(true);
+        },
+      }
+    );
   }
 
   return (
@@ -291,15 +265,21 @@ export function SalesDrawer() {
                   <span className="tabular-nums">${total.toFixed(2)}</span>
                 </div>
               </div>
-              {apiError && (
-                <p className="text-destructive text-sm">{apiError}</p>
+              {createSaleMutation.error && (
+                <p className="text-destructive text-sm">
+                  {createSaleMutation.error instanceof Error
+                    ? createSaleMutation.error.message
+                    : "No se pudo completar la venta"}
+                </p>
               )}
               <Button
                 className="mt-2 w-full"
                 onClick={completeSale}
-                disabled={loading || cart.length === 0}
+                disabled={createSaleMutation.isPending || cart.length === 0}
               >
-                {loading ? "Procesando..." : "Completar Venta"}
+                {createSaleMutation.isPending
+                  ? "Procesando..."
+                  : "Completar Venta"}
               </Button>
             </DrawerFooter>
           )}

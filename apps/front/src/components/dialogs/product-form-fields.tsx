@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
 import { Controller } from "react-hook-form";
 import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Category } from "@/lib/categories";
-import { listCategories, CATEGORIES_CHANGED_EVENT } from "@/lib/categories";
+import { useCategories } from "@/hooks/queries/use-categories";
 import type { ProductFormData } from "@/lib/product-form";
 import { cn } from "@/lib/utils";
 
@@ -25,33 +23,7 @@ export function ProductFormFields({
   idPrefix,
   register,
 }: ProductFormFieldsProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const data = await listCategories();
-        setCategories(data.active);
-      } catch (error) {
-        console.error("[ProductForm] Failed to load categories", error);
-      }
-    };
-
-    void fetchCategories();
-
-    const handleCategoriesChanged = () => {
-      void fetchCategories();
-    };
-
-    window.addEventListener(CATEGORIES_CHANGED_EVENT, handleCategoriesChanged);
-
-    return () => {
-      window.removeEventListener(
-        CATEGORIES_CHANGED_EVENT,
-        handleCategoriesChanged
-      );
-    };
-  }, []);
+  const { data: categories = { active: [], deleted: [] } } = useCategories();
 
   return (
     <div className="grid gap-4">
@@ -165,7 +137,7 @@ export function ProductFormFields({
                 )}
               >
                 <option value="">Sin categoría</option>
-                {categories.map((category) => (
+                {categories.active.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
