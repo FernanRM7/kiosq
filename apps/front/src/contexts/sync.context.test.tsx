@@ -108,7 +108,7 @@ describe(SyncProvider, () => {
     });
   });
 
-  it("keeps failed events as PENDING", async () => {
+  it("marks INSUFFICIENT_STOCK events as CONFLICT (not pending)", async () => {
     await createLocalSale({
       items: [{ productId: "prod-1", quantity: 1 }],
     });
@@ -145,7 +145,87 @@ describe(SyncProvider, () => {
       expect(screen.getByTestId("status")).toHaveTextContent("idle");
     });
 
+    expect(screen.getByTestId("pending")).toHaveTextContent("0");
+  });
+
+  it("keeps retryable failed events as PENDING", async () => {
+    await createLocalSale({
+      items: [{ productId: "prod-1", quantity: 1 }],
+    });
+
+    vi.mocked(request).mockResolvedValue({
+      applied: [],
+      failed: [
+        {
+          code: "INTERNAL_ERROR",
+          id: 1,
+          message: "Unexpected server error",
+        },
+      ],
+    });
+
+    render(
+      <SyncProvider>
+        <SyncHarness />
+      </SyncProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("pending")).toHaveTextContent("1");
+    });
+
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+
+    await userEvent.click(screen.getByTestId("sync-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status")).toHaveTextContent("idle");
+    });
+
     expect(screen.getByTestId("pending")).toHaveTextContent("1");
+  });
+
+  it("marks REJECTED errors and removes from pending count", async () => {
+    await createLocalSale({
+      items: [{ productId: "prod-1", quantity: 1 }],
+    });
+
+    vi.mocked(request).mockResolvedValue({
+      applied: [],
+      failed: [
+        {
+          code: "PRODUCT_NOT_FOUND",
+          id: 1,
+          message: "Producto no existe",
+        },
+      ],
+    });
+
+    render(
+      <SyncProvider>
+        <SyncHarness />
+      </SyncProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("pending")).toHaveTextContent("1");
+    });
+
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+
+    await userEvent.click(screen.getByTestId("sync-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status")).toHaveTextContent("idle");
+    });
+
+    expect(screen.getByTestId("pending")).toHaveTextContent("0");
   });
 
   it("does not sync when offline", async () => {

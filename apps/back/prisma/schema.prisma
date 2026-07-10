@@ -530,8 +530,8 @@ model SyncEvent {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   entityType String
   entityId   String

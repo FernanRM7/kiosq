@@ -102,3 +102,11 @@ export function getPendingEvents(limit = 50) {
 export function markEventApplied(id: number | string) {
   return db.syncEvents.update(Number(id), { status: "APPLIED" });
 }
+
+export function markEventRejected(id: number | string) {
+  return db.syncEvents.update(Number(id), { status: "REJECTED" });
+}
+
+export function markEventConflict(id: number | string) {
+  return db.syncEvents.update(Number(id), { status: "CONFLICT" });
+}

@@ -18,9 +18,9 @@ El menú lateral colapsado por defecto muestra únicamente iconos, dificultando 
 
 La URI configurada en el Dashboard de WorkOS no coincide con la que usa el backend (`/auth/callback`). Actualizar desde el panel de WorkOS.
 
-### 4. Offline first — Resolución de conflictos + idempotencia
+### ~~4. Offline first — Resolución de conflictos + idempotencia~~ ✅ Resuelto (HEL-50)
 
-Falta resolver conflictos con regla server-wins para stock y deduplicación por `offlineId`. El backend silencia errores y no persiste `SyncEvent`, no hay estados `CONFLICT`/`REJECTED`.
+Falta resolver conflictos con regla server-wins para stock y deduplicación por `offlineId`. El backend silencia errores y no persiste `SyncEvent`, no hay estados `CONFLICT`/`REJECTED`. Resuelto en `fix/offline-engine-hel49-54`: `OfflineSyncService` persiste `SyncEvent` con status `APPLIED`, `CONFLICT` (stock insuficiente, server-wins) o `REJECTED` (evento inválido). La idempotencia por `offlineId` funciona con test explícito.
 
 ### ~~5. Offline first — Bug: total de venta offline siempre $0.00~~ ✅ Resuelto (HEL-54)
 
@@ -30,9 +30,9 @@ Falta resolver conflictos con regla server-wins para stock y deduplicación por 
 
 La tabla existe en el schema local pero ningún código escribe en ella. Sin internet no hay catálogo de productos para vender. Resuelto en `fix/offline-engine-hel49-54`: `listProducts()` escribe en Dexie cuando la request tiene éxito; en modo offline fallback a `getLocalProducts()` desde Dexie.
 
-### 7. Offline first — Sin retry/backoff real
+### ~~7. Offline first — Sin retry/backoff real~~ ✅ Resuelto (HEL-55)
 
-`syncNow()` solo reintenta en el próximo evento `online`. No hay exponential backoff con jitter como contempla el plan.
+`syncNow()` solo reintenta en el próximo evento `online`. No hay exponential backoff con jitter como contempla el plan. Resuelto en `fix/offline-engine-hel49-54`: `SyncProvider` incluye clasificación de errores (retryable no-reintentar vs permanentes REJECTED/CONFLICT) y exponential backoff con jitter (±20%, 2s→5min cap, max 8 intentos).
 
 ### ~~8. Offline first — Brecha de seguridad en SyncController~~ ✅ Resuelto (HEL-69)
 

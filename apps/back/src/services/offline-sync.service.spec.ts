@@ -158,22 +158,115 @@ describe("OfflineSyncService", () => {
 
   it("throws ForbiddenException when user is not active", async () => {
     const tx = makeMockTransaction();
-    const prisma = makeMockPrisma(tx);
-    const service = new OfflineSyncService(prisma);
-
-    const result = await service.processEvents([], session);
-
-    expect(result.applied).toEqual([]);
-  });
-
-  it("throws ForbiddenException when user is not active", async () => {
-    const tx = makeMockTransaction();
     const prisma = makeMockPrisma(tx, { isActive: false });
     const service = new OfflineSyncService(prisma);
 
     await expect(
       service.processEvents([makeCreateSaleEvent()], session)
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  describe("SyncEvent persistence", () => {
+    it("persists SyncEvent with status APPLIED when sale is created", async () => {
+      const tx = makeMockTransaction();
+      const prisma = makeMockPrisma(tx);
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents([makeCreateSaleEvent()], session);
+
+      expect(prisma.syncEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "APPLIED" }),
+        })
+      );
+    });
+
+    it("persists SyncEvent with status CONFLICT when stock is insufficient", async () => {
+      const tx = makeMockTransaction({ productBranchStock: 1 });
+      const prisma = makeMockPrisma(tx);
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents([makeCreateSaleEvent({ id: 99 })], session);
+
+      expect(prisma.syncEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "CONFLICT",
+            conflictNote: expect.stringContaining("Insufficient stock"),
+          }),
+        })
+      );
+    });
+
+    it("persists SyncEvent with status REJECTED when offlineId is missing", async () => {
+      const tx = makeMockTransaction();
+      const prisma = makeMockPrisma(tx);
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents(
+        [makeCreateSaleEvent({ id: 5, omitOfflineId: true })],
+        session
+      );
+
+      expect(prisma.syncEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "REJECTED",
+            entityId: "unknown",
+          }),
+        })
+      );
+    });
+
+    it("persists SyncEvent with status REJECTED for unknown event type", async () => {
+      const tx = makeMockTransaction();
+      const prisma = makeMockPrisma(tx);
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents(
+        [makeCreateSaleEvent({ id: 10, type: "UPDATE_PRODUCT" })],
+        session
+      );
+
+      expect(prisma.syncEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "REJECTED" }),
+        })
+      );
+    });
+
+    it("does NOT persist SyncEvent for transient INTERNAL_ERROR", async () => {
+      // Un error INTERNAL_ERROR no tiene código específico — simula un error
+      // genérico no mapeado (ej. un error de red que lanza algo que no es
+      // ni BadRequest ni Forbidden)
+      const tx = makeMockTransaction();
+      // Force an unexpected error by making $transaction fail in a way that
+      // mapError can only assign INTERNAL_ERROR
+      const prisma = {
+        ...makeMockPrisma(tx),
+        $transaction: jest.fn(() => Promise.reject(new Error("Unexpected DB error"))),
+      } as unknown as ReturnType<typeof makeMockPrisma>;
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents([makeCreateSaleEvent({ id: 42 })], session);
+
+      expect(prisma.syncEvent.create).not.toHaveBeenCalled();
+    });
+
+    it("persists SyncEvent for duplicated offlineId (idempotent)", async () => {
+      const tx = makeMockTransaction({ existingSale: { id: "existing-sale" } });
+      const prisma = makeMockPrisma(tx);
+      const service = new OfflineSyncService(prisma);
+
+      await service.processEvents([makeCreateSaleEvent()], session);
+
+      // Tras idempotencia, el SyncEvent aún se persiste con APPLIED
+      expect(prisma.syncEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "APPLIED" }),
+        })
+      );
+    });
   });
 
   describe("getChangesSince", () => {
