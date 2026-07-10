@@ -202,6 +202,55 @@ export class OfflineSyncService {
     });
   }
 
+  private deriveSyncStatus(failureCode: string): string | null {
+    // Errores transitorios — el cliente reintenta, no se persisten
+    if (failureCode === "INTERNAL_ERROR") {
+      return null;
+    }
+    // Conflictos de stock — server-wins, necesita reconciliación humana
+    if (failureCode === "INSUFFICIENT_STOCK") {
+      return "CONFLICT";
+    }
+    // Errores permanentes — evento inválido
+    return "REJECTED";
+  }
+
+  private async persistSyncEvent(
+    event: SyncEventInput,
+    ctx: SyncContext,
+    failure: SyncFailedItem | null
+  ): Promise<void> {
+    const status = failure ? this.deriveSyncStatus(failure.code) : "APPLIED";
+
+    // Errores transitorios no se persisten (el cliente reintentará)
+    if (status === null) {
+      return;
+    }
+
+    /*
+     * NOTA: SyncEvent se persiste fuera de la transacción de venta.
+     * Existe una ventana pequeña donde la venta se crea exitosamente
+     * pero el SyncEvent no se persiste (ej. crash post-commit).
+     * Esto es aceptable para POS: la venta existe en DB, el cliente
+     * recibió {applied: [id]} y marcará el evento como APPLIED en
+     * Dexie. En el peor caso, la auditoría pierde un registro, no
+     * los datos de la venta.
+     */
+    await this.prisma.syncEvent.create({
+      data: {
+        clientTs: new Date(event.payload.createdAt),
+        conflictNote: failure?.message ?? null,
+        deviceId: null,
+        entityId: event.payload.offlineId ?? "unknown",
+        entityType: "Sale",
+        operation: "CREATE",
+        payload: event.payload as Record<string, unknown>,
+        status,
+        tenantId: ctx.tenantId,
+      },
+    });
+  }
+
   private mapError(eventId: number, error: unknown): SyncFailedItem {
     if (error instanceof BadRequestException) {
       return { id: eventId, code: "BAD_REQUEST", message: error.message };
@@ -241,17 +290,22 @@ export class OfflineSyncService {
         try {
           if (event.type === "CREATE_SALE") {
             await this.applyCreateSaleEvent(event, ctx);
+            await this.persistSyncEvent(event, ctx, null);
             applied.push(event.id);
             return;
           }
 
-          failed.push({
+          const failedItem = {
             id: event.id,
             code: "UNKNOWN_EVENT_TYPE",
             message: `Tipo de evento desconocido: ${event.type}`,
-          });
+          } satisfies SyncFailedItem;
+          await this.persistSyncEvent(event, ctx, failedItem);
+          failed.push(failedItem);
         } catch (error) {
-          failed.push(this.mapError(event.id, error));
+          const failedItem = this.mapError(event.id, error);
+          await this.persistSyncEvent(event, ctx, failedItem);
+          failed.push(failedItem);
         }
       })
     );

@@ -54,7 +54,7 @@ export interface SyncEvent {
   offlineId?: string;
   type: string;
   payload: unknown;
-  status: "PENDING" | "APPLIED" | "FAILED";
+  status: "PENDING" | "APPLIED" | "FAILED" | "REJECTED" | "CONFLICT";
   createdAt?: string;
 }
 

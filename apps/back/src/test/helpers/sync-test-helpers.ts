@@ -85,6 +85,9 @@ export function makeMockPrisma(
     sale: {
       findMany: jest.fn().mockResolvedValue([]),
     },
+    syncEvent: {
+      create: jest.fn().mockResolvedValue({ id: "sync-event-1" }),
+    },
     user: {
       findUnique: jest.fn().mockResolvedValue({
         branchId: userOverrides?.branchId ?? "branch-1",
@@ -95,6 +98,7 @@ export function makeMockPrisma(
     },
   } as unknown as {
     $transaction: jest.Mock;
+    syncEvent: { create: jest.Mock };
     user: { findUnique: jest.Mock };
     sale: { findMany: jest.Mock };
   };
