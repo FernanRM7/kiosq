@@ -6,7 +6,7 @@ import type { Product } from "@/db";
 import { populateProducts } from "@/db/repositories/products.repo";
 import { createLocalSale } from "@/db/repositories/sales.repo";
 
-import { SyncProvider, useSync } from "./sync.context";
+import { SyncProvider, useSync } from "@/contexts/sync.context";
 
 vi.mock(import("@/lib/api"), () => ({
   request: vi.fn(),

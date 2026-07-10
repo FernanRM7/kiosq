@@ -5,8 +5,8 @@ import {
   makeMockPrisma,
   makeMockSession,
   makeMockTransaction,
-} from "../test/helpers/sync-test-helpers";
-import { OfflineSyncService } from "./offline-sync.service";
+} from "./helpers/sync-test-helpers";
+import { OfflineSyncService } from "../services/offline-sync.service";
 
 describe("OfflineSyncService", () => {
   const session = makeMockSession();

@@ -2,8 +2,8 @@ import type { OfflineSyncService } from "../services/offline-sync.service";
 import {
   makeCreateSaleEvent,
   makeMockSession,
-} from "../test/helpers/sync-test-helpers";
-import { SyncController } from "./sync.controller";
+} from "./helpers/sync-test-helpers";
+import { SyncController } from "../controllers/sync.controller";
 
 describe("SyncController", () => {
   it("passes session to service and returns success envelope", async () => {
