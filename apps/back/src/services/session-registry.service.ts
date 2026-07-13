@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 
+import { cid } from "../lib/request-context";
 import { getRedisClient } from "../lib/redis.lib";
 
 /** Metadata stored in Redis for each active session */
@@ -66,7 +67,7 @@ export class SessionRegistryService {
       ]);
 
       this.logger.debug(
-        `Session registered: ${metadata.sessionId} for user ${metadata.userId}`
+        `${cid()} Session registered: sessionId=${metadata.sessionId} userId=${metadata.userId} ttl=${SESSION_TTL_SECONDS}s prefix=${SESSION_PREFIX}`
       );
     }, `registerSession:${metadata.userId}`);
   }
@@ -81,7 +82,7 @@ export class SessionRegistryService {
         const sessionIds = await getRedisClient().sMembers(userSessionsKey);
 
         if (sessionIds.length === 0) {
-          this.logger.debug(`Cache miss: no sessions for user ${userId}`);
+          this.logger.debug(`${cid()} Cache miss: no sessions for user ${userId}`);
           return [];
         }
 
@@ -101,7 +102,7 @@ export class SessionRegistryService {
 
         const result = sessions.filter((s): s is SessionMetadata => s !== null);
         this.logger.debug(
-          `Cache hit: ${result.length} sessions for user ${userId}`
+          `${cid()} Cache hit: ${result.length} sessions for user ${userId}`
         );
         return result;
       },
@@ -123,7 +124,7 @@ export class SessionRegistryService {
         getRedisClient().sRem(userSessionsKey, sessionId),
       ]);
 
-      this.logger.debug(`Session removed: ${sessionId} for user ${userId}`);
+      this.logger.debug(`${cid()} Session removed: sessionId=${sessionId} userId=${userId}`);
     }, `removeSession:${userId}`);
   }
 
@@ -148,7 +149,7 @@ export class SessionRegistryService {
       ]);
 
       this.logger.debug(
-        `All sessions removed for user ${userId} (${sessionIds.length} sessions)`
+        `${cid()} All sessions removed for user ${userId} (${sessionIds.length} sessions)`
       );
     }, `removeAllSessions:${userId}`);
   }
@@ -162,7 +163,7 @@ export class SessionRegistryService {
         const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
         const active = (await getRedisClient().exists(sessionKey)) === 1;
         this.logger.debug(
-          `Session ${sessionId} for user ${userId}: ${active ? "active" : "inactive"}`
+          `${cid()} Session ${sessionId} for user ${userId}: ${active ? "active" : "inactive"}`
         );
         return active;
       },

@@ -4,6 +4,7 @@ import type { JWTVerifyGetKey } from "jose";
 
 import { loadAuthConfig } from "../config/auth.config";
 import type { AuthConfig } from "../config/auth.config";
+import { cid } from "../lib/request-context";
 import { createWorkosJwks } from "../lib/jwks.lib";
 import type { JwtPayload } from "../types/jwt-payload.type";
 import { verifyWorkosToken } from "../utils/jwt.util";
@@ -83,7 +84,7 @@ export class AuthService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         { error: error instanceof Error ? error.message : String(error) },
-        "Failed to exchange WorkOS code"
+        `${cid()} Failed to exchange WorkOS code (sealSession=true clientId=${this.config.clientId.slice(0, 8)}...)`
       );
       throw error;
     }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { Role } from "@prisma/client";
 
+import { cid } from "../lib/request-context";
 import { PrismaService } from "../lib/prisma.service";
 import type { WorkosEvent } from "../schemas/workos-event.schema";
 import { AuthService } from "./auth.service";
@@ -103,12 +104,12 @@ export class SyncService {
       });
 
       this.logger.log(
-        `Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
-      );
+          `${cid()} Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
+        );
     } catch (error) {
       this.logger.error(
-        { err: error, workosOrgId },
-        `Failed to upsert tenant: ${workosOrgId}`
+        { err: error instanceof Error ? error.message : String(error), workosOrgId },
+        `${cid()} Failed to upsert tenant: workosOrgId=${workosOrgId}`
       );
       throw error;
     }
@@ -142,18 +143,18 @@ export class SyncService {
         });
 
         this.logger.log(
-          `User updated: workosUserId=${data.workosUserId} email="${data.email}"`
+          `${cid()} User updated: workosUserId=${data.workosUserId} email="${data.email}" name="${name}"`
         );
       } else {
         this.logger.debug(
-          `user.created/updated event for unknown user ${data.workosUserId} — ` +
+          `${cid()} user.created/updated event for unknown user ${data.workosUserId} — ` +
             `awaiting organization_membership.created to create and link.`
         );
       }
     } catch (error) {
       this.logger.error(
-        { err: error, workosUserId: data.workosUserId },
-        `Failed to upsert user: ${data.workosUserId}`
+        { err: error instanceof Error ? error.message : String(error), workosUserId: data.workosUserId },
+        `${cid()} Failed to upsert user: workosUserId=${data.workosUserId}`
       );
       throw error;
     }
@@ -192,8 +193,8 @@ export class SyncService {
 
       if (!tenant) {
         this.logger.warn(
-          `Tenant not found for workosOrgId="${data.organizationId}" ` +
-            `(membership: ${data.membershipId}). ` +
+          `${cid()} Tenant not found for workosOrgId="${data.organizationId}" ` +
+            `(membership_id=${data.membershipId}). ` +
             `Ensure organization.created is processed before membership events.`
         );
         return;
@@ -214,14 +215,17 @@ export class SyncService {
         });
 
         this.logger.log(
-          `Membership synced (existing user): workosUserId=${data.userId} ` +
-            `tenantId=${tenant.id} role=${role}`
+          `${cid()} Membership synced (existing user): workosUserId=${data.userId} ` +
+            `tenantId=${tenant.id} role=${role} membership_id=${data.membershipId}`
         );
 
         return;
       }
 
-      // User doesn't exist locally — fetch profile from WorkOS API and create
+      this.logger.debug(
+        `${cid()} New WorkOS user detected — fetching profile from API: workosUserId=${data.userId}`
+      );
+
       const workosUser = await this.authService.workos.userManagement.getUser(
         data.userId
       );
@@ -250,18 +254,18 @@ export class SyncService {
       });
 
       this.logger.log(
-        `Membership synced (new user created): workosUserId=${data.userId} ` +
-          `email="${workosUser.email}" tenantId=${tenant.id} role=${role}`
+          `${cid()} Membership synced (new user created): workosUserId=${data.userId} ` +
+          `email="${workosUser.email}" name="${name}" tenantId=${tenant.id} role=${role} membership_id=${data.membershipId}`
       );
     } catch (error) {
       this.logger.error(
         {
-          err: error,
+          err: error instanceof Error ? error.message : String(error),
           membershipId: data.membershipId,
           organizationId: data.organizationId,
           workosUserId: data.userId,
         },
-        `Failed to sync membership: ${data.membershipId}`
+        `${cid()} Failed to sync membership: membership_id=${data.membershipId} workosUserId=${data.userId}`
       );
       throw error;
     }

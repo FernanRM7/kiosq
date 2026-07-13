@@ -4,6 +4,7 @@ import { Reflector } from "@nestjs/core";
 import type { Request, Response } from "express";
 
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+import { cid } from "../lib/request-context";
 import { SessionService } from "../services/session.service";
 
 /**
@@ -68,11 +69,15 @@ export class AuthGuard implements CanActivate {
     );
 
     if (!result.authenticated) {
-      this.logger.warn(`Auth rejected [${request.ip}]: ${result.reason}`);
+      this.logger.warn(
+        `${cid()} Auth rejected: reason=${result.reason} ip=${request.ip} method=${request.method} path=${request.originalUrl}`
+      );
       throw new UnauthorizedException("Inicia sesión para continuar");
     }
 
-    this.logger.debug(`Auth success: user=${result.userId}`);
+    this.logger.debug(
+      `${cid()} Auth success: userId=${result.userId} sessionId=${result.sessionId} method=${request.method} path=${request.originalUrl}`
+    );
 
     // Inject the authenticated session into the request so @CurrentUser()
     // and any downstream middleware can access the session without re-reading the cookie.
