@@ -4,8 +4,8 @@ import type { JWTVerifyGetKey } from "jose";
 
 import { loadAuthConfig } from "../config/auth.config";
 import type { AuthConfig } from "../config/auth.config";
-import { cid } from "../lib/request-context";
 import { createWorkosJwks } from "../lib/jwks.lib";
+import { cid } from "../lib/request-context";
 import type { JwtPayload } from "../types/jwt-payload.type";
 import { verifyWorkosToken } from "../utils/jwt.util";
 

@@ -109,7 +109,12 @@ export class SessionService {
                 `auto-recovering registration (cookie is valid per WorkOS)`
             );
             try {
-              await this.registerSession(userId, sessionId, result.user, request);
+              await this.registerSession(
+                userId,
+                sessionId,
+                result.user,
+                request
+              );
             } catch {
               /* non-critical: registration recovery failure does not invalidate session */
             }
@@ -121,7 +126,9 @@ export class SessionService {
         }
       }
 
-      this.logger.debug(`${cid()} Session authenticated: userId=${userId} sessionId=${sessionId}`);
+      this.logger.debug(
+        `${cid()} Session authenticated: userId=${userId} sessionId=${sessionId}`
+      );
 
       const authenticatedResult: SessionResult = {
         accessToken: result.accessToken,
@@ -236,7 +243,11 @@ export class SessionService {
       );
     } catch (error) {
       this.logger.error(
-        { err: error instanceof Error ? error.message : String(error), sessionId, userId },
+        {
+          err: error instanceof Error ? error.message : String(error),
+          sessionId,
+          userId,
+        },
         `${cid()} Failed to register session in Redis: sessionId=${sessionId}`
       );
     }
@@ -250,7 +261,11 @@ export class SessionService {
       await this.sessionRegistry.removeSession(userId, sessionId);
     } catch (error) {
       this.logger.error(
-        { err: error instanceof Error ? error.message : String(error), sessionId, userId },
+        {
+          err: error instanceof Error ? error.message : String(error),
+          sessionId,
+          userId,
+        },
         `${cid()} Failed to revoke session in Redis: sessionId=${sessionId}`
       );
     }
@@ -306,9 +321,12 @@ export class SessionService {
         );
         // The sealed session was refreshed successfully by WorkOS — re-register.
         // buildName helper inline to avoid compiling issues
-        const name = [refreshResult.user.firstName, refreshResult.user.lastName]
-          .filter(Boolean)
-          .join(" ") || refreshResult.user.email || "User";
+        const name =
+          [refreshResult.user.firstName, refreshResult.user.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          refreshResult.user.email ||
+          "User";
         try {
           await this.sessionRegistry.registerSession({
             createdAt: new Date().toISOString(),

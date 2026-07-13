@@ -7,7 +7,10 @@ export function getCorrelationId(): string {
   return als.getStore()?.correlationId ?? "-";
 }
 
-export function runCorrelationContext<T>(correlationId: string, fn: () => T): T {
+export function runCorrelationContext<T>(
+  correlationId: string,
+  fn: () => T
+): T {
   return als.run({ correlationId }, fn);
 }
 

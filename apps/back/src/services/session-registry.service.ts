@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 
-import { cid } from "../lib/request-context";
 import { getRedisClient } from "../lib/redis.lib";
+import { cid } from "../lib/request-context";
 
 /** Metadata stored in Redis for each active session */
 export interface SessionMetadata {
@@ -82,7 +82,9 @@ export class SessionRegistryService {
         const sessionIds = await getRedisClient().sMembers(userSessionsKey);
 
         if (sessionIds.length === 0) {
-          this.logger.debug(`${cid()} Cache miss: no sessions for user ${userId}`);
+          this.logger.debug(
+            `${cid()} Cache miss: no sessions for user ${userId}`
+          );
           return [];
         }
 
@@ -124,7 +126,9 @@ export class SessionRegistryService {
         getRedisClient().sRem(userSessionsKey, sessionId),
       ]);
 
-      this.logger.debug(`${cid()} Session removed: sessionId=${sessionId} userId=${userId}`);
+      this.logger.debug(
+        `${cid()} Session removed: sessionId=${sessionId} userId=${userId}`
+      );
     }, `removeSession:${userId}`);
   }
 

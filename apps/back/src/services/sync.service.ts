@@ -1,8 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { Role } from "@prisma/client";
 
-import { cid } from "../lib/request-context";
 import { PrismaService } from "../lib/prisma.service";
+import { cid } from "../lib/request-context";
 import type { WorkosEvent } from "../schemas/workos-event.schema";
 import { AuthService } from "./auth.service";
 
@@ -104,11 +104,14 @@ export class SyncService {
       });
 
       this.logger.log(
-          `${cid()} Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
-        );
+        `${cid()} Tenant upserted: id=${tenant.id} workosOrgId=${workosOrgId} name="${name}"`
+      );
     } catch (error) {
       this.logger.error(
-        { err: error instanceof Error ? error.message : String(error), workosOrgId },
+        {
+          err: error instanceof Error ? error.message : String(error),
+          workosOrgId,
+        },
         `${cid()} Failed to upsert tenant: workosOrgId=${workosOrgId}`
       );
       throw error;
@@ -153,7 +156,10 @@ export class SyncService {
       }
     } catch (error) {
       this.logger.error(
-        { err: error instanceof Error ? error.message : String(error), workosUserId: data.workosUserId },
+        {
+          err: error instanceof Error ? error.message : String(error),
+          workosUserId: data.workosUserId,
+        },
         `${cid()} Failed to upsert user: workosUserId=${data.workosUserId}`
       );
       throw error;
@@ -254,7 +260,7 @@ export class SyncService {
       });
 
       this.logger.log(
-          `${cid()} Membership synced (new user created): workosUserId=${data.userId} ` +
+        `${cid()} Membership synced (new user created): workosUserId=${data.userId} ` +
           `email="${workosUser.email}" name="${name}" tenantId=${tenant.id} role=${role} membership_id=${data.membershipId}`
       );
     } catch (error) {

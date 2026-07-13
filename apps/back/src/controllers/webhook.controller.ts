@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   BadRequestException,
   Controller,
@@ -16,7 +18,6 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
-import { createHash } from "node:crypto";
 import type { Request } from "express";
 
 import { loadWebhookConfig } from "../config/webhook.config";
@@ -129,7 +130,9 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
 
   // ─── Private helpers ────────────────────────────────────────────────────
 
-  private requireSignatureHeader(signature: string | undefined): asserts signature is string {
+  private requireSignatureHeader(
+    signature: string | undefined
+  ): asserts signature is string {
     if (!signature) {
       this.logger.warn(
         `${cid()} Webhook rejected: missing workos-signature header`
@@ -145,14 +148,18 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     const serverTimestamp = Date.now();
     const sigHash = this.hashString(signature);
     const { timestamp: headerTs } = this.parseWorkosSignatureHeader(signature);
-    const parsedTs =
-      headerTs === null ? null : Number.parseInt(headerTs, 10);
+    const parsedTs = headerTs === null ? null : Number.parseInt(headerTs, 10);
     const skewMs =
       parsedTs === null || Number.isNaN(parsedTs)
         ? null
         : serverTimestamp - parsedTs;
     const skewSec = skewMs === null ? null : Math.round(skewMs / 1000);
-    const rawBody = this.resolveRawBody(request, sigHash, headerTs, serverTimestamp);
+    const rawBody = this.resolveRawBody(
+      request,
+      sigHash,
+      headerTs,
+      serverTimestamp
+    );
 
     return {
       headerTs,
@@ -191,9 +198,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
       `${cid()} Webhook rejected: rawBody unavailable (ensure rawBody:true in NestFactory) ` +
         `sigHash=${sigHash} headerTs=${String(headerTs)} serverTs=${serverTimestamp}`
     );
-    throw new BadRequestException(
-      "Error interno al verificar la solicitud"
-    );
+    throw new BadRequestException("Error interno al verificar la solicitud");
   }
 
   private logVerificationContext(ctx: WebhookVerificationContext): void {
@@ -299,9 +304,10 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
    * The WorkOS SDK uses `sigHeader.split(",")[0].split("=")[1]`.
    * This mirrors that extraction for diagnostic logging purposes.
    */
-  private parseWorkosSignatureHeader(
-    sigHeader: string
-  ): { schemeHash: string | null; timestamp: string | null } {
+  private parseWorkosSignatureHeader(sigHeader: string): {
+    schemeHash: string | null;
+    timestamp: string | null;
+  } {
     const [tPart, v1Part] = sigHeader.split(",");
 
     if (tPart === undefined || v1Part === undefined) {
