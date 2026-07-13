@@ -393,7 +393,8 @@ configured in the WorkOS dashboard (typically \`/login\`).
     const logoutUrl = this.authService.getLogoutUrl(session.sessionId);
 
     this.logger.log(
-      `${cid()} Logout initiated: userId=${session.userId} sessionId=${session.sessionId} returnTo=${this.authService.appUrl}`
+      `${cid()} Logout initiated: userId=${session.userId} sessionId=${session.sessionId} ` +
+        `returnTo=${this.authService.logoutReturnTo} logoutUrl=${logoutUrl}`
     );
 
     // Revoke session from Redis
