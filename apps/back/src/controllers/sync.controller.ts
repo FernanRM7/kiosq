@@ -26,6 +26,23 @@ import type { AuthenticatedSessionResult } from "../types/session.type";
  * Idempotente por `offlineId` — si ya existe una venta con ese `offlineId`, se omite pero se reporta el `id` como "applied".
  * Responde `{ success: true, data: { applied: number[], failed: [{ id, code, message }] } }`.
  *
+ * ### Códigos de error en `failed[]`
+ * | Código               | Significado                                     | Acción del cliente                 |
+ * |----------------------|-------------------------------------------------|-------------------------------------|
+ * | `BAD_REQUEST`        | Payload malformado o item inválido              | REJECTED (no reintentar)            |
+ * | `FORBIDDEN`          | Usuario inactivo o sin sucursal asignada        | REJECTED (no reintentar)            |
+ * | `INSUFFICIENT_STOCK` | Stock insuficiente (server-wins)                | CONFLICT (requiere reconciliación)  |
+ * | `PRODUCT_NOT_FOUND`  | ProductBranch no existe en el catálogo          | REJECTED (no reintentar)            |
+ * | `MISSING_OFFLINE_ID` | Payload sin `offlineId`                         | REJECTED (no reintentar)            |
+ * | `UNKNOWN_EVENT_TYPE` | Tipo de evento no soportado                     | REJECTED (no reintentar)            |
+ * | `INTERNAL_ERROR`     | Error transitorio del servidor                  | Retryable (reintentar con backoff)  |
+ *
+ * Los códigos `BAD_REQUEST`, `FORBIDDEN`, `INSUFFICIENT_STOCK`, `PRODUCT_NOT_FOUND`,
+ * `MISSING_OFFLINE_ID`, y `UNKNOWN_EVENT_TYPE` producen un `SyncEvent` con estado
+ * `REJECTED` (permanente) o `CONFLICT` (requiere intervención). `INTERNAL_ERROR`
+ * es transitorio — el servidor **no** persiste el `SyncEvent` y el cliente debe
+ * reintentar con backoff exponencial.
+ *
  * ## Pull (`GET /api/sync/pull?since=ISO8601`)
  * Devuelve ventas del tenant autenticado (max 200), filtradas opcionalmente por `syncedAt >= since`.
  *

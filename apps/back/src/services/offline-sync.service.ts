@@ -4,8 +4,8 @@ import {
   Injectable,
   Logger,
 } from "@nestjs/common";
-
 import type { Prisma } from "@prisma/client";
+
 import { PrismaService } from "../lib/prisma.service";
 import type {
   SyncEventInput,
@@ -60,8 +60,14 @@ export class OfflineSyncService {
       where: { workosUserId: session.userId },
     });
 
-    if (!user?.isActive) {
-      throw new ForbiddenException("Debes tener un workspace activo");
+    if (!user) {
+      throw new ForbiddenException("Usuario no encontrado en el workspace");
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException(
+        "Tu cuenta está inactiva. Contacta al administrador."
+      );
     }
 
     return {
@@ -78,58 +84,68 @@ export class OfflineSyncService {
     tenantId: string,
     userId: string
   ): Promise<void> {
-    await Promise.all(
-      items.map(async (item) => {
-        const { productId, quantity } = item;
+    // Agrupa items por productId para evitar lost-update race cuando el
+    // payload contiene el mismo producto en varias líneas. Se procesa cada
+    // producto único secuencialmente: una lectura, un update, un movement.
+    const quantityByProduct = new Map<string, number>();
 
-        if (!productId || !branchId || quantity <= 0) {
-          return;
-        }
+    for (const item of items) {
+      const { productId, quantity } = item;
 
-        const productBranch = await transaction.productBranch.findUnique({
-          where: {
-            productId_branchId: {
-              branchId,
-              productId,
-            },
-          },
-        });
+      if (!productId || quantity <= 0) {
+        throw new BadRequestException(
+          `Item inválido: productId=${productId} quantity=${quantity}`
+        );
+      }
 
-        if (!productBranch) {
-          throw new Error(
-            `ProductBranch not found for ${productId}/${branchId}`
-          );
-        }
+      quantityByProduct.set(
+        productId,
+        (quantityByProduct.get(productId) ?? 0) + quantity
+      );
+    }
 
-        if (productBranch.stock < quantity) {
-          throw new Error(`Insufficient stock for product ${productId}`);
-        }
-
-        await transaction.productBranch.update({
-          data: {
-            stock: productBranch.stock - quantity,
-          },
-          where: {
-            productId_branchId: {
-              branchId,
-              productId,
-            },
-          },
-        });
-
-        await transaction.stockMovement.create({
-          data: {
+    for (const [productId, totalQuantity] of quantityByProduct) {
+      const productBranch = await transaction.productBranch.findUnique({
+        where: {
+          productId_branchId: {
             branchId,
             productId,
-            quantity: -quantity,
-            reason: "Offline sale sync",
-            tenantId,
-            type: "SALE",
-            userId,
           },
-        });
-      })
-    );
+        },
+      });
+
+      if (!productBranch) {
+        throw new Error(`ProductBranch not found for ${productId}/${branchId}`);
+      }
+
+      if (productBranch.stock < totalQuantity) {
+        throw new Error(`Insufficient stock for product ${productId}`);
+      }
+
+      await transaction.productBranch.update({
+        data: {
+          stock: productBranch.stock - totalQuantity,
+        },
+        where: {
+          productId_branchId: {
+            branchId,
+            productId,
+          },
+        },
+      });
+
+      await transaction.stockMovement.create({
+        data: {
+          branchId,
+          productId,
+          quantity: -totalQuantity,
+          reason: "Offline sale sync",
+          tenantId,
+          type: "SALE",
+          userId,
+        },
+      });
+    }
   }
 
   private async applyCreateSaleEvent(
@@ -143,7 +159,7 @@ export class OfflineSyncService {
       throw new Error("Missing offlineId in CREATE_SALE payload");
     }
 
-    const branchId = ctx.branchId;
+    const {branchId} = ctx;
 
     if (!branchId) {
       throw new BadRequestException(
@@ -256,10 +272,10 @@ export class OfflineSyncService {
 
   private mapError(eventId: number, error: unknown): SyncFailedItem {
     if (error instanceof BadRequestException) {
-      return { id: eventId, code: "BAD_REQUEST", message: error.message };
+      return { code: "BAD_REQUEST", id: eventId, message: error.message };
     }
     if (error instanceof ForbiddenException) {
-      return { id: eventId, code: "FORBIDDEN", message: error.message };
+      return { code: "FORBIDDEN", id: eventId, message: error.message };
     }
 
     const message = error instanceof Error ? error.message : String(error);
@@ -276,7 +292,7 @@ export class OfflineSyncService {
       code = "INSUFFICIENT_STOCK";
     }
 
-    return { id: eventId, code, message };
+    return { code, id: eventId, message };
   }
 
   async processEvents(
@@ -288,30 +304,28 @@ export class OfflineSyncService {
     const applied: number[] = [];
     const failed: SyncFailedItem[] = [];
 
-    await Promise.all(
-      events.map(async (event) => {
-        try {
-          if (event.type === "CREATE_SALE") {
-            await this.applyCreateSaleEvent(event, ctx);
-            await this.persistSyncEvent(event, ctx, null);
-            applied.push(event.id);
-            return;
-          }
-
-          const failedItem = {
-            id: event.id,
-            code: "UNKNOWN_EVENT_TYPE",
-            message: `Tipo de evento desconocido: ${event.type}`,
-          } satisfies SyncFailedItem;
-          await this.persistSyncEvent(event, ctx, failedItem);
-          failed.push(failedItem);
-        } catch (error) {
-          const failedItem = this.mapError(event.id, error);
-          await this.persistSyncEvent(event, ctx, failedItem);
-          failed.push(failedItem);
+    for (const event of events) {
+      try {
+        if (event.type === "CREATE_SALE") {
+          await this.applyCreateSaleEvent(event, ctx);
+          await this.persistSyncEvent(event, ctx, null);
+          applied.push(event.id);
+          continue;
         }
-      })
-    );
+
+        const failedItem = {
+          code: "UNKNOWN_EVENT_TYPE",
+          id: event.id,
+          message: `Tipo de evento desconocido: ${event.type}`,
+        } satisfies SyncFailedItem;
+        await this.persistSyncEvent(event, ctx, failedItem);
+        failed.push(failedItem);
+      } catch (error) {
+        const failedItem = this.mapError(event.id, error);
+        await this.persistSyncEvent(event, ctx, failedItem);
+        failed.push(failedItem);
+      }
+    }
 
     return { applied, failed };
   }

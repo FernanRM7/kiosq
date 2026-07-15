@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import type { AuthenticatedSessionResult } from "../../types/session.type";
 
 export function makeMockTransaction(overrides?: {
@@ -78,6 +79,7 @@ export function makeMockPrisma(
     branchId: string | null;
     tenantId: string;
     isActive: boolean;
+    userNotFound: boolean;
   }>
 ) {
   return {
@@ -89,12 +91,16 @@ export function makeMockPrisma(
       create: jest.fn().mockResolvedValue({ id: "sync-event-1" }),
     },
     user: {
-      findUnique: jest.fn().mockResolvedValue({
-        branchId: userOverrides?.branchId ?? "branch-1",
-        id: "user-1",
-        isActive: userOverrides?.isActive ?? true,
-        tenantId: userOverrides?.tenantId ?? "tenant-1",
-      }),
+      findUnique: jest.fn().mockResolvedValue(
+        userOverrides?.userNotFound
+          ? null
+          : {
+              branchId: userOverrides?.branchId ?? "branch-1",
+              id: "user-1",
+              isActive: userOverrides?.isActive ?? true,
+              tenantId: userOverrides?.tenantId ?? "tenant-1",
+            }
+      ),
     },
   } as unknown as {
     $transaction: jest.Mock;

@@ -8,35 +8,37 @@ import {
   markEventApplied,
 } from "@/db/repositories/sales.repo";
 
+import { deleteKiosqDb } from "./setup";
+
 const testProducts: Product[] = [
   {
     id: "prod-1",
+    isActive: true,
     name: "Coca Cola 600ml",
     price: 18.5,
     sku: "COCA-600",
     taxRate: 0.16,
     totalStock: 50,
-    isActive: true,
     updatedAt: "2024-01-01T00:00:00.000Z",
   },
   {
     id: "prod-2",
+    isActive: true,
     name: "Sabritas 45g",
     price: 15.0,
     sku: "SAB-45",
     taxRate: 0.16,
     totalStock: 100,
-    isActive: true,
     updatedAt: "2024-01-01T00:00:00.000Z",
   },
   {
     id: "prod-3",
+    isActive: true,
     name: "Agua 1L",
     price: 12.0,
     sku: "AGUA-1L",
     taxRate: 0.08,
     totalStock: 200,
-    isActive: true,
     updatedAt: "2024-01-01T00:00:00.000Z",
   },
 ];
@@ -48,11 +50,7 @@ async function seedProducts() {
 
 describe("sales.repo", () => {
   beforeEach(async () => {
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase("kiosq");
-      req.onsuccess = () => resolve();
-      req.onerror = () => resolve();
-    });
+    await deleteKiosqDb();
   });
 
   it("creates a local sale with correct prices and enqueues a PENDING sync event", async () => {
@@ -158,8 +156,8 @@ describe("sales.repo", () => {
       ],
     });
 
-    const expectedSubtotal = 18.5 * 2 + 15.0 * 3;
-    const expectedTax = 18.5 * 2 * 0.16 + 15.0 * 3 * 0.16;
+    const expectedSubtotal = 18.5 * 2 + 15 * 3;
+    const expectedTax = 18.5 * 2 * 0.16 + 15 * 3 * 0.16;
     const expectedTotal = expectedSubtotal + expectedTax;
 
     expect(sale.total).toBeCloseTo(expectedTotal, 2);

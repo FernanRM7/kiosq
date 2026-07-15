@@ -1,9 +1,9 @@
-import { ApiClientError, request } from "@/lib/api";
 import type { Product as DexieProduct } from "@/db";
 import {
   getLocalProducts,
   populateProducts,
 } from "@/db/repositories/products.repo";
+import { ApiClientError, request } from "@/lib/api";
 
 export interface Product {
   id: string;
@@ -38,35 +38,62 @@ export interface ProductPayload {
 
 function toDexieProduct(api: Product): DexieProduct {
   return {
+    barcode: api.barcode,
+    category: api.category,
+    categoryId: api.categoryId,
+    cost: api.cost,
+    createdAt: api.createdAt,
+    description: api.description,
     id: api.id,
+    imageUrl: api.imageUrl,
+    isActive: api.isActive,
     name: api.name,
-    sku: api.sku,
     price: api.price,
+    sku: api.sku,
     taxRate: api.taxRate,
     totalStock: api.totalStock,
-    isActive: api.isActive,
     updatedAt: api.updatedAt,
   };
 }
 
+function toApiProduct(local: DexieProduct): Product {
+  return {
+    barcode: local.barcode ?? null,
+    category: local.category ?? null,
+    categoryId: local.categoryId ?? null,
+    cost: local.cost ?? null,
+    createdAt: local.createdAt ?? "",
+    description: local.description ?? null,
+    id: local.id,
+    imageUrl: local.imageUrl ?? null,
+    isActive: local.isActive,
+    name: local.name,
+    price: local.price,
+    sku: local.sku,
+    taxRate: local.taxRate,
+    totalStock: local.totalStock,
+    updatedAt: local.updatedAt ?? "",
+  };
+}
+
 export async function listProducts(): Promise<Product[]> {
-  try {
-    const products = await request<Product[]>("/api/products");
-
-    if (navigator.onLine && products.length > 0) {
-      await populateProducts(products.map(toDexieProduct));
-    }
-
-    return products;
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 0) {
-      const local = await getLocalProducts();
-
-      return local as unknown as Product[];
-    }
-
-    throw error;
-  }
+  return {
+    barcode: local.barcode ?? null,
+    category: local.category ?? null,
+    categoryId: local.categoryId ?? null,
+    cost: local.cost ?? null,
+    createdAt: local.createdAt ?? "",
+    description: local.description ?? null,
+    id: local.id,
+    imageUrl: local.imageUrl ?? null,
+    isActive: local.isActive,
+    name: local.name,
+    price: local.price,
+    sku: local.sku,
+    taxRate: local.taxRate,
+    totalStock: local.totalStock,
+    updatedAt: local.updatedAt ?? "",
+  };
 }
 
 export function createProduct(payload: ProductPayload): Promise<Product> {

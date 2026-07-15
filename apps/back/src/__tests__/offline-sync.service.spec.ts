@@ -1,12 +1,12 @@
 import { ForbiddenException } from "@nestjs/common";
 
+import { OfflineSyncService } from "../services/offline-sync.service";
 import {
   makeCreateSaleEvent,
   makeMockPrisma,
   makeMockSession,
   makeMockTransaction,
 } from "./helpers/sync-test-helpers";
-import { OfflineSyncService } from "../services/offline-sync.service";
 
 describe("OfflineSyncService", () => {
   const session = makeMockSession();
@@ -166,6 +166,85 @@ describe("OfflineSyncService", () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it("throws ForbiddenException when user does not exist", async () => {
+    const tx = makeMockTransaction();
+    const prisma = makeMockPrisma(tx, { userNotFound: true });
+    const service = new OfflineSyncService(prisma);
+
+    await expect(
+      service.processEvents([makeCreateSaleEvent()], session)
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("deduplicates duplicate productId lines and decrements stock once", async () => {
+    const tx = makeMockTransaction({ productBranchStock: 10 });
+    const prisma = makeMockPrisma(tx);
+    const service = new OfflineSyncService(prisma);
+
+    const event = makeCreateSaleEvent({
+      id: 1,
+      offlineId: "offline-dup",
+      quantity: 3,
+    });
+    // Add a second item with same productId but different quantity
+    event.payload.items = [
+      {
+        productId: "prod-1",
+        quantity: 3,
+        subtotal: 150,
+        taxRate: 0.16,
+        unitPrice: 50,
+      },
+      {
+        productId: "prod-1",
+        quantity: 2,
+        subtotal: 100,
+        taxRate: 0.16,
+        unitPrice: 50,
+      },
+    ];
+
+    const result = await service.processEvents([event], session);
+
+    expect(result.applied).toEqual([1]);
+    expect(result.failed).toEqual([]);
+    // Debe haber llamado a update UNA sola vez con stock total reducido
+    expect(tx.productBranch.update).toHaveBeenCalledTimes(1);
+    expect(tx.productBranch.update).toHaveBeenCalledWith({
+      data: { stock: 5 },
+      where: {
+        productId_branchId: { branchId: "branch-1", productId: "prod-1" },
+      },
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns BAD_REQUEST when item has empty productId", async () => {
+    const tx = makeMockTransaction();
+    const prisma = makeMockPrisma(tx);
+    const service = new OfflineSyncService(prisma);
+
+    const event = makeCreateSaleEvent({ id: 5, offlineId: "offline-bad" });
+    event.payload.items = [
+      {
+        productId: "",
+        quantity: 2,
+        subtotal: 100,
+        taxRate: 0.16,
+        unitPrice: 50,
+      },
+    ];
+
+    const result = await service.processEvents([event], session);
+
+    expect(result.applied).toEqual([]);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]).toMatchObject({
+      id: 5,
+      code: "BAD_REQUEST",
+    });
+  });
+
   describe("SyncEvent persistence", () => {
     it("persists SyncEvent with status APPLIED when sale is created", async () => {
       const tx = makeMockTransaction();
@@ -244,7 +323,9 @@ describe("OfflineSyncService", () => {
       // mapError can only assign INTERNAL_ERROR
       const prisma = {
         ...makeMockPrisma(tx),
-        $transaction: jest.fn(() => Promise.reject(new Error("Unexpected DB error"))),
+        $transaction: jest.fn(() =>
+          Promise.reject(new Error("Unexpected DB error"))
+        ),
       } as unknown as ReturnType<typeof makeMockPrisma>;
       const service = new OfflineSyncService(prisma);
 

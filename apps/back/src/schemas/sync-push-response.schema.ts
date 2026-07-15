@@ -5,7 +5,9 @@ class SyncPushFailedItemSchema {
   id: number;
 
   @ApiProperty({
-    description: "Código de error",
+    description:
+      "Código de error. Valores posibles: BAD_REQUEST, FORBIDDEN, INSUFFICIENT_STOCK, " +
+      "PRODUCT_NOT_FOUND, MISSING_OFFLINE_ID, UNKNOWN_EVENT_TYPE, INTERNAL_ERROR",
     example: "INSUFFICIENT_STOCK",
   })
   code: string;

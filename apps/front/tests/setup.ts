@@ -3,11 +3,16 @@ import "fake-indexeddb/auto";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-function deleteKiosqDb(): Promise<void> {
-  return new Promise((resolve) => {
+export function deleteKiosqDb(): Promise<void> {
+  return new Promise<void>((resolve) => {
     const req = indexedDB.deleteDatabase("kiosq");
-    req.onsuccess = () => resolve();
-    req.onerror = () => resolve();
+    req.addEventListener("success", () => resolve());
+    req.addEventListener("error", () => resolve());
+    // Si Dexie deja conexiones abiertas, onblocked puede impedir
+    // que la promesa resuelva. Timeout corto como fallback.
+    req.addEventListener("blocked", () => {
+      setTimeout(() => resolve(), 50);
+    });
   });
 }
 

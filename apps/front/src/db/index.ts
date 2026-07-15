@@ -33,6 +33,13 @@ export interface Product {
   taxRate: number;
   totalStock: number;
   isActive: boolean;
+  barcode?: string | null;
+  description?: string | null;
+  cost?: number | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
+  imageUrl?: string | null;
+  createdAt?: string;
   updatedAt?: string;
 }
 export interface SaleItem {
