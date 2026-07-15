@@ -125,7 +125,7 @@ export class ProductService {
           }
         }
 
-        return this.toResponse(product);
+        return this.toResponse(product, true);
       });
     } catch (error) {
       this.logger.error(
@@ -222,7 +222,7 @@ export class ProductService {
           }
         }
 
-        return this.toResponse(updatedProduct);
+        return this.toResponse(updatedProduct, true);
       });
     } catch (error) {
       this.logger.error(
@@ -258,7 +258,7 @@ export class ProductService {
           where: { id: productId },
         });
 
-        return this.toResponse(deletedProduct);
+        return this.toResponse(deletedProduct, true);
       });
     } catch (error) {
       this.logger.error(
