@@ -14,6 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateCategory } from "@/hooks/mutations/use-update-category";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Category } from "@/lib/categories";
 import {
   categoryFormSchema,
@@ -39,6 +41,8 @@ export function EditCategoryDialog({
   const updateCategoryMutation = useUpdateCategory();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canEditCategory = canManageCatalog(user?.role);
   const {
     register,
     handleSubmit,
@@ -58,6 +62,10 @@ export function EditCategoryDialog({
 
   const onSubmit = async (data: CategoryFormData) => {
     if (!category) {
+      return;
+    }
+
+    if (!canEditCategory) {
       return;
     }
 
@@ -83,7 +91,7 @@ export function EditCategoryDialog({
     }
   };
 
-  return (
+  return canEditCategory ? (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -125,5 +133,5 @@ export function EditCategoryDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 }

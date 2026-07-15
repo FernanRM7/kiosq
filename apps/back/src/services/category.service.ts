@@ -37,7 +37,13 @@ export class CategoryService {
   async listCategories(
     session: AuthenticatedSessionResult
   ): Promise<CategoryListResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+
+    if (userContext.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para ver categorías");
+    }
+
+    const { tenantId } = userContext;
 
     const [active, deleted] = await Promise.all([
       this.prisma.category.findMany({
@@ -60,7 +66,9 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     input: CreateCategoryInput
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       const category = await this.prisma.category.create({
@@ -85,7 +93,9 @@ export class CategoryService {
     categoryId: string,
     input: UpdateCategoryInput
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -124,7 +134,9 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     categoryId: string
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -157,7 +169,9 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     categoryId: string
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -186,9 +200,12 @@ export class CategoryService {
     }
   }
 
-  private async getTenantId(userId: string): Promise<string> {
+  private async getUserContext(userId: string): Promise<{
+    role: string;
+    tenantId: string;
+  }> {
     const user = await this.prisma.user.findUnique({
-      select: { isActive: true, tenantId: true },
+      select: { isActive: true, role: true, tenantId: true },
       where: { workosUserId: userId },
     });
 
@@ -196,7 +213,24 @@ export class CategoryService {
       throw new ForbiddenException("Debes tener un workspace activo");
     }
 
-    return user.tenantId;
+    return {
+      role: user.role,
+      tenantId: user.tenantId,
+    };
+  }
+
+  private async getTenantId(userId: string): Promise<string> {
+    const { tenantId } = await this.getUserContext(userId);
+
+    return tenantId;
+  }
+
+  private assertCanManageCatalog(role: string): void {
+    if (role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar categorías"
+      );
+    }
   }
 
   private toResponse(category: CategoryRecord): CategoryResponse {

@@ -60,7 +60,9 @@ export class ProductService {
   async listProducts(
     session: AuthenticatedSessionResult
   ): Promise<ProductResponse[]> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    const { tenantId } = userContext;
+    const canSeeCost = userContext.role !== "CASHIER";
 
     const products = await this.prisma.product.findMany({
       include: productInclude,
@@ -68,14 +70,16 @@ export class ProductService {
       where: { isActive: true, tenantId },
     });
 
-    return products.map((product) => this.toResponse(product));
+    return products.map((product) => this.toResponse(product, canSeeCost));
   }
 
   async createProduct(
     session: AuthenticatedSessionResult,
     input: CreateProductInput
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -137,7 +141,9 @@ export class ProductService {
     productId: string,
     input: UpdateProductInput
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       // eslint-disable-next-line complexity
@@ -231,7 +237,9 @@ export class ProductService {
     session: AuthenticatedSessionResult,
     productId: string
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const userContext = await this.getUserContext(session.userId);
+    this.assertCanManageCatalog(userContext.role);
+    const { tenantId } = userContext;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -261,9 +269,12 @@ export class ProductService {
     }
   }
 
-  private async getTenantId(userId: string): Promise<string> {
+  private async getUserContext(userId: string): Promise<{
+    role: string;
+    tenantId: string;
+  }> {
     const user = await this.prisma.user.findUnique({
-      select: { isActive: true, tenantId: true },
+      select: { isActive: true, role: true, tenantId: true },
       where: { workosUserId: userId },
     });
 
@@ -271,7 +282,24 @@ export class ProductService {
       throw new ForbiddenException("Debes tener un workspace activo");
     }
 
-    return user.tenantId;
+    return {
+      role: user.role,
+      tenantId: user.tenantId,
+    };
+  }
+
+  private async getTenantId(userId: string): Promise<string> {
+    const { tenantId } = await this.getUserContext(userId);
+
+    return tenantId;
+  }
+
+  private assertCanManageCatalog(role: string): void {
+    if (role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar el catálogo"
+      );
+    }
   }
 
   private async resolveBranchId(
@@ -350,12 +378,15 @@ export class ProductService {
     return value.toFixed(decimals);
   }
 
-  private toResponse(product: ProductRecord): ProductResponse {
+  private toResponse(
+    product: ProductRecord,
+    includeCost: boolean
+  ): ProductResponse {
     return {
       barcode: product.barcode,
       category: product.category,
       categoryId: product.categoryId,
-      cost: this.decimalToNumber(product.cost),
+      cost: includeCost ? this.decimalToNumber(product.cost) : null,
       createdAt: product.createdAt.toISOString(),
       description: product.description,
       id: product.id,

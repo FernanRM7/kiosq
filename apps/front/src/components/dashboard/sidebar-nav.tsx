@@ -18,6 +18,8 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { mainNavItems, bottomNavItems } from "@/data/sidebar-items";
+import { useAuth } from "@/hooks/use-auth";
+import { hasRoleAccess } from "@/lib/access";
 
 function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -65,6 +67,13 @@ function ThemeToggle() {
 
 export function DashboardSidebar() {
   const location = useLocation();
+  const { user } = useAuth();
+  const visibleMainNavItems = mainNavItems.filter((item) =>
+    hasRoleAccess(user?.role, item.allowedRoles)
+  );
+  const visibleBottomNavItems = bottomNavItems.filter((item) =>
+    hasRoleAccess(user?.role, item.allowedRoles)
+  );
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
@@ -84,7 +93,7 @@ export function DashboardSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {visibleMainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -105,7 +114,7 @@ export function DashboardSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {bottomNavItems.map((item) => (
+              {visibleBottomNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
