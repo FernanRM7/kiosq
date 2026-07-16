@@ -77,23 +77,25 @@ function toApiProduct(local: DexieProduct): Product {
 }
 
 export async function listProducts(): Promise<Product[]> {
-  return {
-    barcode: local.barcode ?? null,
-    category: local.category ?? null,
-    categoryId: local.categoryId ?? null,
-    cost: local.cost ?? null,
-    createdAt: local.createdAt ?? "",
-    description: local.description ?? null,
-    id: local.id,
-    imageUrl: local.imageUrl ?? null,
-    isActive: local.isActive,
-    name: local.name,
-    price: local.price,
-    sku: local.sku,
-    taxRate: local.taxRate,
-    totalStock: local.totalStock,
-    updatedAt: local.updatedAt ?? "",
-  };
+  try {
+    const products = await request<Product[]>("/api/products");
+
+    if (navigator.onLine && products.length > 0) {
+      await populateProducts(products.map(toDexieProduct));
+    } else if (navigator.onLine && products.length === 0) {
+      await populateProducts([]);
+    }
+
+    return products;
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 0) {
+      const local = await getLocalProducts();
+
+      return local.map(toApiProduct);
+    }
+
+    throw error;
+  }
 }
 
 export function createProduct(payload: ProductPayload): Promise<Product> {
