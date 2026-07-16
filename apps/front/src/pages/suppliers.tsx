@@ -1,7 +1,9 @@
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { CreateSupplierDialog } from "@/components/dialogs/create-supplier-dialog";
 import { DeleteSupplierDialog } from "@/components/dialogs/delete-supplier-dialog";
+import { EditSupplierDialog } from "@/components/dialogs/edit-supplier-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,11 +19,16 @@ const EMPTY_LIST = { active: [], deleted: [] };
 
 export default function SuppliersPage() {
   const { data: suppliers = EMPTY_LIST, error, isLoading } = useSuppliers();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editSupplier, setEditSupplier] = useState<Supplier | null>(null);
   const [deleteSupplier, setDeleteSupplier] = useState<Supplier | null>(null);
 
   return (
     <div>
-      <h1 className="mb-4 font-semibold text-lg">Proveedores</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="font-semibold text-lg">Proveedores</h1>
+        <Button onClick={() => setCreateOpen(true)}>Nuevo Proveedor</Button>
+      </div>
 
       {error && (
         <p className="mb-4 text-destructive text-sm">
@@ -53,14 +60,24 @@ export default function SuppliersPage() {
                           {supplier.email ?? "Sin email"}
                         </CardDescription>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="-mr-2 shrink-0"
-                        onClick={() => setDeleteSupplier(supplier)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <div className="flex shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="-mr-2"
+                          onClick={() => setEditSupplier(supplier)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="-mr-2"
+                          onClick={() => setDeleteSupplier(supplier)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardPanel>
@@ -82,6 +99,21 @@ export default function SuppliersPage() {
           )}
         </>
       )}
+
+      <CreateSupplierDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      <EditSupplierDialog
+        supplier={editSupplier}
+        open={editSupplier !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditSupplier(null);
+          }
+        }}
+        onSave={() => {
+          setEditSupplier(null);
+        }}
+      />
 
       <DeleteSupplierDialog
         supplier={deleteSupplier}
