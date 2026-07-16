@@ -69,7 +69,7 @@ describe("SupplierController", () => {
     listSuppliers: jest.fn(),
     restoreSupplier: jest.fn(),
     updateSupplier: jest.fn(),
-  };
+  } as unknown as SupplierService;
 
   function buildAuthenticatedApp() {
     return Test.createTestingModule({
@@ -126,7 +126,9 @@ describe("SupplierController", () => {
 
     describe("GET /suppliers", () => {
       it("returns HTTP 200 with empty list", async () => {
-        mockSupplierService.listSuppliers.mockResolvedValue(emptyList);
+        jest
+          .mocked(mockSupplierService.listSuppliers)
+          .mockResolvedValue(emptyList);
 
         const res = await supertestLib(app.getHttpServer())
           .get("/suppliers")
@@ -144,7 +146,7 @@ describe("SupplierController", () => {
           name: "Eliminado",
         });
 
-        mockSupplierService.listSuppliers.mockResolvedValue({
+        jest.mocked(mockSupplierService.listSuppliers).mockResolvedValue({
           active: [active],
           deleted: [deleted],
         });
@@ -163,7 +165,9 @@ describe("SupplierController", () => {
     describe("GET /suppliers/:id", () => {
       it("returns HTTP 200 with supplier data", async () => {
         const supplier = makeSupplierResponse();
-        mockSupplierService.getSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.getSupplier)
+          .mockResolvedValue(supplier);
 
         const res = await supertestLib(app.getHttpServer())
           .get("/suppliers/supplier-1")
@@ -176,7 +180,9 @@ describe("SupplierController", () => {
 
       it("passes the supplier id to the service", async () => {
         const supplier = makeSupplierResponse();
-        mockSupplierService.getSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.getSupplier)
+          .mockResolvedValue(supplier);
 
         await supertestLib(app.getHttpServer()).get("/suppliers/supplier-1");
 
@@ -190,7 +196,9 @@ describe("SupplierController", () => {
     describe("POST /suppliers", () => {
       it("returns HTTP 201 on successful creation", async () => {
         const supplier = makeSupplierResponse();
-        mockSupplierService.createSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.createSupplier)
+          .mockResolvedValue(supplier);
 
         const res = await supertestLib(app.getHttpServer())
           .post("/suppliers")
@@ -203,7 +211,9 @@ describe("SupplierController", () => {
 
       it("passes the request body to the service", async () => {
         const supplier = makeSupplierResponse();
-        mockSupplierService.createSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.createSupplier)
+          .mockResolvedValue(supplier);
 
         const payload = {
           address: "Av. Siempre Viva 742",
@@ -227,7 +237,9 @@ describe("SupplierController", () => {
     describe("PATCH /suppliers/:id", () => {
       it("returns HTTP 200 on successful update", async () => {
         const supplier = makeSupplierResponse({ name: "Actualizado" });
-        mockSupplierService.updateSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.updateSupplier)
+          .mockResolvedValue(supplier);
 
         const res = await supertestLib(app.getHttpServer())
           .patch("/suppliers/supplier-1")
@@ -239,7 +251,9 @@ describe("SupplierController", () => {
 
       it("passes id and body to the service", async () => {
         const supplier = makeSupplierResponse({ name: "Actualizado" });
-        mockSupplierService.updateSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.updateSupplier)
+          .mockResolvedValue(supplier);
 
         await supertestLib(app.getHttpServer())
           .patch("/suppliers/supplier-1")
@@ -256,7 +270,9 @@ describe("SupplierController", () => {
     describe("DELETE /suppliers/:id", () => {
       it("returns HTTP 200 on successful soft delete", async () => {
         const supplier = makeSupplierResponse({ isActive: false });
-        mockSupplierService.deleteSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.deleteSupplier)
+          .mockResolvedValue(supplier);
 
         const res = await supertestLib(app.getHttpServer())
           .delete("/suppliers/supplier-1")
@@ -267,7 +283,9 @@ describe("SupplierController", () => {
 
       it("passes the supplier id to the service", async () => {
         const supplier = makeSupplierResponse({ isActive: false });
-        mockSupplierService.deleteSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.deleteSupplier)
+          .mockResolvedValue(supplier);
 
         await supertestLib(app.getHttpServer()).delete("/suppliers/supplier-1");
 
@@ -281,7 +299,9 @@ describe("SupplierController", () => {
     describe("POST /suppliers/:id/restore", () => {
       it("returns HTTP 200 on successful restore", async () => {
         const supplier = makeSupplierResponse({ isActive: true });
-        mockSupplierService.restoreSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.restoreSupplier)
+          .mockResolvedValue(supplier);
 
         const res = await supertestLib(app.getHttpServer())
           .post("/suppliers/supplier-1/restore")
@@ -292,7 +312,9 @@ describe("SupplierController", () => {
 
       it("passes the supplier id to the service", async () => {
         const supplier = makeSupplierResponse({ isActive: true });
-        mockSupplierService.restoreSupplier.mockResolvedValue(supplier);
+        jest
+          .mocked(mockSupplierService.restoreSupplier)
+          .mockResolvedValue(supplier);
 
         await supertestLib(app.getHttpServer()).post(
           "/suppliers/supplier-1/restore"
@@ -307,9 +329,11 @@ describe("SupplierController", () => {
 
     describe("error responses", () => {
       it("returns HTTP 404 when getSupplier throws NotFoundException", async () => {
-        mockSupplierService.getSupplier.mockRejectedValue(
-          new UnauthorizedException("Proveedor no encontrado")
-        );
+        jest
+          .mocked(mockSupplierService.getSupplier)
+          .mockRejectedValue(
+            new UnauthorizedException("Proveedor no encontrado")
+          );
 
         await supertestLib(app.getHttpServer())
           .get("/suppliers/nonexistent")
@@ -385,9 +409,9 @@ describe("SupplierController", () => {
     beforeEach(async () => {
       jest.clearAllMocks();
 
-      mockSupplierService.createSupplier.mockResolvedValue(
-        makeSupplierResponse()
-      );
+      jest
+        .mocked(mockSupplierService.createSupplier)
+        .mockResolvedValue(makeSupplierResponse());
 
       const module: TestingModule = await buildAuthenticatedApp().compile();
 
@@ -408,7 +432,7 @@ describe("SupplierController", () => {
     });
 
     it("propagates service-level not found as 404", async () => {
-      mockSupplierService.getSupplier.mockRejectedValue(
+      jest.mocked(mockSupplierService.getSupplier).mockRejectedValue(
         // Note: NestJS maps generic exceptions to 500,
         // but HttpException subclasses carry their own status codes.
         // We test with a non-NestJS error to verify error propagation.
