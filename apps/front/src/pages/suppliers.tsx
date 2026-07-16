@@ -1,3 +1,8 @@
+import { Trash2 } from "lucide-react";
+import { useState } from "react";
+
+import { DeleteSupplierDialog } from "@/components/dialogs/delete-supplier-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -6,11 +11,13 @@ import {
   CardPanel,
 } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/queries/use-suppliers";
+import type { Supplier } from "@/lib/suppliers";
 
 const EMPTY_LIST = { active: [], deleted: [] };
 
 export default function SuppliersPage() {
   const { data: suppliers = EMPTY_LIST, error, isLoading } = useSuppliers();
+  const [deleteSupplier, setDeleteSupplier] = useState<Supplier | null>(null);
 
   return (
     <div>
@@ -37,10 +44,24 @@ export default function SuppliersPage() {
               {suppliers.active.map((supplier) => (
                 <Card key={supplier.id}>
                   <CardHeader>
-                    <CardTitle>{supplier.name}</CardTitle>
-                    <CardDescription>
-                      {supplier.email ?? "Sin email"}
-                    </CardDescription>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="truncate">
+                          {supplier.name}
+                        </CardTitle>
+                        <CardDescription className="truncate">
+                          {supplier.email ?? "Sin email"}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="-mr-2 shrink-0"
+                        onClick={() => setDeleteSupplier(supplier)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardPanel>
                     <div className="space-y-1 text-sm">
@@ -61,6 +82,19 @@ export default function SuppliersPage() {
           )}
         </>
       )}
+
+      <DeleteSupplierDialog
+        supplier={deleteSupplier}
+        open={deleteSupplier !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteSupplier(null);
+          }
+        }}
+        onDelete={() => {
+          setDeleteSupplier(null);
+        }}
+      />
     </div>
   );
 }
