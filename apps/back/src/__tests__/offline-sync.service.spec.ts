@@ -356,11 +356,11 @@ describe("OfflineSyncService", () => {
       const prisma = makeMockPrisma(tx);
       const service = new OfflineSyncService(prisma);
 
-      await service.getChangesSince(undefined, session);
+      await service.getChangesSince({}, session);
 
       expect(prisma.sale.findMany).toHaveBeenCalledWith({
-        orderBy: { createdAt: "asc" },
-        take: 200,
+        orderBy: { id: "asc" },
+        take: 51,
         where: { tenantId: "tenant-1" },
       });
     });
@@ -370,16 +370,53 @@ describe("OfflineSyncService", () => {
       const prisma = makeMockPrisma(tx);
       const service = new OfflineSyncService(prisma);
 
-      await service.getChangesSince("2024-06-01T00:00:00.000Z", session);
+      await service.getChangesSince(
+        { since: "2024-06-01T00:00:00.000Z" },
+        session
+      );
 
       expect(prisma.sale.findMany).toHaveBeenCalledWith({
-        orderBy: { createdAt: "asc" },
-        take: 200,
+        orderBy: { id: "asc" },
+        take: 51,
         where: {
           tenantId: "tenant-1",
           syncedAt: { gte: new Date("2024-06-01T00:00:00.000Z") },
         },
       });
+    });
+
+    it("returns hasMore and nextCursor when results exceed limit", async () => {
+      const manySales = Array.from({ length: 51 }, (_, i) => ({
+        branchId: "branch-1",
+        createdAt: new Date(),
+        discountAmount: 0,
+        id: `sale-${i}`,
+        items: [],
+        offlineId: `offline-${i}`,
+        status: "COMPLETED",
+        subtotal: 100,
+        syncedAt: new Date(),
+        taxAmount: 10,
+        tenantId: "tenant-1",
+        total: 110,
+        userId: "user-1",
+      }));
+      const base = makeMockPrisma(makeMockTransaction());
+      const prisma = {
+        $transaction: base.$transaction,
+        onModuleInit: base.onModuleInit,
+        onModuleDestroy: base.onModuleDestroy,
+        syncEvent: base.syncEvent,
+        user: base.user,
+        sale: { findMany: jest.fn().mockResolvedValue(manySales) },
+      } as unknown as ReturnType<typeof makeMockPrisma>;
+      const service = new OfflineSyncService(prisma);
+
+      const result = await service.getChangesSince({ limit: 50 }, session);
+
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).toBe("sale-50");
+      expect(result.sales).toHaveLength(50);
     });
   });
 });

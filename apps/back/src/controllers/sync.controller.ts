@@ -43,8 +43,12 @@ import type { AuthenticatedSessionResult } from "../types/session.type";
  * es transitorio — el servidor **no** persiste el `SyncEvent` y el cliente debe
  * reintentar con backoff exponencial.
  *
- * ## Pull (`GET /api/sync/pull?since=ISO8601`)
- * Devuelve ventas del tenant autenticado (max 200), filtradas opcionalmente por `syncedAt >= since`.
+ * ## Pull (`GET /api/sync/pull?since=ISO8601&cursor=id&limit=50`)
+ * Devuelve ventas del tenant autenticado con paginación cursor.
+ * - `since` (ISO 8601): filtra por `syncedAt >= since`.
+ * - `cursor` (sale ID): página siguiente (del campo `nextCursor` de la respuesta).
+ * - `limit` (1-200, default 50): items por página.
+ * Responde `{ success: true, data: { sales, hasMore, nextCursor } }`.
  *
  * **Seguridad:** `tenantId`, `userId` y `branchId` se derivan de la sesión WorkOS autenticada.
  * El payload del cliente **nunca** sobrescribe estos valores (brecha mitigada).
@@ -82,8 +86,9 @@ export class SyncController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     description:
-      "Devuelve ventas sincronizadas para el tenant autenticado, opcionalmente filtradas desde un timestamp. " +
-      "El tenantId se deriva de la sesión, no del query. Máximo 200 resultados.",
+      "Devuelve ventas sincronizadas para el tenant autenticado con paginación cursor. " +
+      "Acepta since (ISO 8601), cursor (sale ID), limit (1-200, default 50). " +
+      "El tenantId se deriva de la sesión, no del query.",
     summary: "Pull de cambios desde el servidor",
   })
   @ApiResponse({
@@ -95,7 +100,14 @@ export class SyncController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Query() query: SyncPullQueryDto
   ) {
-    const data = await this.offlineSync.getChangesSince(query.since, session);
+    const data = await this.offlineSync.getChangesSince(
+      {
+        since: query.since,
+        cursor: query.cursor,
+        limit: query.limit,
+      },
+      session
+    );
     return { data, success: true };
   }
 }

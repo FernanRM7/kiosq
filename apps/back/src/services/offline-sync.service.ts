@@ -6,6 +6,12 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 
+import {
+  InsufficientStockError,
+  MissingOfflineIdError,
+  ProductNotFoundError,
+  SyncError,
+} from "../lib/sync-errors";
 import { PrismaService } from "../lib/prisma.service";
 import type {
   SyncEventInput,
@@ -77,7 +83,7 @@ export class OfflineSyncService {
     };
   }
 
-  private async validateInventory(
+  private async applyInventoryDecrement(
     transaction: TransactionClient,
     items: SyncItemInput[],
     branchId: string,
@@ -115,11 +121,11 @@ export class OfflineSyncService {
       });
 
       if (!productBranch) {
-        throw new Error(`ProductBranch not found for ${productId}/${branchId}`);
+        throw new ProductNotFoundError(productId, branchId);
       }
 
       if (productBranch.stock < totalQuantity) {
-        throw new Error(`Insufficient stock for product ${productId}`);
+        throw new InsufficientStockError(productId);
       }
 
       await transaction.productBranch.update({
@@ -156,7 +162,7 @@ export class OfflineSyncService {
     const { offlineId } = payload;
 
     if (!offlineId) {
-      throw new Error("Missing offlineId in CREATE_SALE payload");
+      throw new MissingOfflineIdError();
     }
 
     const {branchId} = ctx;
@@ -178,7 +184,7 @@ export class OfflineSyncService {
 
       const items = Array.isArray(payload.items) ? payload.items : [];
 
-      await this.validateInventory(
+      await this.applyInventoryDecrement(
         transaction,
         items,
         branchId,
@@ -271,6 +277,13 @@ export class OfflineSyncService {
   }
 
   private mapError(eventId: number, error: unknown): SyncFailedItem {
+    if (error instanceof SyncError) {
+      return {
+        code: error.code,
+        id: eventId,
+        message: error.message,
+      };
+    }
     if (error instanceof BadRequestException) {
       return { code: "BAD_REQUEST", id: eventId, message: error.message };
     }
@@ -278,21 +291,11 @@ export class OfflineSyncService {
       return { code: "FORBIDDEN", id: eventId, message: error.message };
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    let code = "INTERNAL_ERROR";
-
-    if (
-      message.includes("MISSING_OFFLINE_ID") ||
-      message.includes("Missing offlineId")
-    ) {
-      code = "MISSING_OFFLINE_ID";
-    } else if (message.includes("ProductBranch not found")) {
-      code = "PRODUCT_NOT_FOUND";
-    } else if (message.includes("Insufficient stock")) {
-      code = "INSUFFICIENT_STOCK";
-    }
-
-    return { code, id: eventId, message };
+    return {
+      code: "INTERNAL_ERROR",
+      id: eventId,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
 
   async processEvents(
@@ -331,19 +334,37 @@ export class OfflineSyncService {
   }
 
   async getChangesSince(
-    since: string | undefined,
+    params: { since?: string; cursor?: string; limit?: number },
     session: AuthenticatedSessionResult
   ) {
     const ctx = await this.resolveContext(session);
-    const where = {
+    const { since, cursor, limit = 50 } = params;
+    const take = Math.min(limit, 200) + 1;
+
+    const where: Record<string, unknown> = {
       tenantId: ctx.tenantId,
-      ...(since ? { syncedAt: { gte: new Date(since) } } : {}),
     };
+
+    if (since) {
+      where.syncedAt = { gte: new Date(since) };
+    }
+
+    if (cursor) {
+      where.id = { gt: cursor };
+    }
+
     const sales = await this.prisma.sale.findMany({
-      orderBy: { createdAt: "asc" },
-      take: 200,
+      orderBy: { id: "asc" },
+      take,
       where,
     });
-    return { sales };
+
+    const hasMore = sales.length === take;
+
+    return {
+      hasMore,
+      nextCursor: hasMore ? sales[sales.length - 1].id : null,
+      sales: hasMore ? sales.slice(0, take - 1) : sales,
+    };
   }
 }

@@ -25,8 +25,8 @@ const syncEventSchema = z.object({
 });
 
 const syncFailedItemSchema = z.object({
-  id: z.number(),
   code: z.string(),
+  id: z.number(),
   message: z.string(),
 });
 
@@ -35,7 +35,9 @@ export const SyncPushSchema = z.object({
 });
 
 export const SyncPullQuerySchema = z.object({
-  since: z.string().optional(),
+  since: z.string().datetime({ offset: true }).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 export type SyncPushInput = z.infer<typeof SyncPushSchema>;

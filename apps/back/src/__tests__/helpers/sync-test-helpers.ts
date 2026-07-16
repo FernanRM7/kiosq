@@ -1,5 +1,5 @@
-import { jest } from '@jest/globals';
 import type { AuthenticatedSessionResult } from "../../types/session.type";
+import type { SyncPayloadInput } from "../../schemas/sync.schema";
 
 export function makeMockTransaction(overrides?: {
   productBranchStock?: number;
@@ -44,7 +44,7 @@ export function makeCreateSaleEvent(
     omitOfflineId: boolean;
   }>
 ) {
-  const payload: Record<string, unknown> = {
+  const base: SyncPayloadInput = {
     createdAt: "2024-01-01T00:00:00.000Z",
     discountAmount: 0,
     items: [
@@ -62,9 +62,12 @@ export function makeCreateSaleEvent(
     total: 100,
   };
 
-  if (overrides?.omitOfflineId) {
-    delete payload["offlineId"];
-  }
+  const payload: SyncPayloadInput = overrides?.omitOfflineId
+    ? (() => {
+        const { offlineId: _, ...rest } = base;
+        return rest as unknown as SyncPayloadInput;
+      })()
+    : base;
 
   return {
     id: overrides?.id ?? 1,
@@ -104,6 +107,8 @@ export function makeMockPrisma(
     },
   } as unknown as {
     $transaction: jest.Mock;
+    onModuleInit: jest.Mock;
+    onModuleDestroy: jest.Mock;
     syncEvent: { create: jest.Mock };
     user: { findUnique: jest.Mock };
     sale: { findMany: jest.Mock };
