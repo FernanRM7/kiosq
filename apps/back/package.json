@@ -5,6 +5,7 @@
   "description": "",
   "license": "UNLICENSED",
   "author": "",
+  "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "prisma generate && nest build",
