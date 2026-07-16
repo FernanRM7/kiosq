@@ -65,10 +65,6 @@ export class SessionRegistryService {
         redis.sAdd(userSessionsKey, metadata.sessionId),
         redis.expire(userSessionsKey, SESSION_TTL_SECONDS),
       ]);
-
-      this.logger.debug(
-        `${cid()} Session registered: sessionId=${metadata.sessionId} userId=${metadata.userId} ttl=${SESSION_TTL_SECONDS}s prefix=${SESSION_PREFIX}`
-      );
     }, `registerSession:${metadata.userId}`);
   }
 
@@ -82,9 +78,6 @@ export class SessionRegistryService {
         const sessionIds = await getRedisClient().sMembers(userSessionsKey);
 
         if (sessionIds.length === 0) {
-          this.logger.debug(
-            `${cid()} Cache miss: no sessions for user ${userId}`
-          );
           return [];
         }
 
@@ -103,9 +96,6 @@ export class SessionRegistryService {
         );
 
         const result = sessions.filter((s): s is SessionMetadata => s !== null);
-        this.logger.debug(
-          `${cid()} Cache hit: ${result.length} sessions for user ${userId}`
-        );
         return result;
       },
       `getSessionsForUser:${userId}`,
@@ -125,10 +115,6 @@ export class SessionRegistryService {
         getRedisClient().del(sessionKey),
         getRedisClient().sRem(userSessionsKey, sessionId),
       ]);
-
-      this.logger.debug(
-        `${cid()} Session removed: sessionId=${sessionId} userId=${userId}`
-      );
     }, `removeSession:${userId}`);
   }
 
@@ -166,9 +152,6 @@ export class SessionRegistryService {
       async () => {
         const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
         const active = (await getRedisClient().exists(sessionKey)) === 1;
-        this.logger.debug(
-          `${cid()} Session ${sessionId} for user ${userId}: ${active ? "active" : "inactive"}`
-        );
         return active;
       },
       `isSessionActive:${userId}`,

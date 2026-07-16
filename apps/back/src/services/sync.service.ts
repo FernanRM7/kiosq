@@ -145,7 +145,7 @@ export class SyncService {
           where: { workosUserId: data.workosUserId },
         });
 
-        this.logger.log(
+        this.logger.debug(
           `${cid()} User updated: workosUserId=${data.workosUserId} email="${data.email}" name="${name}"`
         );
       } else {
@@ -220,7 +220,7 @@ export class SyncService {
           where: { workosUserId: data.userId },
         });
 
-        this.logger.log(
+        this.logger.debug(
           `${cid()} Membership synced (existing user): workosUserId=${data.userId} ` +
             `tenantId=${tenant.id} role=${role} membership_id=${data.membershipId}`
         );
@@ -259,7 +259,7 @@ export class SyncService {
         where: { workosUserId: data.userId },
       });
 
-      this.logger.log(
+      this.logger.debug(
         `${cid()} Membership synced (new user created): workosUserId=${data.userId} ` +
           `email="${workosUser.email}" name="${name}" tenantId=${tenant.id} role=${role} membership_id=${data.membershipId}`
       );

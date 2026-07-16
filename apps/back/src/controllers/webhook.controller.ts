@@ -120,8 +120,6 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
 
     const ctx = this.buildVerificationContext(request, signature);
 
-    this.logVerificationContext(ctx);
-
     const payload = this.verifySignature(ctx, signature);
     await this.dispatchEvent(payload, ctx);
 
@@ -201,18 +199,6 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     throw new BadRequestException("Error interno al verificar la solicitud");
   }
 
-  private logVerificationContext(ctx: WebhookVerificationContext): void {
-    const bodyHash = this.hashPayload(ctx.rawBody);
-
-    this.logger.debug(
-      `${cid()} Webhook verification context: sigHash=${ctx.sigHash} ` +
-        `headerTs=${String(ctx.headerTs)} serverTs=${ctx.serverTimestamp} ` +
-        `skew=${ctx.skewSec === null ? "unknown" : `${ctx.skewSec}s`} ` +
-        `rawBodyLen=${ctx.rawBody.length} bodyHash=${bodyHash} ` +
-        `tolerance=${this.webhookToleranceMs}ms`
-    );
-  }
-
   private verifySignature(
     ctx: WebhookVerificationContext,
     signature: string
@@ -276,7 +262,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     }
 
     try {
-      this.logger.log(
+      this.logger.debug(
         `${cid()} Dispatching WorkOS event: type=${parsed.data.event} id=${parsed.data.id}`
       );
       await this.syncService.handleEvent(parsed.data);
@@ -291,8 +277,8 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
       );
     }
 
-    this.logger.log(
-      `${cid()} WorkOS event processed successfully: type=${parsed.data.event} id=${parsed.data.id}`
+    this.logger.debug(
+      `${cid()} WorkOS event processed: type=${parsed.data.event} id=${parsed.data.id}`
     );
   }
 

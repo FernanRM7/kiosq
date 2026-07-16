@@ -55,8 +55,8 @@ export class SessionService {
       | undefined;
 
     if (!sealedSession) {
-      this.logger.warn(
-        `${cid()} Session authentication failed: no_session_cookie_provided (cookie name: ${SESSION_COOKIE_NAME})`
+      this.logger.debug(
+        `${cid()} Session authentication failed: no_session_cookie_provided`
       );
       return { authenticated: false, reason: "no_session_cookie_provided" };
     }
@@ -104,9 +104,8 @@ export class SessionService {
               /* non-critical: heartbeat failure does not invalidate session */
             }
           } else {
-            this.logger.warn(
-              `${cid()} Session ${sessionId} absent from Redis for userId=${userId} — ` +
-                `auto-recovering registration (cookie is valid per WorkOS)`
+            this.logger.debug(
+              `${cid()} Session absent from Redis for userId=${userId} sessionId=${sessionId} — auto-recovering registration`
             );
             try {
               await this.registerSession(
@@ -177,8 +176,8 @@ export class SessionService {
       return this.refreshSession(session, response);
     }
 
-    this.logger.warn(
-      `${cid()} Session authentication failed: reason=${result.reason} (from WorkOS authenticate())`
+    this.logger.debug(
+      `${cid()} Session authentication failed: reason=${result.reason} (from WorkOS)`
     );
 
     return { authenticated: false, reason: result.reason };
@@ -199,9 +198,6 @@ export class SessionService {
       sameSite: SESSION_COOKIE_OPTIONS.sameSite,
       secure: SESSION_COOKIE_OPTIONS.secure,
     });
-    this.logger.debug(
-      `${cid()} Session cookie cleared: name=${SESSION_COOKIE_NAME} sameSite=${SESSION_COOKIE_OPTIONS.sameSite}`
-    );
   }
 
   /**
@@ -238,9 +234,6 @@ export class SessionService {
 
     try {
       await this.sessionRegistry.registerSession(metadata);
-      this.logger.debug(
-        `${cid()} Session registered in Redis: sessionId=${sessionId} userId=${userId} userEmail=${user.email ?? "none"}`
-      );
     } catch (error) {
       this.logger.error(
         {
@@ -309,15 +302,14 @@ export class SessionService {
           sessionId
         );
       } catch {
-        this.logger.warn(
+        this.logger.debug(
           `${cid()} Redis unavailable during refresh session check: sessionId=${sessionId} — allowing refresh through`
         );
       }
 
       if (!isActive && sessionId) {
-        this.logger.warn(
-          `${cid()} Refreshed session ${sessionId} absent from Redis for userId=${userId} — ` +
-            `auto-recovering registration during refresh`
+        this.logger.debug(
+          `${cid()} Refreshed session absent from Redis for userId=${userId} sessionId=${sessionId} — auto-recovering`
         );
         // The sealed session was refreshed successfully by WorkOS — re-register.
         // buildName helper inline to avoid compiling issues

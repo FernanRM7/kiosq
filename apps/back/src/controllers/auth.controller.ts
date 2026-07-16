@@ -266,10 +266,6 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
         SESSION_COOKIE_OPTIONS
       );
 
-      this.logger.debug(
-        `${cid()} Cookie written: name=${SESSION_COOKIE_NAME} sameSite=${SESSION_COOKIE_OPTIONS.sameSite} maxAge=${SESSION_COOKIE_OPTIONS.maxAge}s path=${SESSION_COOKIE_OPTIONS.path} secure=${SESSION_COOKIE_OPTIONS.secure}`
-      );
-
       // Register session in Redis for tracking
       try {
         const loadResult =
@@ -403,9 +399,6 @@ configured in the WorkOS dashboard (typically \`/login\`).
         session.userId,
         session.sessionId
       );
-      this.logger.debug(
-        `${cid()} Session revoked from Redis: userId=${session.userId} sessionId=${session.sessionId}`
-      );
     } catch (error) {
       this.logger.warn(
         `${cid()} Failed to revoke session from Redis: ${error instanceof Error ? error.message : String(error)}`
@@ -417,7 +410,7 @@ configured in the WorkOS dashboard (typically \`/login\`).
     this.sessionService.clearSession(response);
 
     this.logger.log(
-      `${cid()} Local session cleared: cookie=${SESSION_COOKIE_NAME} userId=${session.userId} logoutUrl=${logoutUrl}`
+      `${cid()} Logout completed: userId=${session.userId} sessionId=${session.sessionId} returnTo=${this.authService.logoutReturnTo}`
     );
 
     return { logoutUrl };

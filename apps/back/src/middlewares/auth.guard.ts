@@ -75,12 +75,6 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException("Inicia sesión para continuar");
     }
 
-    this.logger.debug(
-      `${cid()} Auth success: userId=${result.userId} sessionId=${result.sessionId} method=${request.method} path=${request.originalUrl}`
-    );
-
-    // Inject the authenticated session into the request so @CurrentUser()
-    // and any downstream middleware can access the session without re-reading the cookie.
     (request as unknown as Record<string, unknown>)["user"] = result;
 
     return true;
