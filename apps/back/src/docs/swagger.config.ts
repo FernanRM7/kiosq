@@ -54,6 +54,5 @@ export function setupSwagger(app: INestApplication): void {
 
   SwaggerModule.setup(SWAGGER_PATH, app, document, {
     customSiteTitle: "Kiosq API Docs",
-    explorer: false,
   });
 }

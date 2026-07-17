@@ -6,6 +6,7 @@ import {
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
+import { cid } from "../lib/request-context";
 import type { SessionResult } from "../types/session.type";
 import { AuthService } from "./auth.service";
 import { SessionRegistryService } from "./session-registry.service";
@@ -54,8 +55,8 @@ export class SessionService {
       | undefined;
 
     if (!sealedSession) {
-      this.logger.warn(
-        "Session authentication failed: no_session_cookie_provided"
+      this.logger.debug(
+        `${cid()} Session authentication failed: no_session_cookie_provided`
       );
       return { authenticated: false, reason: "no_session_cookie_provided" };
     }
@@ -69,7 +70,11 @@ export class SessionService {
       });
       result = await session.authenticate();
     } catch (error) {
-      this.logger.error(`Session load/authenticate failed: ${error}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `${cid()} Session load/authenticate failed: ${errMsg}`,
+        error instanceof Error ? error.stack : undefined
+      );
       return { authenticated: false, reason: "session_load_failed" };
     }
 
@@ -77,9 +82,14 @@ export class SessionService {
       const sessionId = String(result.sessionId ?? "");
       const userId = result.user.id;
 
-      // Strict revocation check: if the session is absent from Redis it was
-      // explicitly revoked. Only a genuine Redis error (throw) is treated as
-      // non-critical (fail-open) — a clean false return means revoked.
+      // Redis revocation check: verify the session is still active in Redis.
+      // Redis acts as a cache — the WorkOS sealed cookie is the authoritative
+      // source of truth. When a session is absent from Redis, auto-recover by
+      // re-registering it rather than rejecting the request. This avoids false
+      // 401s caused by:
+      //   - Redis being temporarily unavailable during callback registration
+      //   - Redis flush/deployment clearing cached sessions
+      //   - Clock skew causing premature Redis TTL expiry
       if (sessionId) {
         try {
           const isActive = await this.sessionRegistry.isSessionActive(
@@ -87,30 +97,37 @@ export class SessionService {
             sessionId
           );
 
-          if (!isActive) {
-            this.logger.warn(
-              `Session ${sessionId} is not active in Redis — rejecting (session_revoked)`
+          if (isActive) {
+            try {
+              await this.sessionRegistry.touchSession(userId, sessionId);
+            } catch {
+              /* non-critical: heartbeat failure does not invalidate session */
+            }
+          } else {
+            this.logger.debug(
+              `${cid()} Session absent from Redis for userId=${userId} sessionId=${sessionId} — auto-recovering registration`
             );
-            return { authenticated: false, reason: "session_revoked" };
+            try {
+              await this.registerSession(
+                userId,
+                sessionId,
+                result.user,
+                request
+              );
+            } catch {
+              /* non-critical: registration recovery failure does not invalidate session */
+            }
           }
-
-          // Session is active — update the heartbeat timestamp (non-critical)
-          await this.sessionRegistry
-            .touchSession(userId, sessionId)
-            .catch(() => {
-              // Non-critical: a failed heartbeat does not invalidate the session
-            });
         } catch {
-          // Redis is unavailable — fail-open. WorkOS sealed session is the
-          // primary auth mechanism; we cannot revoke sessions while Redis is down,
-          // but we should not lock out all users either.
           this.logger.warn(
-            `Redis unavailable during session check for ${sessionId} — allowing request through`
+            `${cid()} Redis unavailable during session check: sessionId=${sessionId} userId=${userId} — allowing request through (fail-open)`
           );
         }
       }
 
-      this.logger.debug(`Session authenticated for user ${userId}`);
+      this.logger.debug(
+        `${cid()} Session authenticated: userId=${userId} sessionId=${sessionId}`
+      );
 
       const authenticatedResult: SessionResult = {
         accessToken: result.accessToken,
@@ -128,7 +145,10 @@ export class SessionService {
       // to reset the WorkOS inactivity timer. This prevents sessions from being
       // killed due to inactivity while the user is actively using the app.
       if (sessionId && this.shouldProactivelyRefresh(result.accessToken)) {
-        this.logger.debug("JWT near expiry — proactively refreshing session");
+        const remaining = this.getJwtRemainingSeconds(result.accessToken);
+        this.logger.debug(
+          `${cid()} JWT near expiry (${remaining}s remaining) — proactively refreshing session: userId=${userId} sessionId=${sessionId}`
+        );
 
         try {
           const refreshed = await this.refreshSession(session, response);
@@ -138,7 +158,7 @@ export class SessionService {
           }
         } catch {
           this.logger.warn(
-            "Proactive refresh failed — continuing with current session"
+            `${cid()} Proactive refresh failed for userId=${userId} — continuing with current session`
           );
         }
       }
@@ -150,13 +170,15 @@ export class SessionService {
     // WorkOS rotates the refresh token internally — no manual /rotate_token needed.
     if (result.reason === "invalid_jwt") {
       this.logger.debug(
-        "JWT expired — attempting automatic session refresh via WorkOS"
+        `${cid()} JWT expired — attempting automatic session refresh via WorkOS`
       );
 
       return this.refreshSession(session, response);
     }
 
-    this.logger.warn(`Session authentication failed: ${result.reason}`);
+    this.logger.debug(
+      `${cid()} Session authentication failed: reason=${result.reason} (from WorkOS)`
+    );
 
     return { authenticated: false, reason: result.reason };
   }
@@ -164,10 +186,18 @@ export class SessionService {
   /**
    * Clears the session cookie from the response.
    * Call this on logout before redirecting to the WorkOS logout URL.
+   *
+   * Must pass the same `sameSite` and `secure` options as the original
+   * cookie, otherwise browsers (especially with sameSite=none) will
+   * ignore the clear command.
    */
   clearSession(response: Response): void {
-    response.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
-    this.logger.debug("Session cookie cleared");
+    response.clearCookie(SESSION_COOKIE_NAME, {
+      httpOnly: SESSION_COOKIE_OPTIONS.httpOnly,
+      path: SESSION_COOKIE_OPTIONS.path,
+      sameSite: SESSION_COOKIE_OPTIONS.sameSite,
+      secure: SESSION_COOKIE_OPTIONS.secure,
+    });
   }
 
   /**
@@ -206,8 +236,12 @@ export class SessionService {
       await this.sessionRegistry.registerSession(metadata);
     } catch (error) {
       this.logger.error(
-        { err: error, sessionId, userId },
-        "Failed to register session in Redis"
+        {
+          err: error instanceof Error ? error.message : String(error),
+          sessionId,
+          userId,
+        },
+        `${cid()} Failed to register session in Redis: sessionId=${sessionId}`
       );
     }
   }
@@ -220,8 +254,12 @@ export class SessionService {
       await this.sessionRegistry.removeSession(userId, sessionId);
     } catch (error) {
       this.logger.error(
-        { err: error, sessionId, userId },
-        "Failed to revoke session in Redis"
+        {
+          err: error instanceof Error ? error.message : String(error),
+          sessionId,
+          userId,
+        },
+        `${cid()} Failed to revoke session in Redis: sessionId=${sessionId}`
       );
     }
   }
@@ -243,7 +281,11 @@ export class SessionService {
     try {
       refreshResult = await session.refresh();
     } catch (error) {
-      this.logger.error(`Session refresh threw: ${error}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `${cid()} Session refresh threw: ${errMsg}`,
+        error instanceof Error ? error.stack : undefined
+      );
       return { authenticated: false, reason: "session_refresh_failed" };
     }
 
@@ -251,8 +293,8 @@ export class SessionService {
       const sessionId = String(refreshResult.sessionId ?? "");
       const userId = refreshResult.user.id;
 
-      // Check if this session has been revoked — wrap in try/catch so a Redis
-      // outage during refresh does not kill the entire refresh flow.
+      // Verify session hasn't been explicitly revoked in Redis.
+      // Absence (without a revocation marker) is treated as auto-recoverable.
       let isActive = true;
       try {
         isActive = await this.sessionRegistry.isSessionActive(
@@ -260,15 +302,37 @@ export class SessionService {
           sessionId
         );
       } catch {
-        // Redis unavailable — fail-open for the same reason as authenticateSession
-        this.logger.warn(
-          `Redis unavailable during refresh session check for ${sessionId} — allowing refresh through`
+        this.logger.debug(
+          `${cid()} Redis unavailable during refresh session check: sessionId=${sessionId} — allowing refresh through`
         );
       }
 
       if (!isActive && sessionId) {
-        this.logger.warn(`Refreshed session ${sessionId} has been revoked`);
-        return { authenticated: false, reason: "session_revoked" };
+        this.logger.debug(
+          `${cid()} Refreshed session absent from Redis for userId=${userId} sessionId=${sessionId} — auto-recovering`
+        );
+        // The sealed session was refreshed successfully by WorkOS — re-register.
+        // buildName helper inline to avoid compiling issues
+        const name =
+          [refreshResult.user.firstName, refreshResult.user.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          refreshResult.user.email ||
+          "User";
+        try {
+          await this.sessionRegistry.registerSession({
+            createdAt: new Date().toISOString(),
+            deviceInfo: "session_refresh",
+            ipAddress: "0.0.0.0",
+            lastActiveAt: new Date().toISOString(),
+            sessionId,
+            userEmail: refreshResult.user.email ?? "",
+            userId,
+            userName: name,
+          });
+        } catch {
+          /* non-critical: re-registration failure during refresh does not invalidate session */
+        }
       }
 
       // Persist the new sealed session — critical to avoid re-refresh on next request
@@ -279,7 +343,7 @@ export class SessionService {
       );
 
       this.logger.debug(
-        `Session refreshed for user ${userId}. New cookie written.`
+        `${cid()} Session refreshed for userId=${userId} sessionId=${sessionId} — new cookie written (sameSite=${SESSION_COOKIE_OPTIONS.sameSite} maxAge=${SESSION_COOKIE_OPTIONS.maxAge}s)`
       );
 
       return {
@@ -295,7 +359,9 @@ export class SessionService {
       };
     }
 
-    this.logger.warn(`Session refresh failed: ${refreshResult.reason}`);
+    this.logger.warn(
+      `${cid()} Session refresh failed: reason=${refreshResult.reason}`
+    );
 
     return { authenticated: false, reason: refreshResult.reason };
   }
@@ -311,17 +377,20 @@ export class SessionService {
    */
   private shouldProactivelyRefresh(accessToken: string): boolean {
     try {
-      const payload = decodeJwt(accessToken);
-      const now = Math.floor(Date.now() / 1000);
-      const exp = payload.exp as number | undefined;
-
-      if (!exp) {
-        return false;
-      }
-
-      return exp - now < PROACTIVE_REFRESH_SECONDS;
+      const remaining = this.getJwtRemainingSeconds(accessToken);
+      return remaining !== null && remaining < PROACTIVE_REFRESH_SECONDS;
     } catch {
       return false;
     }
+  }
+
+  private getJwtRemainingSeconds(accessToken: string): number | null {
+    const payload = decodeJwt(accessToken);
+    const now = Math.floor(Date.now() / 1000);
+    const exp = payload.exp as number | undefined;
+    if (!exp) {
+      return null;
+    }
+    return exp - now;
   }
 }

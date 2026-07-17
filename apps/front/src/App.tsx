@@ -27,18 +27,18 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
           </Route>
 
-          {/* Protected routes — require a valid wos-session cookie */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/dashboard" element={<DashboardLayout />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="products" element={<ProductsPage />} />
-              <Route path="categories" element={<CategoriesPage />} />
-              <Route path="sales" element={<SalesPage />} />
-              <Route path="suppliers" element={<SuppliersPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
+        {/* Protected routes — require a valid wos-session cookie */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="products" element={<ProductsPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
+            <Route path="sales" element={<SalesPage />} />
+            <Route path="suppliers" element={<SuppliersPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
+        </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
