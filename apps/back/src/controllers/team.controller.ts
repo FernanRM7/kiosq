@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
@@ -17,6 +19,12 @@ export class TeamController {
 
   constructor(private readonly teamService: TeamService) {}
 
+  @Get("members")
+  @HttpCode(HttpStatus.OK)
+  async listMembers(@CurrentUser() session: AuthenticatedSessionResult) {
+    return this.teamService.listMembers(session.userId);
+  }
+
   @Post("cashiers")
   @HttpCode(HttpStatus.CREATED)
   async createCashier(
@@ -25,19 +33,39 @@ export class TeamController {
   ) {
     const { userId } = session;
 
-    // Validate PIN format (4-6 numeric digits)
     if (!/^\d{4,6}$/.test(body.pin)) {
-      return { statusCode: 400, message: "El PIN debe tener 4-6 dígitos numéricos" };
+      throw new BadRequestException(
+        "El PIN debe tener 4-6 dígitos numéricos",
+      );
     }
 
     if (!body.name || body.name.trim().length === 0) {
-      return { statusCode: 400, message: "El nombre es obligatorio" };
+      throw new BadRequestException("El nombre es obligatorio");
     }
 
     return this.teamService.createCashier(userId, {
       name: body.name.trim(),
       email: body.email,
       pin: body.pin,
+    });
+  }
+
+  @Post("managers")
+  @HttpCode(HttpStatus.CREATED)
+  async createManager(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: { email: string },
+  ) {
+    const { userId } = session;
+
+    if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      throw new BadRequestException(
+        "Debes proporcionar un email válido",
+      );
+    }
+
+    return this.teamService.createManager(userId, {
+      email: body.email.trim(),
     });
   }
 }

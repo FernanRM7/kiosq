@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateCashierDialog } from "@/components/team/create-cashier-dialog";
+import { InviteManagerDialog } from "@/components/team/invite-manager-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useTeam } from "@/hooks/queries/use-team";
 import { canManageSettings } from "@/lib/access";
@@ -19,7 +20,8 @@ export function TeamSection() {
   const { user } = useAuth();
   const { data: members = [], isLoading } = useTeam();
   const canManage = canManageSettings(user?.role);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [cashierDialogOpen, setCashierDialogOpen] = useState(false);
+  const [managerDialogOpen, setManagerDialogOpen] = useState(false);
 
   if (!canManage) {
     return null;
@@ -35,9 +37,14 @@ export function TeamSection() {
               Miembros de tu workspace y sus roles.
             </CardDescription>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            Agregar Dependiente
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setManagerDialogOpen(true)}>
+              Invitar Manager
+            </Button>
+            <Button onClick={() => setCashierDialogOpen(true)}>
+              Agregar Dependiente
+            </Button>
+          </div>
         </CardHeader>
         <CardPanel>
           {isLoading && (
@@ -79,6 +86,16 @@ export function TeamSection() {
                       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
                         {getRoleLabel(member.role)}
                       </span>
+                      {member.status === "PENDING" && (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700 text-xs dark:bg-amber-900/20 dark:text-amber-400">
+                          Pendiente
+                        </span>
+                      )}
+                      {member.status === "DISABLED" && (
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground text-xs">
+                          Inactivo
+                        </span>
+                      )}
                     </div>
                     <p className="truncate text-muted-foreground text-xs">
                       {member.email ?? "Sin correo"}
@@ -91,7 +108,8 @@ export function TeamSection() {
         </CardPanel>
       </Card>
 
-      <CreateCashierDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CreateCashierDialog open={cashierDialogOpen} onOpenChange={setCashierDialogOpen} />
+      <InviteManagerDialog open={managerDialogOpen} onOpenChange={setManagerDialogOpen} />
     </>
   );
 }

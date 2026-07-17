@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException, Logger } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  ForbiddenException,
+  Logger,
+} from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 
 import type { PrismaService } from "../lib/prisma.service";
@@ -93,6 +98,145 @@ export class TeamService {
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      role: membership.role,
+      status: membership.status,
+    };
+  }
+
+  /**
+   * Lists all members of the caller's workspace.
+   * Cashiers, managers, and admins are included.
+   */
+  async listMembers(
+    callerId: string,
+  ): Promise<
+    {
+      id: string;
+      name: string;
+      email: string | null;
+      role: string;
+      status: string;
+    }[]
+  > {
+    const caller = await this.prisma.user.findFirst({
+      select: { tenantId: true },
+      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
+    });
+
+    if (!caller) {
+      return [];
+    }
+
+    const members = await this.prisma.userTenant.findMany({
+      select: {
+        role: true,
+        status: true,
+        user: {
+          select: { id: true, email: true, name: true },
+        },
+      },
+      where: { tenantId: caller.tenantId },
+      orderBy: { joinedAt: "asc" },
+    });
+
+    return members.map((m) => ({
+      id: m.user.id,
+      email: m.user.email,
+      name: m.user.name,
+      role: m.role,
+      status: m.status,
+    }));
+  }
+
+  /**
+   * Creates a manager member in the caller's workspace.
+   *
+   * - Pre-creates a User (workosUserId = null) so the person can later
+   *   sign in via WorkOS and get linked by the webhook fallback.
+   * - The membership starts as PENDING.
+   * - No email is sent — the admin tells the new manager out-of-band.
+   *
+   * Throws 409 if the email already has an active membership in any workspace.
+   */
+  async createManager(
+    callerId: string,
+    data: {
+      email: string;
+    },
+  ): Promise<{
+    id: string;
+    email: string | null;
+    role: string;
+    status: string;
+  }> {
+    const normalizedEmail = data.email.toLowerCase().trim();
+
+    // V1 invariant: block if the email already belongs to another workspace
+    const existing = await this.prisma.user.findFirst({
+      where: { email: normalizedEmail, isActive: true },
+    });
+
+    if (existing && existing.tenantId) {
+      throw new ConflictException(
+        "Este email ya pertenece a otro workspace",
+      );
+    }
+
+    const caller = await this.prisma.user.findFirst({
+      select: { id: true, tenantId: true },
+      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
+    });
+
+    if (!caller) {
+      throw new ForbiddenException("Usuario no encontrado en el sistema");
+    }
+
+    const { tenantId } = caller;
+
+    // Check if the email already exists in this tenant
+    const existingInTenant = await this.prisma.user.findUnique({
+      where: { tenantId_email: { email: normalizedEmail, tenantId } },
+    });
+
+    if (existingInTenant) {
+      throw new ConflictException(
+        "Este email ya es miembro de este workspace",
+      );
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        name: normalizedEmail,
+        role: "MANAGER",
+        tenantId,
+        isActive: true,
+      },
+      select: { id: true, email: true },
+    });
+
+    const membership = await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId,
+        role: "MANAGER",
+        status: "PENDING",
+        invitedByUserId: caller.id,
+      },
+      select: {
+        role: true,
+        status: true,
+        user: { select: { id: true, email: true } },
+      },
+    });
+
+    this.logger.log(
+      `Manager pre-created: user=${user.id} email=${normalizedEmail} tenant=${tenantId}`,
+    );
+
+    return {
+      id: membership.user.id,
+      email: membership.user.email ?? null,
       role: membership.role,
       status: membership.status,
     };
