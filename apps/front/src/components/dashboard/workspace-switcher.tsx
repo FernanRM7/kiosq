@@ -12,13 +12,15 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useMyTenant, useTenants } from "@/hooks/queries/use-tenants";
 import { useAuth } from "@/hooks/use-auth";
+import { canSwitchWorkspace } from "@/lib/access";
 import { switchTenant } from "@/lib/auth";
 import type { TenantListItem } from "@/lib/auth";
 
 export function WorkspaceSwitcher() {
   const { user } = useAuth();
-  const { data: myTenant } = useMyTenant();
-  const { data: tenants = [] } = useTenants();
+  const canSwitch = canSwitchWorkspace(user?.role);
+  const { data: myTenant } = useMyTenant(canSwitch);
+  const { data: tenants = [] } = useTenants(canSwitch);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -58,6 +60,10 @@ export function WorkspaceSwitcher() {
   const workspaceLabel =
     activeTenantName ?? user?.organizationId ?? "Workspace";
   const workspaceMeta = activeTenantName ? "Plan activo" : "Plan gratuito";
+
+  if (!canSwitch) {
+    return null;
+  }
 
   return (
     <>

@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 // ConfigModule removed from AppModule to avoid runtime export validation error during dev.
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
-// using Nest's built-in Logger instead of nestjs-pino for build-time stability
 
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";

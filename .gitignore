@@ -14,3 +14,5 @@ schema.sql
 docker-compose.yml
 Dockerfile.backend
 Dockerfile.frontend
+.opencode
+docs-site/

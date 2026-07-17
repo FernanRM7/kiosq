@@ -12,6 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateCategory } from "@/hooks/mutations/use-create-category";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Category } from "@/lib/categories";
 import {
   categoryFormSchema,
@@ -31,6 +33,8 @@ export function CreateCategoryDialog({
   onCreated,
 }: CreateCategoryDialogProps) {
   const createCategoryMutation = useCreateCategory();
+  const { user } = useAuth();
+  const canCreateCategory = canManageCatalog(user?.role);
   const [name, setName] = useState(defaultCategoryFormValues.name);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
@@ -42,6 +46,11 @@ export function CreateCategoryDialog({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (!canCreateCategory) {
+      return;
+    }
+
     setFieldError(null);
 
     const parsed = categoryFormSchema.safeParse({ name });
@@ -59,7 +68,7 @@ export function CreateCategoryDialog({
     });
   };
 
-  return (
+  return canCreateCategory ? (
     <Dialog
       open={open}
       onOpenChange={(next) => {
@@ -117,5 +126,5 @@ export function CreateCategoryDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 }
