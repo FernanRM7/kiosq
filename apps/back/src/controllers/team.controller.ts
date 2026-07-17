@@ -6,6 +6,8 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Patch,
   Post,
 } from "@nestjs/common";
 
@@ -67,5 +69,45 @@ export class TeamController {
     return this.teamService.createManager(userId, {
       email: body.email.trim(),
     });
+  }
+
+  @Patch("members/:userId/disable")
+  @HttpCode(HttpStatus.OK)
+  async disableMember(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("userId") userId: string,
+  ) {
+    await this.teamService.disableMember(userId);
+    return { success: true };
+  }
+
+  @Patch("members/:userId/enable")
+  @HttpCode(HttpStatus.OK)
+  async enableMember(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("userId") userId: string,
+  ) {
+    await this.teamService.enableMember(userId);
+    return { success: true };
+  }
+
+  @Patch("members/:userId/cancel")
+  @HttpCode(HttpStatus.OK)
+  async cancelInvite(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("userId") userId: string,
+  ) {
+    await this.teamService.cancelInvite(userId);
+    return { success: true };
+  }
+
+  @Post("members/:userId/revoke-sessions")
+  @HttpCode(HttpStatus.OK)
+  async revokeCashierSession(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("userId") userId: string,
+  ) {
+    await this.teamService.revokeCashierSession(userId);
+    return { success: true };
   }
 }

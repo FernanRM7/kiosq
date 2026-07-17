@@ -3,10 +3,12 @@ import {
   Injectable,
   ForbiddenException,
   Logger,
+  NotFoundException,
 } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 
 import type { PrismaService } from "../lib/prisma.service";
+import { CashierSessionService } from "./cashier-session.service";
 
 const SALT_ROUNDS = 10;
 
@@ -14,7 +16,10 @@ const SALT_ROUNDS = 10;
 export class TeamService {
   private readonly logger = new Logger(TeamService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cashierSessionService: CashierSessionService,
+  ) {}
 
   /**
    * Throws ForbiddenException unless the caller is ADMIN or SUPER_ADMIN.
@@ -240,5 +245,57 @@ export class TeamService {
       role: membership.role,
       status: membership.status,
     };
+  }
+
+  /**
+   * Transitions a membership to DISABLED. The member cannot log in,
+   * but their historical data is preserved.
+   */
+  async disableMember(userId: string): Promise<void> {
+    await this.prisma.userTenant.updateMany({
+      data: { status: "DISABLED" },
+      where: { userId },
+    });
+
+    this.logger.log(`Member disabled: userId=${userId}`);
+  }
+
+  /**
+   * Reactivates a previously disabled membership.
+   */
+  async enableMember(userId: string): Promise<void> {
+    await this.prisma.userTenant.updateMany({
+      data: { status: "ACTIVE" },
+      where: { userId },
+    });
+
+    this.logger.log(`Member enabled: userId=${userId}`);
+  }
+
+  /**
+   * Cancels a pending manager invite (transitions to DISABLED).
+   * Only valid for PENDING memberships.
+   */
+  async cancelInvite(userId: string): Promise<void> {
+    const updated = await this.prisma.userTenant.updateMany({
+      data: { status: "DISABLED" },
+      where: { userId, status: "PENDING" },
+    });
+
+    if (updated.count === 0) {
+      throw new NotFoundException(
+        "La invitación no está pendiente o no existe",
+      );
+    }
+
+    this.logger.log(`Invite cancelled: userId=${userId}`);
+  }
+
+  /**
+   * Ends all active cashier sessions for the given user.
+   */
+  async revokeCashierSession(userId: string): Promise<void> {
+    await this.cashierSessionService.revokeCashierSession(userId);
+    this.logger.log(`Cashier session revoked: userId=${userId}`);
   }
 }
