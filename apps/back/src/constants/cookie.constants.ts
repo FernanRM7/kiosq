@@ -1,6 +1,24 @@
 /** Name of the HttpOnly cookie that stores the WorkOS sealed session */
 export const SESSION_COOKIE_NAME = "wos-session";
 
+/** Name of the HttpOnly cookie that stores the cashier session id */
+export const CASHIER_SESSION_COOKIE_NAME = "cashier-session";
+
+/**
+ * Options applied when writing or clearing the cashier session cookie.
+ *
+ * Same shape as SESSION_COOKIE_OPTIONS but with no maxAge (persistent
+ * by design — the cashier stays logged in until explicitly logged out).
+ */
+export const CASHIER_SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  path: "/",
+  sameSite:
+    (process.env.WORKOS_COOKIE_SAMESITE as "lax" | "none" | "strict") ??
+    (process.env.VERCEL ? "none" : "lax"),
+  secure: true,
+} as const;
+
 /**
  * Options applied when writing or clearing the session cookie.
  *

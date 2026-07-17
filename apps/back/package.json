@@ -87,7 +87,11 @@
     },
     "transformIgnorePatterns": [
       "/node_modules/(?!(jose)/)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^jose$": "<rootDir>/__mocks__/jose.cjs",
+      "^jose/(.*)$": "<rootDir>/__mocks__/jose.cjs"
+    }
   },
   "prisma": {
     "seed": "bun run prisma/seed.ts"

@@ -18,6 +18,7 @@ import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
+import { CashierSessionService } from "./services/cashier-session.service";
 import { CategoryService } from "./services/category.service";
 import { OfflineSyncService } from "./services/offline-sync.service";
 import { ProductService } from "./services/product.service";
@@ -53,6 +54,7 @@ import { UserService } from "./services/user.service";
     SaleService,
     SessionRegistryService,
     SessionService,
+    CashierSessionService,
     SyncService,
     OfflineSyncService,
     TenantService,
