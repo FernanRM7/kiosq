@@ -45,7 +45,7 @@ export class CashierAuthController {
 
     const cashiers = await this.prisma.userTenant.findMany({
       select: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, cashierCode: true } },
       },
       where: {
         role: "CASHIER",
@@ -55,11 +55,17 @@ export class CashierAuthController {
       },
     });
 
-    return cashiers.map((m) => ({ id: m.user.id, name: m.user.name }));
+    return cashiers.map((m) => ({
+      code: m.user.cashierCode ?? "",
+      id: m.user.id,
+      name: m.user.name,
+    }));
   }
 
+  // (reserved for future multi-tenant kiosk support)
+
   /**
-   * Logs in a cashier by userId + PIN.
+   * Logs in a cashier by code + PIN.
    * On success: sets cashier-session cookie and returns redirectTo.
    * Public — the cashier has no session yet.
    */
@@ -67,13 +73,18 @@ export class CashierAuthController {
   @Post("auth/pin")
   @HttpCode(HttpStatus.OK)
   async loginWithPin(
-    @Body() body: { userId: string; pin: string },
+    @Body() body: { code: string; pin: string; slug?: string },
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    if (!body.code) {
+      return { statusCode: 400, message: "El código es obligatorio" };
+    }
+
     const result = await this.cashierSessionService.loginWithPin(
-      body.userId,
+      body.code,
       body.pin,
+      body.slug,
       request,
       response,
     );
@@ -82,7 +93,7 @@ export class CashierAuthController {
       return { redirectTo: "/dashboard" };
     }
 
-    return { statusCode: 401, message: "PIN incorrecto" };
+    return { statusCode: 401, message: "Código o PIN incorrecto" };
   }
 
   /**

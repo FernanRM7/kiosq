@@ -46,12 +46,14 @@ export class TeamService {
     callerId: string,
     data: {
       name: string;
+      code: string;
       email?: string;
       pin: string;
     },
   ): Promise<{
     id: string;
     name: string;
+    code: string;
     email: string | null;
     role: string;
     status: string;
@@ -72,6 +74,7 @@ export class TeamService {
 
     const user = await this.prisma.user.create({
       data: {
+        cashierCode: data.code,
         email: normalizedEmail,
         name: data.name,
         role: "CASHIER",
@@ -79,7 +82,7 @@ export class TeamService {
         tenantId,
         isActive: true,
       },
-      select: { id: true, email: true, name: true },
+      select: { id: true, cashierCode: true, email: true, name: true },
     });
 
     const membership = await this.prisma.userTenant.create({
@@ -100,6 +103,7 @@ export class TeamService {
     this.logger.log(`Cashier created: user=${user.id} tenant=${tenantId}`);
 
     return {
+      code: user.cashierCode ?? "",
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,

@@ -28,6 +28,7 @@ export function CreateCashierDialog({
   const canManage = canManageSettings(user?.role);
   const createCashier = useCreateCashier();
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -44,14 +45,24 @@ export function CreateCashierDialog({
       return;
     }
 
+    if (!code.trim() || code.trim().length < 3 || code.trim().length > 20) {
+      setError("El código debe tener entre 3 y 20 caracteres");
+      return;
+    }
+
     if (!/^\d{4,6}$/.test(pin)) {
       setError("El PIN debe tener 4-6 dígitos numéricos");
       return;
     }
 
     try {
-      await createCashier.mutateAsync({ name: name.trim(), pin });
+      await createCashier.mutateAsync({
+        code: code.trim(),
+        name: name.trim(),
+        pin,
+      });
       setName("");
+      setCode("");
       setPin("");
       onOpenChange(false);
     } catch (submitError) {
@@ -83,6 +94,20 @@ export function CreateCashierDialog({
               disabled={createCashier.isPending}
               value={name}
               onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="cashier-code">
+              Código del dependiente
+            </Label>
+            <Input
+              id="cashier-code"
+              placeholder="Ej. juan.kiosko"
+              maxLength={20}
+              disabled={createCashier.isPending}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
             />
           </div>
 

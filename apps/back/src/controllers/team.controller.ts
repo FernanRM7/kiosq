@@ -31,7 +31,7 @@ export class TeamController {
   @HttpCode(HttpStatus.CREATED)
   async createCashier(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Body() body: { name: string; email?: string; pin: string },
+    @Body() body: { name: string; code: string; email?: string; pin: string },
   ) {
     const { userId } = session;
 
@@ -45,7 +45,14 @@ export class TeamController {
       throw new BadRequestException("El nombre es obligatorio");
     }
 
+    if (!body.code || body.code.trim().length < 3 || body.code.trim().length > 20) {
+      throw new BadRequestException(
+        "El código del dependiente debe tener entre 3 y 20 caracteres",
+      );
+    }
+
     return this.teamService.createCashier(userId, {
+      code: body.code.trim(),
       name: body.name.trim(),
       email: body.email,
       pin: body.pin,

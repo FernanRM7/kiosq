@@ -128,19 +128,34 @@ export class CashierSessionService {
   }
 
   /**
-   * Validates a PIN for a given cashier user id and creates a persistent session.
+   * Validates a PIN for a cashier identified by code (+ optional tenant slug)
+   * and creates a persistent session.
    *
    * Called by the public /auth/pin endpoint.
    */
   async loginWithPin(
-    userId: string,
+    code: string,
     pin: string,
+    slug: string | undefined,
     request: Request,
     response: Response,
   ): Promise<SessionResult> {
-    const user = await this.prisma.user.findUnique({
+    if (!slug) {
+      return { authenticated: false, reason: "cashier_login_no_tenant" };
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true },
+      where: { slug },
+    });
+
+    if (!tenant) {
+      return { authenticated: false, reason: "cashier_login_invalid" };
+    }
+
+    const user = await this.prisma.user.findFirst({
       select: { id: true, email: true, name: true, pinHash: true, tenantId: true },
-      where: { id: userId },
+      where: { tenantId: tenant.id, cashierCode: code, role: "CASHIER" },
     });
 
     if (!user?.pinHash) {

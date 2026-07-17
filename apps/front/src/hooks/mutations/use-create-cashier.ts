@@ -6,6 +6,7 @@ import type { TeamMember } from "@/hooks/queries/use-team";
 
 interface CreateCashierPayload {
   name: string;
+  code: string;
   pin: string;
   email?: string;
 }

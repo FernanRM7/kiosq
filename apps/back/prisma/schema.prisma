@@ -244,6 +244,8 @@ model User {
   /// Bcrypt hash of the PIN for cashier fast-switch (Tauri only).
   /// Null for users authenticated exclusively via WorkOS.
   pinHash      String?
+  /// Custom identifier for cashier login (replaces email for PIN users).
+  cashierCode  String?
   name         String
   role         Role      @default(CASHIER)
   branchId     String?
@@ -265,6 +267,7 @@ model User {
   stockMovements     StockMovement[]
 
   @@unique([tenantId, email])
+  @@unique([tenantId, cashierCode])
   @@index([tenantId, role])
   @@index([workosUserId])
   @@map("users")
