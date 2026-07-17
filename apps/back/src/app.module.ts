@@ -14,6 +14,7 @@ import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
 import { saleRoutes } from "./routes/sale.routes";
 import { syncRoutes } from "./routes/sync.routes";
+import { teamRoutes } from "./routes/team.routes";
 import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
@@ -26,6 +27,7 @@ import { SaleService } from "./services/sale.service";
 import { SessionRegistryService } from "./services/session-registry.service";
 import { SessionService } from "./services/session.service";
 import { SyncService } from "./services/sync.service";
+import { TeamService } from "./services/team.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
 
@@ -39,6 +41,7 @@ import { UserService } from "./services/user.service";
     ...webhookRoutes,
     ...userRoutes,
     ...tenantRoutes,
+    ...teamRoutes,
     ...productRoutes,
     ...categoryRoutes,
     ...saleRoutes,
@@ -57,6 +60,7 @@ import { UserService } from "./services/user.service";
     CashierSessionService,
     SyncService,
     OfflineSyncService,
+    TeamService,
     TenantService,
     UserService,
     {
