@@ -233,9 +233,9 @@ export class SaleService {
   }
 
   private async getTenantId(userId: string): Promise<string> {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       select: { isActive: true, tenantId: true },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     if (!user?.isActive) {

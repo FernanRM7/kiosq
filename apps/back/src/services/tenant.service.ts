@@ -48,8 +48,8 @@ export class TenantService {
     const userName =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { workosUserId: userId },
+    const existingUser = await this.prisma.user.findFirst({
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     const dbUser = await (existingUser
@@ -87,18 +87,18 @@ export class TenantService {
   }
 
   getTenantByUserId(userId: string) {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       include: { tenant: true },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
   }
 
   async listUserTenants(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       include: {
         tenant: { select: { id: true, name: true, slug: true, status: true } },
       },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     if (!user) {
@@ -185,9 +185,9 @@ export class TenantService {
     userId: string,
     tenantId: string
   ): Promise<{ id: string; name: string; slug: string }> {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       select: { id: true, role: true },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     if (!user) {
