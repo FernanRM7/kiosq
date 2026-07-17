@@ -17,6 +17,7 @@ import { syncRoutes } from "./routes/sync.routes";
 import { teamRoutes } from "./routes/team.routes";
 import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
+import { cashierAuthRoutes } from "./routes/cashier-auth.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
 import { CashierSessionService } from "./services/cashier-session.service";
@@ -38,6 +39,7 @@ import { UserService } from "./services/user.service";
     // the file is added under controllers/sync.controller.ts
     ...healthRoutes,
     ...authRoutes,
+    ...cashierAuthRoutes,
     ...webhookRoutes,
     ...userRoutes,
     ...tenantRoutes,
