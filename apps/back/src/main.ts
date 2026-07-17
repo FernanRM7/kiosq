@@ -1,13 +1,10 @@
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import helmet from "helmet";
 
 import { AppModule } from "./app.module";
 import { setupApp } from "./app.setup";
 import { GlobalExceptionFilter } from "./common/filters/global-exception.filter";
-// Swagger UI is intentionally disabled during build to avoid runtime
-// incompatibilities between @nestjs/swagger and the installed @nestjs/core.
-// If you want Swagger enabled, re-enable and align package versions.
+import { SWAGGER_PATH, setupSwagger } from "./docs/swagger.config";
 import { logger } from "./lib/logger";
 import { getRedisClient } from "./lib/redis.lib";
 
@@ -23,7 +20,6 @@ async function bootstrap(): Promise<INestApplication> {
     rawBody: true,
   });
 
-  app.use(helmet());
   app.useGlobalFilters(new GlobalExceptionFilter());
   setupApp(app);
 
@@ -52,6 +48,8 @@ async function bootstrap(): Promise<INestApplication> {
     );
   }
 
+  setupSwagger(app);
+
   await app.init();
 
   _cachedApp = app;
@@ -67,7 +65,8 @@ if (!process.env.VERCEL) {
 
     const port = process.env.PORT ?? 3000;
     logger.info(`Backend iniciado correctamente en el puerto ${port}`);
-    // Swagger UI is disabled in this build.
+    logger.info(`Swagger UI: http://localhost:${port}/${SWAGGER_PATH}`);
+    logger.info(`OpenAPI JSON: http://localhost:${port}/${SWAGGER_PATH}-json`);
   })();
 }
 

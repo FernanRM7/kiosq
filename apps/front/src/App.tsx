@@ -1,10 +1,11 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { RoleRoute } from "@/components/auth/role-route";
 import { SyncAuth } from "@/components/auth/sync-auth";
 import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import { SyncProvider } from "@/contexts/sync.context";
 import CategoriesPage from "@/pages/categories";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/login";
@@ -19,12 +20,13 @@ function App() {
   return (
     <>
       <SyncAuth />
-      <Routes>
-        {/* Public routes — accessible without a session */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-        </Route>
+      <SyncProvider>
+        <Routes>
+          {/* Public routes — accessible without a session */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Route>
 
         {/* Protected routes — require a valid wos-session cookie */}
         <Route element={<ProtectedRoute />}>
@@ -49,8 +51,9 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </SyncProvider>
     </>
   );
 }

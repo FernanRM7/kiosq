@@ -10,13 +10,14 @@
     "fix": "ultracite fix",
     "format": "oxfmt",
     "lint": "oxlint",
-    "preview": "vp preview"
+    "preview": "vp preview",
+    "test": "vp test run",
+    "test:watch": "vp test watch"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@hookform/resolvers": "^5.4.0",
-    "@nestjs/core": "11.1.27",
     "@number-flow/react": "^0.6.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-query": "^5.101.2",
@@ -27,7 +28,6 @@
     "date-fns": "^4.4.0",
     "dexie": "^4.1.1",
     "geist": "^1.7.2",
-    "kiosq": "file:../..",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "radix-ui": "^1.5.0",
@@ -48,17 +48,23 @@
   },
   "devDependencies": {
     "@tanstack/react-query-devtools": "^5.101.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.10.6",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0",
     "react-grab": "^0.1.44",
     "typescript": "~6.0.2",
     "ultracite": "^7.8.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vite-plus": "latest"
+    "vite-plus": "latest",
+    "vitest": "^4.1.10"
   },
   "packageManager": "npm@11.13.0"
 }
