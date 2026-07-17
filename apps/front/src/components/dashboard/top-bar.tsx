@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSync } from "@/contexts/sync.context";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 
 function SyncBadge() {
   const { isOnline, pendingCount, status } = useSync();
@@ -34,6 +36,8 @@ function SyncBadge() {
 
 export function TopBar() {
   const [productOpen, setProductOpen] = useState(false);
+  const { user } = useAuth();
+  const canCreateProduct = canManageCatalog(user?.role);
 
   return (
     <>
@@ -49,18 +53,22 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <SalesDrawer />
           <SyncBadge />
-          <Button
-            variant="default"
-            size="sm"
-            className="w-28"
-            onClick={() => setProductOpen(true)}
-          >
-            <Plus className="size-4" />
-            <span>Product</span>
-          </Button>
+          {canCreateProduct ? (
+            <Button
+              variant="default"
+              size="sm"
+              className="w-28"
+              onClick={() => setProductOpen(true)}
+            >
+              <Plus className="size-4" />
+              <span>Product</span>
+            </Button>
+          ) : null}
         </div>
       </header>
-      <ProductDialog open={productOpen} onOpenChange={setProductOpen} />
+      {canCreateProduct ? (
+        <ProductDialog open={productOpen} onOpenChange={setProductOpen} />
+      ) : null}
     </>
   );
 }

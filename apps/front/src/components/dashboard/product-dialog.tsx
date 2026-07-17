@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCreateProduct } from "@/hooks/mutations/use-create-product";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import {
   defaultProductFormValues,
   productFormSchema,
@@ -26,6 +28,8 @@ interface ProductDialogProps {
 
 export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
   const createProductMutation = useCreateProduct();
+  const { user } = useAuth();
+  const canCreateProduct = canManageCatalog(user?.role);
   const {
     control,
     handleSubmit,
@@ -38,6 +42,10 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
   });
 
   const onSubmit = (data: ProductFormData) => {
+    if (!canCreateProduct) {
+      return;
+    }
+
     createProductMutation.mutate(productFormToPayload(data), {
       onSuccess: () => {
         reset(defaultProductFormValues);
@@ -46,7 +54,7 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
     });
   };
 
-  return (
+  return canCreateProduct ? (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -89,5 +97,5 @@ export function ProductDialog({ open, onOpenChange }: ProductDialogProps) {
         </form>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 }

@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/use-auth";
+import { getRoleLabel } from "@/lib/access";
 
 function getDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
@@ -30,6 +31,7 @@ export function UserNav() {
   const isLoggingOut = pendingAction === "logout";
   const displayName = user ? getDisplayName(user) : "User";
   const initials = user ? getInitials(user) : "U";
+  const roleLabel = user ? getRoleLabel(user.role) : "Dependiente";
 
   return (
     <Popover>
@@ -51,7 +53,7 @@ export function UserNav() {
             {displayName}
           </span>
           <span className="truncate text-xs text-sidebar-foreground/60">
-            Perfil
+            {roleLabel}
           </span>
         </div>
         <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />

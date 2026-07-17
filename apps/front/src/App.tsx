@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { RoleRoute } from "@/components/auth/role-route";
 import { SyncAuth } from "@/components/auth/sync-auth";
 import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
@@ -32,11 +33,21 @@ function App() {
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<DashboardPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
             <Route path="sales" element={<SalesPage />} />
-            <Route path="suppliers" element={<SuppliersPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route
+              element={
+                <RoleRoute allowedRoles={["MANAGER", "ADMIN", "SUPER_ADMIN"]} />
+              }
+            >
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="suppliers" element={<SuppliersPage />} />
+            </Route>
+            <Route
+              element={<RoleRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]} />}
+            >
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
           </Route>
         </Route>
 

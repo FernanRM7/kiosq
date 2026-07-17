@@ -1,13 +1,8 @@
+const nodeExternals = require("webpack-node-externals");
+
 /** @type {import("webpack").Configuration} */
 module.exports = {
-  externals: [
-    "@prisma/client",
-    "redis",
-    "thread-stream",
-    "swagger-ui-express",
-    /^swagger-ui-dist/,
-    "express",
-  ],
+  externals: [nodeExternals()],
   module: {
     rules: [
       {

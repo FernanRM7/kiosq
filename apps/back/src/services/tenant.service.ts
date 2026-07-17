@@ -105,6 +105,10 @@ export class TenantService {
       return [];
     }
 
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para ver workspaces");
+    }
+
     try {
       const userTenants = await this.prisma.userTenant.findMany({
         include: { tenant: true },
@@ -182,12 +186,18 @@ export class TenantService {
     tenantId: string
   ): Promise<{ id: string; name: string; slug: string }> {
     const user = await this.prisma.user.findUnique({
-      select: { id: true },
+      select: { id: true, role: true },
       where: { workosUserId: userId },
     });
 
     if (!user) {
       throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para cambiar de workspace"
+      );
     }
 
     try {

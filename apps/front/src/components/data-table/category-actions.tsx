@@ -2,6 +2,8 @@ import type { Row } from "@tanstack/react-table";
 import { Pencil, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Category } from "@/lib/categories";
 
 interface CategoryActionsProps {
@@ -15,7 +17,13 @@ export function CategoryActions({
   onEdit,
   onDelete,
 }: CategoryActionsProps) {
+  const { user } = useAuth();
+  const canEditCatalog = canManageCatalog(user?.role);
   const category = row.original;
+
+  if (!canEditCatalog) {
+    return null;
+  }
 
   return (
     <div className="flex gap-2">
@@ -38,7 +46,13 @@ export function DeletedCategoryActions({
   row,
   onRestore,
 }: DeletedCategoryActionsProps) {
+  const { user } = useAuth();
+  const canEditCatalog = canManageCatalog(user?.role);
   const category = row.original;
+
+  if (!canEditCatalog) {
+    return null;
+  }
 
   return (
     <div className="flex gap-2">
