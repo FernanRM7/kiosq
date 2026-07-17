@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import * as bcrypt from "bcrypt";
 
 import { PrismaService } from "../lib/prisma.service";
@@ -20,6 +21,23 @@ export class TeamService {
     private readonly prisma: PrismaService,
     private readonly cashierSessionService: CashierSessionService,
   ) {}
+
+  /**
+   * Resolves the caller's workspace membership from their auth session id.
+   * Returns the UserTenant row so the caller's role and tenant are available.
+   */
+  async getCallerInfo(callerId: string) {
+    const caller = await this.prisma.user.findFirst({
+      select: { id: true, role: true, tenantId: true },
+      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
+    });
+
+    if (!caller) {
+      throw new ForbiddenException("Usuario no encontrado en el sistema");
+    }
+
+    return caller;
+  }
 
   /**
    * Throws ForbiddenException unless the caller is ADMIN or SUPER_ADMIN.
@@ -58,58 +76,72 @@ export class TeamService {
     role: string;
     status: string;
   }> {
-    const caller = await this.prisma.user.findFirst({
-      select: { id: true, tenantId: true },
-      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
-    });
-
-    if (!caller) {
-      throw new ForbiddenException("Usuario no encontrado en el sistema");
-    }
-
+    const caller = await this.getCallerInfo(callerId);
     const { tenantId } = caller;
     const normalizedEmail = data.email ? data.email.toLowerCase() : undefined;
 
     const pinHash = await bcrypt.hash(data.pin, SALT_ROUNDS);
 
-    const user = await this.prisma.user.create({
-      data: {
-        cashierCode: data.code,
-        email: normalizedEmail,
-        name: data.name,
-        role: "CASHIER",
-        pinHash,
-        tenantId,
-        isActive: true,
-      },
-      select: { id: true, cashierCode: true, email: true, name: true },
-    });
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            cashierCode: data.code,
+            email: normalizedEmail,
+            isActive: true,
+            name: data.name,
+            pinHash,
+            role: "CASHIER",
+            tenantId,
+          },
+          select: { cashierCode: true, email: true, id: true, name: true },
+        });
 
-    const membership = await this.prisma.userTenant.create({
-      data: {
-        userId: user.id,
-        tenantId,
-        role: "CASHIER",
-        status: "ACTIVE",
-        invitedByUserId: caller.id,
-      },
-      select: {
-        role: true,
-        status: true,
-        user: { select: { id: true, name: true, email: true } },
-      },
-    });
+        const membership = await tx.userTenant.create({
+          data: {
+            invitedByUserId: caller.id,
+            role: "CASHIER",
+            status: "ACTIVE",
+            tenantId,
+            userId: user.id,
+          },
+          select: {
+            role: true,
+            status: true,
+            user: { select: { email: true, id: true, name: true } },
+          },
+        });
 
-    this.logger.log(`Cashier created: user=${user.id} tenant=${tenantId}`);
+        return { membership, user };
+      });
 
-    return {
-      code: user.cashierCode ?? "",
-      id: membership.user.id,
-      email: membership.user.email,
-      name: membership.user.name,
-      role: membership.role,
-      status: membership.status,
-    };
+      this.logger.log(
+        `Cashier created: user=${result.user.id} tenant=${tenantId}`,
+      );
+
+      return {
+        code: result.user.cashierCode ?? "",
+        email: result.membership.user.email,
+        id: result.membership.user.id,
+        name: result.membership.user.name,
+        role: result.membership.role,
+        status: result.membership.status,
+      };
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const target = (error.meta?.target as string[]) ?? [];
+        if (target.includes("cashierCode")) {
+          throw new ConflictException(
+            "Ya existe un dependiente con ese código en este workspace",
+          );
+        }
+        throw new ConflictException("Ya existe un registro con esos datos");
+      }
+      throw error;
+    }
   }
 
   /**
@@ -127,14 +159,7 @@ export class TeamService {
       status: string;
     }[]
   > {
-    const caller = await this.prisma.user.findFirst({
-      select: { tenantId: true },
-      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
-    });
-
-    if (!caller) {
-      return [];
-    }
+    const caller = await this.getCallerInfo(callerId);
 
     const members = await this.prisma.userTenant.findMany({
       select: {
@@ -191,15 +216,7 @@ export class TeamService {
       );
     }
 
-    const caller = await this.prisma.user.findFirst({
-      select: { id: true, tenantId: true },
-      where: { OR: [{ workosUserId: callerId }, { id: callerId }] },
-    });
-
-    if (!caller) {
-      throw new ForbiddenException("Usuario no encontrado en el sistema");
-    }
-
+    const caller = await this.getCallerInfo(callerId);
     const { tenantId } = caller;
 
     // Check if the email already exists in this tenant

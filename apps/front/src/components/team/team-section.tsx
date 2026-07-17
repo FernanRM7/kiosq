@@ -136,10 +136,8 @@ export function TeamSection() {
                   </div>
 
                   <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon-xs">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
+                    <PopoverTrigger render={<Button variant="ghost" size="icon-xs" />}>
+                      <MoreHorizontal className="size-4" />
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-48 p-1">
                       <div className="flex flex-col gap-1">

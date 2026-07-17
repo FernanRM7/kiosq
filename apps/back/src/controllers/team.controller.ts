@@ -33,7 +33,8 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Body() body: { name: string; code: string; email?: string; pin: string },
   ) {
-    const { userId } = session;
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
 
     if (!/^\d{4,6}$/.test(body.pin)) {
       throw new BadRequestException(
@@ -51,10 +52,10 @@ export class TeamController {
       );
     }
 
-    return this.teamService.createCashier(userId, {
+    return this.teamService.createCashier(session.userId, {
       code: body.code.trim(),
-      name: body.name.trim(),
       email: body.email,
+      name: body.name.trim(),
       pin: body.pin,
     });
   }
@@ -65,7 +66,8 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Body() body: { email: string },
   ) {
-    const { userId } = session;
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
 
     if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
       throw new BadRequestException(
@@ -73,7 +75,7 @@ export class TeamController {
       );
     }
 
-    return this.teamService.createManager(userId, {
+    return this.teamService.createManager(session.userId, {
       email: body.email.trim(),
     });
   }
@@ -84,6 +86,9 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Param("userId") userId: string,
   ) {
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
+
     await this.teamService.disableMember(userId);
     return { success: true };
   }
@@ -94,6 +99,9 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Param("userId") userId: string,
   ) {
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
+
     await this.teamService.enableMember(userId);
     return { success: true };
   }
@@ -104,6 +112,9 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Param("userId") userId: string,
   ) {
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
+
     await this.teamService.cancelInvite(userId);
     return { success: true };
   }
@@ -114,6 +125,9 @@ export class TeamController {
     @CurrentUser() session: AuthenticatedSessionResult,
     @Param("userId") userId: string,
   ) {
+    const caller = await this.teamService.getCallerInfo(session.userId);
+    this.teamService.assertCanManageTeam(caller.role);
+
     await this.teamService.revokeCashierSession(userId);
     return { success: true };
   }
