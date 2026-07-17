@@ -40,7 +40,7 @@ export function CashierLoginForm() {
     setLoading(true);
 
     try {
-      const result = await request<{ redirectTo: string }>("/auth/pin", {
+      const result = await request<{ redirectTo: string }>("/api/auth/pin", {
         data: { code: code.trim(), pin, slug: TENANT_SLUG },
         method: "POST",
       });

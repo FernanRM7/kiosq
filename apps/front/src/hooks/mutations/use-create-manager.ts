@@ -13,7 +13,7 @@ export function useCreateManager() {
   return useMutation({
     mutationFn: (data: CreateManagerPayload) =>
       request<{ id: string; email: string; role: string; status: string }>(
-        "/team/managers",
+        "/api/team/managers",
         { data, method: "POST" },
       ),
     onSuccess: () => {

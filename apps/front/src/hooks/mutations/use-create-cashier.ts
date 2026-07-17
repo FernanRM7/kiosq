@@ -16,7 +16,7 @@ export function useCreateCashier() {
 
   return useMutation({
     mutationFn: (data: CreateCashierPayload) =>
-      request<TeamMember>("/team/cashiers", {
+      request<TeamMember>("/api/team/cashiers", {
         data,
         method: "POST",
       }),

@@ -6,7 +6,7 @@ export function useDisableMember() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) =>
-      request<{ success: boolean }>(`/team/members/${userId}/disable`, {
+      request<{ success: boolean }>(`/api/team/members/${userId}/disable`, {
         method: "PATCH",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),
@@ -17,7 +17,7 @@ export function useEnableMember() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) =>
-      request<{ success: boolean }>(`/team/members/${userId}/enable`, {
+      request<{ success: boolean }>(`/api/team/members/${userId}/enable`, {
         method: "PATCH",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),
@@ -28,7 +28,7 @@ export function useCancelInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) =>
-      request<{ success: boolean }>(`/team/members/${userId}/cancel`, {
+      request<{ success: boolean }>(`/api/team/members/${userId}/cancel`, {
         method: "PATCH",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),
@@ -40,7 +40,7 @@ export function useRevokeCashierSession() {
   return useMutation({
     mutationFn: (userId: string) =>
       request<{ success: boolean }>(
-        `/team/members/${userId}/revoke-sessions`,
+        `/api/team/members/${userId}/revoke-sessions`,
         { method: "POST" },
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),

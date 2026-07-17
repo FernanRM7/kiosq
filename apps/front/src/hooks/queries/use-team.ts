@@ -11,7 +11,7 @@ export interface TeamMember {
 }
 
 async function fetchTeam(): Promise<TeamMember[]> {
-  return request<TeamMember[]>("/team/members");
+  return request<TeamMember[]>("/api/team/members");
 }
 
 export function useTeam() {
