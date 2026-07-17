@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 
-import type { PrismaService } from "../lib/prisma.service";
+import { PrismaService } from "../lib/prisma.service";
 import { CashierSessionService } from "./cashier-session.service";
 
 const SALT_ROUNDS = 10;
