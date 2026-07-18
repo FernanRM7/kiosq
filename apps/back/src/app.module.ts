@@ -13,6 +13,7 @@ import { categoryRoutes } from "./routes/category.routes";
 import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
 import { saleRoutes } from "./routes/sale.routes";
+import { supplierRoutes } from "./routes/supplier.routes";
 import { syncRoutes } from "./routes/sync.routes";
 import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
@@ -24,6 +25,7 @@ import { ProductService } from "./services/product.service";
 import { SaleService } from "./services/sale.service";
 import { SessionRegistryService } from "./services/session-registry.service";
 import { SessionService } from "./services/session.service";
+import { SupplierService } from "./services/supplier.service";
 import { SyncService } from "./services/sync.service";
 import { TenantService } from "./services/tenant.service";
 import { UserService } from "./services/user.service";
@@ -41,6 +43,7 @@ import { UserService } from "./services/user.service";
     ...productRoutes,
     ...categoryRoutes,
     ...saleRoutes,
+    ...supplierRoutes,
     ...syncRoutes,
   ],
   imports: [],
@@ -51,6 +54,7 @@ import { UserService } from "./services/user.service";
     ProductService,
     CategoryService,
     SaleService,
+    SupplierService,
     SessionRegistryService,
     SessionService,
     SyncService,
