@@ -32,11 +32,12 @@ export const CASHIER_SESSION_COOKIE_OPTIONS = {
  *             When both are on the same custom domain, override with
  *             `WORKOS_COOKIE_SAMESITE=lax` in env.
  * - path:     scoped to the entire application
- * - maxAge:   7-day rolling window (matches WorkOS default session duration)
+ * - maxAge:   7-day rolling window in milliseconds (Express expects ms).
+ *             WorkOS default session duration is 7 days.
  */
 export const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
-  maxAge: 7 * 24 * 60 * 60,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
   path: "/",
   sameSite:
     (process.env.WORKOS_COOKIE_SAMESITE as "lax" | "none" | "strict") ??

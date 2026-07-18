@@ -5,6 +5,7 @@ import type { JWTVerifyGetKey } from "jose";
 import { loadAuthConfig } from "../config/auth.config";
 import type { AuthConfig } from "../config/auth.config";
 import { createWorkosJwks } from "../lib/jwks.lib";
+import { cid } from "../lib/request-context";
 import type { JwtPayload } from "../types/jwt-payload.type";
 import { verifyWorkosToken } from "../utils/jwt.util";
 
@@ -54,6 +55,11 @@ export class AuthService implements OnModuleInit {
     return this.config.appUrl;
   }
 
+  /** Post-logout redirect URL — MUST be registered in WorkOS AuthKit */
+  get logoutReturnTo(): string {
+    return this.config.logoutReturnTo;
+  }
+
   /**
    * Exchanges an OAuth2 authorization code for a sealed WorkOS session.
    *
@@ -83,7 +89,7 @@ export class AuthService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         { error: error instanceof Error ? error.message : String(error) },
-        "Failed to exchange WorkOS code"
+        `${cid()} Failed to exchange WorkOS code (sealSession=true clientId=${this.config.clientId.slice(0, 8)}...)`
       );
       throw error;
     }
@@ -103,14 +109,19 @@ export class AuthService implements OnModuleInit {
    * Generates a WorkOS logout URL for the given session.
    *
    * Visiting this URL invalidates the WorkOS session server-side.
-   * After invalidation, WorkOS redirects the user to the post-logout
-   * URL configured in the WorkOS dashboard.
+   * After invalidation, WorkOS redirects the user to `logoutReturnTo`.
+   *
+   * IMPORTANT: `logoutReturnTo` MUST be registered as a Redirect URI
+   * in the WorkOS AuthKit dashboard. If it isn't, WorkOS will show
+   * a "Something went wrong" error page instead of redirecting.
+   *
+   * Configure via `WORKOS_LOGOUT_RETURN_TO` env var or defaults to APP_URL.
    *
    * @param sessionId - The `sessionId` from the authenticated session result
    */
   getLogoutUrl(sessionId: string): string {
     return this.workos.userManagement.getLogoutUrl({
-      returnTo: this.config.appUrl,
+      returnTo: this.config.logoutReturnTo,
       sessionId,
     });
   }

@@ -9,6 +9,7 @@ import {
 } from "../constants/cookie.constants";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 import { CashierSessionService } from "../services/cashier-session.service";
+import { cid } from "../lib/request-context";
 import { SessionService } from "../services/session.service";
 import type { SessionResult } from "../types/session.type";
 

@@ -1,4 +1,9 @@
-import { request } from "@/lib/api";
+import type { Product as DexieProduct } from "@/db";
+import {
+  getLocalProducts,
+  populateProducts,
+} from "@/db/repositories/products.repo";
+import { ApiClientError, request } from "@/lib/api";
 
 export interface Product {
   id: string;
@@ -31,8 +36,66 @@ export interface ProductPayload {
   imageUrl?: string | null;
 }
 
-export function listProducts(): Promise<Product[]> {
-  return request<Product[]>("/api/products");
+function toDexieProduct(api: Product): DexieProduct {
+  return {
+    barcode: api.barcode,
+    category: api.category,
+    categoryId: api.categoryId,
+    cost: api.cost,
+    createdAt: api.createdAt,
+    description: api.description,
+    id: api.id,
+    imageUrl: api.imageUrl,
+    isActive: api.isActive,
+    name: api.name,
+    price: api.price,
+    sku: api.sku,
+    taxRate: api.taxRate,
+    totalStock: api.totalStock,
+    updatedAt: api.updatedAt,
+  };
+}
+
+function toApiProduct(local: DexieProduct): Product {
+  return {
+    barcode: local.barcode ?? null,
+    category: local.category ?? null,
+    categoryId: local.categoryId ?? null,
+    cost: local.cost ?? null,
+    createdAt: local.createdAt ?? "",
+    description: local.description ?? null,
+    id: local.id,
+    imageUrl: local.imageUrl ?? null,
+    isActive: local.isActive,
+    name: local.name,
+    price: local.price,
+    sku: local.sku,
+    taxRate: local.taxRate,
+    totalStock: local.totalStock,
+    updatedAt: local.updatedAt ?? "",
+  };
+}
+
+export async function listProducts(): Promise<Product[]> {
+  try {
+    const products = await request<Product[]>("/api/products");
+
+    if (navigator.onLine && products.length > 0) {
+      await populateProducts(products.map(toDexieProduct));
+    } else if (navigator.onLine && products.length === 0) {
+      await populateProducts([]);
+    }
+
+    return products;
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 0) {
+      const local = await getLocalProducts();
+
+      return local.map(toApiProduct);
+    }
+
+    throw error;
+  }
 }
 
 export function createProduct(payload: ProductPayload): Promise<Product> {

@@ -1,17 +1,16 @@
 # State Management — Kiosq Frontend
 
-> Arquitectura de estado global y fetching en `apps/front`.
-> Última actualización: 2026-07-08.
+> Arquitectura de estado global y fetching en `apps/front`. Última actualización: 2026-07-08.
 
 ---
 
 ## 1. Principio rector
 
-| Qué                                               | Herramienta                    | Vive en                                       |
-| ------------------------------------------------- | ------------------------------ | --------------------------------------------- |
-| Estado de sesión y UI compartida entre rutas      | **Zustand**                    | `src/stores/`                                 |
-| Datos remotos (fetch, cache, mutaciones)          | **TanStack Query**             | `src/hooks/queries/` y `src/hooks/mutations/` |
-| Estado de UI local (formularios, sidebar, charts) | **React Context** / `useState` | Junto al componente que lo consume            |
+| Qué | Herramienta | Vive en |
+| --- | --- | --- |
+| Estado de sesión y UI compartida entre rutas | **Zustand** | `src/stores/` |
+| Datos remotos (fetch, cache, mutaciones) | **TanStack Query** | `src/hooks/queries/` y `src/hooks/mutations/` |
+| Estado de UI local (formularios, sidebar, charts) | **React Context** / `useState` | Junto al componente que lo consume |
 
 Regla: **si un dato viene de `GET /api/*`, vive en TanStack Query, no en Zustand ni en Context.**
 
@@ -87,20 +86,19 @@ export const queryClient = new QueryClient({
 
 ### 3.2 Queries — `src/hooks/queries/`
 
-| Hook              | Archivo             | QueryKey         | Endpoint               |
-| ----------------- | ------------------- | ---------------- | ---------------------- |
-| `useMe()`         | `use-me.ts`         | `["me"]`         | `GET /api/me`          |
-| `useProducts()`   | `use-products.ts`   | `["products"]`   | `GET /api/products`    |
-| `useCategories()` | `use-categories.ts` | `["categories"]` | `GET /api/categories`  |
-| `useSales()`      | `use-sales.ts`      | `["sales"]`      | `GET /api/sales`       |
-| `useMyTenant()`   | `use-tenants.ts`    | `["my-tenant"]`  | `GET /api/tenants/me`  |
-| `useTenants()`    | `use-tenants.ts`    | `["tenants"]`    | `GET /api/tenants`     |
-| `useSessions()`   | `use-sessions.ts`   | `["sessions"]`   | `GET /api/me/sessions` |
+| Hook | Archivo | QueryKey | Endpoint |
+| --- | --- | --- | --- |
+| `useMe()` | `use-me.ts` | `["me"]` | `GET /api/me` |
+| `useProducts()` | `use-products.ts` | `["products"]` | `GET /api/products` |
+| `useCategories()` | `use-categories.ts` | `["categories"]` | `GET /api/categories` |
+| `useSales()` | `use-sales.ts` | `["sales"]` | `GET /api/sales` |
+| `useMyTenant()` | `use-tenants.ts` | `["my-tenant"]` | `GET /api/tenants/me` |
+| `useTenants()` | `use-tenants.ts` | `["tenants"]` | `GET /api/tenants` |
+| `useSessions()` | `use-sessions.ts` | `["sessions"]` | `GET /api/me/sessions` |
 
 **Convención de nombrado:** `use-<recurso>.ts`, exporta un hook `use<Recurso>()`.
 
-**QueryKeys:** arrays planos con nombre de recurso como primer elemento. Si un recurso
-tiene variantes (por ID, filtros), se agregan elementos adicionales (ej. `["products", productId]`).
+**QueryKeys:** arrays planos con nombre de recurso como primer elemento. Si un recurso tiene variantes (por ID, filtros), se agregan elementos adicionales (ej. `["products", productId]`).
 
 **Ejemplo canónico:**
 
@@ -119,16 +117,16 @@ export function useProducts() {
 
 ### 3.3 Mutations — `src/hooks/mutations/`
 
-| Hook                   | Archivo                   | mutationFn        | Invalida queryKeys              |
-| ---------------------- | ------------------------- | ----------------- | ------------------------------- |
-| `useCreateProduct()`   | `use-create-product.ts`   | `createProduct`   | `["products"]`                  |
-| `useDeleteProduct()`   | `use-delete-product.ts`   | `deleteProduct`   | `["products"]`                  |
-| `useCreateCategory()`  | `use-create-category.ts`  | `createCategory`  | `["categories"]`                |
-| `useUpdateCategory()`  | `use-update-category.ts`  | `updateCategory`  | `["categories"]`                |
-| `useDeleteCategory()`  | `use-delete-category.ts`  | `deleteCategory`  | `["categories"]`                |
-| `useRestoreCategory()` | `use-restore-category.ts` | `restoreCategory` | `["categories"]`                |
-| `useCreateSale()`      | `use-create-sale.ts`      | `createSale`      | `["products"]` + `["sales"]`    |
-| `useCreateTenant()`    | `use-create-tenant.ts`    | `createTenant`    | `["my-tenant"]` + `["tenants"]` |
+| Hook | Archivo | mutationFn | Invalida queryKeys |
+| --- | --- | --- | --- |
+| `useCreateProduct()` | `use-create-product.ts` | `createProduct` | `["products"]` |
+| `useDeleteProduct()` | `use-delete-product.ts` | `deleteProduct` | `["products"]` |
+| `useCreateCategory()` | `use-create-category.ts` | `createCategory` | `["categories"]` |
+| `useUpdateCategory()` | `use-update-category.ts` | `updateCategory` | `["categories"]` |
+| `useDeleteCategory()` | `use-delete-category.ts` | `deleteCategory` | `["categories"]` |
+| `useRestoreCategory()` | `use-restore-category.ts` | `restoreCategory` | `["categories"]` |
+| `useCreateSale()` | `use-create-sale.ts` | `createSale` | `["products"]` + `["sales"]` |
+| `useCreateTenant()` | `use-create-tenant.ts` | `createTenant` | `["my-tenant"]` + `["tenants"]` |
 
 **Convención de nombrado:** `use-<accion>-<recurso>.ts`, exporta `use<Accion><Recurso>()`.
 
@@ -191,14 +189,14 @@ Esto permite que los componentes usen `useAuth()` sin conocer React Query, y que
 
 Los siguientes Contexts **siguen siendo React Context a propósito**:
 
-| Context                   | Archivo                                          | Scope                              |
-| ------------------------- | ------------------------------------------------ | ---------------------------------- |
-| `SidebarContext`          | `ui/sidebar.tsx:44`                              | Estado abierto/cerrado del sidebar |
-| `ChartContext`            | `evilcharts/ui/chart.tsx:50`                     | Tema/colores del chart             |
-| `PieChartContext`         | `evilcharts/charts/pie-chart.tsx:68`             | Datos e interacción del pie        |
-| `PieShapeContext`         | `evilcharts/charts/pie-chart.tsx:313`            | Estado por segmento del pie        |
-| `HighlightedIndexContext` | `evilcharts/blocks/hover-trace-bar-chart.tsx:85` | Barra hovereada                    |
-| `TooltipProvider` (Radix) | `ui/tooltip.tsx`                                 | Delay de tooltip                   |
+| Context | Archivo | Scope |
+| --- | --- | --- |
+| `SidebarContext` | `ui/sidebar.tsx:44` | Estado abierto/cerrado del sidebar |
+| `ChartContext` | `evilcharts/ui/chart.tsx:50` | Tema/colores del chart |
+| `PieChartContext` | `evilcharts/charts/pie-chart.tsx:68` | Datos e interacción del pie |
+| `PieShapeContext` | `evilcharts/charts/pie-chart.tsx:313` | Estado por segmento del pie |
+| `HighlightedIndexContext` | `evilcharts/blocks/hover-trace-bar-chart.tsx:85` | Barra hovereada |
+| `TooltipProvider` (Radix) | `ui/tooltip.tsx` | Delay de tooltip |
 
 **Razones para mantenerlos como Context:**
 
@@ -213,13 +211,13 @@ Los siguientes Contexts **siguen siendo React Context a propósito**:
 
 Los archivos en `src/lib/` contienen **solo funciones puras de llamada HTTP** usando el cliente Axios compartido (`src/lib/api.ts`). No tienen estado, no usan hooks.
 
-| Archivo         | Funciones                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `api.ts`        | `request<T>()`, `ApiClientError`, `isUnauthenticatedError`                                                                                                         |
-| `auth.ts`       | `getMe`, `checkHealth`, `getAuthorizationUrl`, `logoutSession`, `getActiveSessions`, `revokeSession`, `getMyTenant`, `listTenants`, `switchTenant`, `createTenant` |
-| `products.ts`   | `listProducts`, `createProduct`, `updateProduct`, `deleteProduct`                                                                                                  |
-| `categories.ts` | `listCategories`, `createCategory`, `updateCategory`, `deleteCategory`, `restoreCategory`                                                                          |
-| `sales.ts`      | `listSales`, `createSale`                                                                                                                                          |
+| Archivo | Funciones |
+| --- | --- |
+| `api.ts` | `request<T>()`, `ApiClientError`, `isUnauthenticatedError` |
+| `auth.ts` | `getMe`, `checkHealth`, `getAuthorizationUrl`, `logoutSession`, `getActiveSessions`, `revokeSession`, `getMyTenant`, `listTenants`, `switchTenant`, `createTenant` |
+| `products.ts` | `listProducts`, `createProduct`, `updateProduct`, `deleteProduct` |
+| `categories.ts` | `listCategories`, `createCategory`, `updateCategory`, `deleteCategory`, `restoreCategory` |
+| `sales.ts` | `listSales`, `createSale` |
 
 Estas funciones son el `queryFn` / `mutationFn` de los hooks de TanStack Query.
 
@@ -227,8 +225,7 @@ Estas funciones son el `queryFn` / `mutationFn` de los hooks de TanStack Query.
 
 ## 6. Referencia histórica
 
-La migración desde React Context + event bus (`window.dispatchEvent`) a Zustand + TanStack Query
-está documentada en [`docs/migration-zustand-query.md`](../../docs/migration-zustand-query.md).
+La migración desde React Context + event bus (`window.dispatchEvent`) a Zustand + TanStack Query está documentada en [`docs/migration-zustand-query.md`](../../docs/migration-zustand-query.md).
 
 Resumen de lo eliminado:
 
