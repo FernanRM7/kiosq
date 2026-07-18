@@ -8,6 +8,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { SyncProvider } from "@/contexts/sync.context";
 import CategoriesPage from "@/pages/categories";
 import DashboardPage from "@/pages/dashboard";
+import CashierLoginPage from "@/pages/cashier-login";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
 import ProductsPage from "@/pages/products";
@@ -20,13 +21,13 @@ function App() {
   return (
     <>
       <SyncAuth />
-      <SyncProvider>
-        <Routes>
-          {/* Public routes — accessible without a session */}
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-          </Route>
+      <Routes>
+        {/* Public routes — accessible without a session */}
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/pin" element={<CashierLoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+        </Route>
 
         {/* Protected routes — require a valid wos-session cookie */}
         <Route element={<ProtectedRoute />}>

@@ -30,6 +30,7 @@
     "@nestjs/swagger": "^11.4.5",
     "@prisma/client": "^6.19.3",
     "@workos-inc/node": "^10.2.0",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "helmet": "^8.2.0",
     "jose": "^6.2.3",
@@ -47,6 +48,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.27",
+    "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -68,6 +70,30 @@
     "typescript": "^5.7.3",
     "ultracite": "^7.8.2",
     "webpack-node-externals": "^3.0.0"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testEnvironment": "node",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(jose)/)"
+    ],
+    "moduleNameMapper": {
+      "^jose$": "<rootDir>/__mocks__/jose.cjs",
+      "^jose/(.*)$": "<rootDir>/__mocks__/jose.cjs"
+    }
   },
   "prisma": {
     "seed": "bun run prisma/seed.ts"

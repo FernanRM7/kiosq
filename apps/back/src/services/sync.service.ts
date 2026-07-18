@@ -236,6 +236,47 @@ export class SyncService {
         data.userId
       );
 
+      const workosEmail = workosUser.email?.toLowerCase() ?? "";
+
+      // ── 2b. Fallback: look for a pre-created row by email ───────────────────
+      // The admin may have pre-created a User + UserTenant (status = PENDING)
+      // via the team management UI. If found, fill in the WorkOS id and activate.
+      const preCreated = await this.prisma.user.findFirst({
+        select: { id: true },
+        where: {
+          email: workosEmail,
+          tenantId: tenant.id,
+          workosUserId: null,
+        },
+      });
+
+      if (preCreated) {
+        await this.prisma.user.update({
+          data: {
+            name: this.buildName(
+              workosUser.firstName,
+              workosUser.lastName,
+              workosUser.email,
+            ),
+            role,
+            workosUserId: data.userId,
+          },
+          where: { id: preCreated.id },
+        });
+
+        await this.prisma.userTenant.updateMany({
+          data: { status: "ACTIVE", acceptedAt: new Date() },
+          where: { userId: preCreated.id, tenantId: tenant.id },
+        });
+
+        this.logger.log(
+          `Membership synced (pre-created user linked): workosUserId=${data.userId} ` +
+            `email="${workosEmail}" tenantId=${tenant.id} role=${role}`
+        );
+
+        return;
+      }
+
       const name = this.buildName(
         workosUser.firstName,
         workosUser.lastName,

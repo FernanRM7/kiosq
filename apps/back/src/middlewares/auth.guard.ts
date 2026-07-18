@@ -3,40 +3,26 @@ import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request, Response } from "express";
 
+import {
+  CASHIER_SESSION_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from "../constants/cookie.constants";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+import { CashierSessionService } from "../services/cashier-session.service";
 import { cid } from "../lib/request-context";
 import { SessionService } from "../services/session.service";
+import type { SessionResult } from "../types/session.type";
 
 /**
- * Guards routes that require a valid WorkOS sealed session.
+ * Guards routes by dispatching between two authentication sources:
  *
- * ## Protected routes
- * Validates the `wos-session` HttpOnly cookie on every request.
- * On success: injects `AuthenticatedSessionResult` into `request.user`.
- * On failure: throws `UnauthorizedException` (HTTP 401).
+ * 1. **`wos-session`** (WorkOS sealed session) — validated by `SessionService`.
+ *    Tried first. Existing WorkOS users are unchanged.
+ * 2. **`cashier-session`** (cashier session id) — validated by
+ *    `CashierSessionService`. Tried only when the WorkOS cookie is absent
+ *    or invalid. Real implementation in T5.
  *
- * ## Public routes
- * Routes decorated with `@Public()` bypass session validation entirely.
- * Handler-level `@Public()` takes priority over class-level metadata.
- *
- * ## Automatic token rotation
- * Handled transparently by `SessionService`: if the access token inside
- * the sealed session is expired, the session is refreshed via WorkOS and
- * the new sealed cookie is written to the response before the handler runs.
- *
- * @example — protect a single route
- * ```ts
- * @UseGuards(AuthGuard)
- * @Get('profile')
- * getProfile(@CurrentUser() user: AuthenticatedSessionResult) { ... }
- * ```
- *
- * @example — protect an entire controller
- * ```ts
- * @UseGuards(AuthGuard)
- * @Controller('dashboard')
- * export class DashboardController { ... }
- * ```
+ * Route-level `@Public()` bypasses both checks.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -44,12 +30,12 @@ export class AuthGuard implements CanActivate {
 
   constructor(
     private readonly sessionService: SessionService,
-    private readonly reflector: Reflector
+    private readonly cashierSessionService: CashierSessionService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // ── Public route check ──────────────────────────────────────────────────
-    // Handler-level metadata takes precedence over class-level metadata.
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -59,24 +45,51 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
-    // ── Session validation ──────────────────────────────────────────────────
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
 
-    const result = await this.sessionService.authenticateSession(
-      request,
-      response
-    );
+    // ── 1. Try WorkOS session ───────────────────────────────────────────────
+    const wosCookie = request.cookies?.[SESSION_COOKIE_NAME];
 
-    if (!result.authenticated) {
-      this.logger.warn(
-        `${cid()} Auth rejected: reason=${result.reason} ip=${request.ip} method=${request.method} path=${request.originalUrl}`
+    if (wosCookie) {
+      const result = await this.sessionService.authenticateSession(
+        request,
+        response,
       );
-      throw new UnauthorizedException("Inicia sesión para continuar");
+
+      if (result.authenticated) {
+        this.logger.debug(`WorkOS auth success: user=${result.userId}`);
+        this.injectUser(request, result);
+        return true;
+      }
     }
 
-    (request as unknown as Record<string, unknown>)["user"] = result;
+    // ── 2. Try cashier session (fallback) ───────────────────────────────────
+    const cashierCookie = request.cookies?.[CASHIER_SESSION_COOKIE_NAME];
 
-    return true;
+    if (cashierCookie) {
+      const result =
+        await this.cashierSessionService.authenticateCashierSession(
+          request,
+          response,
+        );
+
+      if (result.authenticated) {
+        this.logger.debug(`Cashier auth success: user=${result.userId}`);
+        this.injectUser(request, result);
+        return true;
+      }
+    }
+
+    // ── 3. No valid session ─────────────────────────────────────────────────
+    this.logger.warn(`Auth rejected [${request.ip}]: no valid session`);
+    throw new UnauthorizedException("Inicia sesión para continuar");
+  }
+
+  private injectUser(
+    request: Request,
+    result: SessionResult,
+  ): void {
+    (request as unknown as Record<string, unknown>)["user"] = result;
   }
 }

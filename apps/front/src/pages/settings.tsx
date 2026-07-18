@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TeamSection } from "@/components/team/team-section";
 import { useSessions } from "@/hooks/queries/use-sessions";
 import { revokeSession } from "@/lib/auth";
 
@@ -82,6 +83,9 @@ export default function SettingsPage() {
           Manage your account and active sessions.
         </p>
       </div>
+
+      {/* ── Team ─────────────────────────────────────────────────────────── */}
+      <TeamSection />
 
       {/* ── Sessions ─────────────────────────────────────────────────────── */}
       <Card>
