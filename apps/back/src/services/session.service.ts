@@ -14,10 +14,15 @@ import type { SessionMetadata } from "./session-registry.service";
 
 /**
  * Proactive refresh triggers when the JWT remaining lifetime is below
- * this many seconds. Set to 1 hour to ensure the WorkOS inactivity timer
- * (typically ≤ 1 hour) gets reset before the session is killed.
+ * this many seconds. 5 minutes gives enough runway to obtain a new token
+ * before the current one expires without refreshing on every request.
+ *
+ * A 1-hour threshold (the previous value) caused the backend to call WorkOS
+ * on every single request because a freshly-issued JWT always has ~3 600 s
+ * remaining, which is below 3 600 — triggering a concurrent-request race
+ * condition that produced HTTP 500/502 errors on /api/me.
  */
-const PROACTIVE_REFRESH_SECONDS = 60 * 60;
+const PROACTIVE_REFRESH_SECONDS = 5 * 60; // 5 minutes
 
 @Injectable()
 export class SessionService {
@@ -369,9 +374,9 @@ export class SessionService {
   /**
    * Decodes the JWT without verification and checks if it is close to expiry.
    *
-   * Triggers when the remaining lifetime is under {@link PROACTIVE_REFRESH_SECONDS}.
-   * This ensures the WorkOS inactivity timer gets reset before the session is killed,
-   * regardless of how aggressively it's configured in the WorkOS Dashboard.
+   * Triggers when the remaining lifetime is under {@link PROACTIVE_REFRESH_SECONDS}
+   * (5 minutes). Refreshing only near expiry avoids hammering WorkOS on every
+   * request and eliminates the concurrent-refresh race condition.
    *
    * @param accessToken - Raw RS256 JWT from WorkOS
    */
