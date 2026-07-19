@@ -146,7 +146,7 @@ export function SalesDrawer() {
           onClick={() => setOpen(true)}
         >
           <Plus className="size-4" />
-          <span>Sales</span>
+          <span>Venta</span>
         </Button>
         <DrawerContentRight>
           <DrawerHeader>

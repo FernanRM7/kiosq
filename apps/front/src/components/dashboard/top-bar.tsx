@@ -16,16 +16,16 @@ function SyncBadge() {
       <div
         className={`rounded px-2 py-1 ${isOnline ? "bg-emerald-100 text-emerald-800" : "bg-yellow-100 text-yellow-800"}`}
       >
-        {isOnline ? "Online" : "Offline"}
+        {isOnline ? "En línea" : "Sin conexión"}
       </div>
       {pendingCount > 0 && (
         <div className="rounded bg-red-100 px-2 py-1 text-red-800">
-          {pendingCount} pending
+          {pendingCount} pendientes
         </div>
       )}
       {status === "syncing" && (
         <div className="rounded bg-blue-100 px-2 py-1 text-blue-800">
-          Syncing…
+          Sincronizando…
         </div>
       )}
     </div>
@@ -43,7 +43,7 @@ export function TopBar() {
         <div className="flex flex-1 items-center gap-2">
           <div className="relative max-w-sm flex-1">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search..." className="pl-8" />
+            <Input placeholder="Buscar..." className="pl-8" />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -56,7 +56,7 @@ export function TopBar() {
             onClick={() => setProductOpen(true)}
           >
             <Plus className="size-4" />
-            <span>Product</span>
+            <span>Producto</span>
           </Button>
         </div>
       </header>

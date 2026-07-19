@@ -16,14 +16,14 @@ export interface NavItem {
 }
 
 export const mainNavItems: NavItem[] = [
-  { icon: LayoutDashboard, title: "Dashboard", url: "/dashboard" },
-  { icon: Package, title: "Products", url: "/dashboard/products" },
-  { icon: Tags, title: "Categories", url: "/dashboard/categories" },
-  { icon: DollarSign, title: "Sales", url: "/dashboard/sales" },
-  { icon: Truck, title: "Suppliers", url: "/dashboard/suppliers" },
+  { icon: LayoutDashboard, title: "Panel", url: "/dashboard" },
+  { icon: Package, title: "Productos", url: "/dashboard/products" },
+  { icon: Tags, title: "Categorías", url: "/dashboard/categories" },
+  { icon: DollarSign, title: "Ventas", url: "/dashboard/sales" },
+  { icon: Truck, title: "Proveedores", url: "/dashboard/suppliers" },
 ];
 
 export const bottomNavItems: NavItem[] = [
-  { icon: Settings, title: "Settings", url: "/dashboard/settings" },
-  { icon: LifeBuoy, title: "Support", url: "/dashboard/support" },
+  { icon: Settings, title: "Ajustes", url: "/dashboard/settings" },
+  { icon: LifeBuoy, title: "Soporte", url: "/dashboard/support" },
 ];

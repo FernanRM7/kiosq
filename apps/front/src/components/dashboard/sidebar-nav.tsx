@@ -80,7 +80,7 @@ export function DashboardSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="uppercase tracking-[0.25em] text-xs font-semibold text-sidebar-foreground/60">
-            Navigation
+            Navegación
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

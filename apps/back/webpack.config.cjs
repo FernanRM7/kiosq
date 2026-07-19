@@ -5,7 +5,7 @@ module.exports = {
     "redis",
     "thread-stream",
     "swagger-ui-express",
-    /^swagger-ui-dist/,
+    /^swagger-ui-dist/u,
     "express",
   ],
   module: {

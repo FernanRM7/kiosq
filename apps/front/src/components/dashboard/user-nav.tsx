@@ -28,7 +28,7 @@ function getInitials(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
 export function UserNav() {
   const { error, logout, pendingAction, user } = useAuth();
   const isLoggingOut = pendingAction === "logout";
-  const displayName = user ? getDisplayName(user) : "User";
+  const displayName = user ? getDisplayName(user) : "Usuario";
   const initials = user ? getInitials(user) : "U";
 
   return (
@@ -80,7 +80,7 @@ export function UserNav() {
         >
           <LogOut className="size-4" />
           <span className="text-sm">
-            {isLoggingOut ? "Logging out..." : "Log out"}
+            {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
           </span>
         </Button>
       </PopoverContent>

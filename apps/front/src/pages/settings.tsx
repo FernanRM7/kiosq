@@ -38,19 +38,19 @@ function formatDate(iso: string): string {
   const diffDays = Math.floor(diffHr / 24);
 
   if (diffMin < 1) {
-    return "Just now";
+    return "Hace un momento";
   }
   if (diffMin < 60) {
-    return `${diffMin}m ago`;
+    return `hace ${diffMin}m`;
   }
   if (diffHr < 24) {
-    return `${diffHr}h ago`;
+    return `hace ${diffHr}h`;
   }
   if (diffDays < 7) {
-    return `${diffDays}d ago`;
+    return `hace ${diffDays}d`;
   }
 
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("es-MX", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -77,18 +77,18 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-semibold text-lg">Settings</h1>
+        <h1 className="font-semibold text-lg">Ajustes</h1>
         <p className="text-muted-foreground text-sm">
-          Manage your account and active sessions.
+          Administra tu cuenta y tus sesiones activas.
         </p>
       </div>
 
       {/* ── Sessions ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Sessions</CardTitle>
+          <CardTitle>Sesiones activas</CardTitle>
           <CardDescription>
-            Devices and browsers where you are currently logged in.
+            Dispositivos y navegadores donde has iniciado sesión.
           </CardDescription>
         </CardHeader>
         <CardPanel>
@@ -108,7 +108,7 @@ export default function SettingsPage() {
 
           {!isLoading && sessions.length === 0 && (
             <p className="py-4 text-center text-muted-foreground text-sm">
-              No active sessions found.
+              No se encontraron sesiones activas.
             </p>
           )}
 
@@ -129,7 +129,7 @@ export default function SettingsPage() {
                       </p>
                       {session.isCurrent && (
                         <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-                          Current
+                          Actual
                         </span>
                       )}
                     </div>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
                       size="icon-xs"
                       onClick={() => handleRevoke(session.sessionId)}
                       disabled={revokingId === session.sessionId}
-                      title="Revoke session"
+                      title="Revocar sesión"
                     >
                       <Trash2 className="text-muted-foreground" />
                     </Button>

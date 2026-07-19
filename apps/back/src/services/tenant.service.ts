@@ -1,3 +1,5 @@
+import { pbkdf2Sync, randomBytes, randomInt } from "node:crypto";
+
 import {
   BadRequestException,
   ForbiddenException,
@@ -7,6 +9,10 @@ import {
 } from "@nestjs/common";
 
 import { PrismaService } from "../lib/prisma.service";
+import type {
+  CreateCashierInput,
+  UpdateTenantSettingsInput,
+} from "../schemas/tenant-dashboard.schema";
 
 @Injectable()
 export class TenantService {
@@ -40,7 +46,10 @@ export class TenantService {
       data: {
         name,
         planId: plan.id,
-        settings: { createdByWorkosUserId: userId },
+        settings: {
+          cashOpeningAmount: 500,
+          createdByWorkosUserId: userId,
+        },
         slug,
       },
     });
@@ -86,9 +95,163 @@ export class TenantService {
     return tenant;
   }
 
+  async updateTenantSettings(userId: string, input: UpdateTenantSettingsInput) {
+    const currentUser = await this.prisma.user.findUnique({
+      select: { id: true, tenantId: true },
+      where: { workosUserId: userId },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true, settings: true },
+      where: { id: currentUser.tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException("Negocio no encontrado");
+    }
+
+    const settings = this.normalizeTenantSettings(tenant.settings);
+
+    await this.prisma.tenant.update({
+      data: {
+        settings: {
+          ...settings,
+          cashOpeningAmount: input.cashOpeningAmount,
+        },
+      },
+      where: { id: tenant.id },
+    });
+
+    this.logger.log(`Tenant settings updated: ${tenant.id} for user ${userId}`);
+    return this.getTenantByUserId(userId);
+  }
+
+  async createCashier(userId: string, input: CreateCashierInput) {
+    const currentUser = await this.prisma.user.findUnique({
+      select: { id: true, tenantId: true },
+      where: { workosUserId: userId },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      select: {
+        id: true,
+        plan: {
+          select: { maxUsers: true },
+        },
+      },
+      where: { id: currentUser.tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException("Negocio no encontrado");
+    }
+
+    const cashierLimit = this.getCashierLimit(tenant.plan?.maxUsers);
+    const cashierCount = await this.prisma.user.count({
+      where: {
+        role: "CASHIER",
+        tenantId: tenant.id,
+      },
+    });
+
+    if (cashierCount >= cashierLimit) {
+      throw new BadRequestException(
+        "Tu plan ya no tiene espacios disponibles para cajeros"
+      );
+    }
+
+    const credentials = this.generateCashierCredentials();
+
+    const cashier = await this.prisma.user.create({
+      data: {
+        email: null,
+        isActive: true,
+        name: input.name.trim(),
+        pinHash: credentials.pinHash,
+        role: "CASHIER",
+        tenantId: tenant.id,
+        workosUserId: null,
+      },
+      select: { id: true },
+    });
+
+    try {
+      await this.prisma.userTenant.upsert({
+        create: {
+          role: "CASHIER",
+          tenantId: tenant.id,
+          userId: cashier.id,
+        },
+        update: {
+          role: "CASHIER",
+        },
+        where: {
+          userId_tenantId: { tenantId: tenant.id, userId: cashier.id },
+        },
+      });
+    } catch {
+      this.logger.error(
+        { cashierId: cashier.id, tenantId: tenant.id, userId },
+        "user_tenants table may not exist — run prisma migrate deploy"
+      );
+    }
+
+    this.logger.log(`Cashier created: ${cashier.id} for tenant ${tenant.id}`);
+    return {
+      temporaryPin: credentials.pin,
+      tenant: await this.getTenantByUserId(userId),
+    };
+  }
+
   getTenantByUserId(userId: string) {
     return this.prisma.user.findUnique({
-      include: { tenant: true },
+      select: {
+        email: true,
+        id: true,
+        name: true,
+        role: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            plan: {
+              select: {
+                id: true,
+                maxBranches: true,
+                maxDevices: true,
+                maxUsers: true,
+                name: true,
+              },
+            },
+            planId: true,
+            settings: true,
+            slug: true,
+            status: true,
+            users: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                email: true,
+                id: true,
+                isActive: true,
+                lastLoginAt: true,
+                name: true,
+                role: true,
+              },
+              where: { role: "CASHIER" },
+            },
+          },
+        },
+        tenantId: true,
+        workosUserId: true,
+      },
       where: { workosUserId: userId },
     });
   }
@@ -274,6 +437,36 @@ export class TenantService {
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
+
+  private getCashierLimit(maxUsers: number | undefined | null): number {
+    return Math.max((maxUsers ?? 3) - 1, 0);
+  }
+
+  private generateCashierCredentials(): {
+    pin: string;
+    pinHash: string;
+  } {
+    const pin = String(randomInt(100_000, 1_000_000));
+    const salt = randomBytes(16).toString("hex");
+    const hash = pbkdf2Sync(pin, salt, 100_000, 64, "sha256").toString("hex");
+
+    return {
+      pin,
+      pinHash: `pbkdf2$100000$${salt}$${hash}`,
+    };
+  }
+
+  private normalizeTenantSettings(settings: unknown): Record<string, unknown> {
+    if (
+      settings !== null &&
+      typeof settings === "object" &&
+      !Array.isArray(settings)
+    ) {
+      return { ...settings };
+    }
+
+    return {};
+  }
 
   private toSlug(name: string): string {
     const cleaned = name

@@ -100,12 +100,55 @@ export function createTenant(
   });
 }
 
+export interface TenantSettingsInput {
+  cashOpeningAmount: number;
+}
+
+export interface CreateCashierResponse {
+  tenant: MyTenantData | null;
+  temporaryPin: string;
+}
+
+export function updateMyTenantSettings(
+  data: TenantSettingsInput
+): Promise<MyTenantData | null> {
+  return request<MyTenantData | null>("/api/tenants/me/settings", {
+    data,
+    method: "PATCH",
+  });
+}
+
+export function createCashier(data: {
+  name: string;
+}): Promise<CreateCashierResponse> {
+  return request<CreateCashierResponse>("/api/tenants/me/cashiers", {
+    data,
+    method: "POST",
+  });
+}
+
 export interface MyTenantData {
   id: string;
   tenantId: string;
   tenant: {
     id: string;
     name: string;
+    plan: {
+      id: string;
+      maxBranches: number;
+      maxDevices: number;
+      maxUsers: number;
+      name: string;
+    };
+    settings: Record<string, unknown> | null;
+    users: {
+      email: string | null;
+      id: string;
+      isActive: boolean;
+      lastLoginAt: string | null;
+      name: string;
+      role: string;
+    }[];
     slug: string;
     planId: string;
     status: string;
@@ -116,8 +159,8 @@ export interface MyTenantData {
   workosUserId: string | null;
 }
 
-export function getMyTenant(): Promise<MyTenantData> {
-  return request("/api/tenants/me");
+export function getMyTenant(): Promise<MyTenantData | null> {
+  return request<MyTenantData | null>("/api/tenants/me");
 }
 
 export interface TenantListItem {
