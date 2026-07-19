@@ -117,12 +117,8 @@ Omit it for the default AuthKit flow (email + social providers).
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     type: ApiErrorResponseSchema,
   })
-  login(
-    @Query("organization_id") organizationId?: string,
-    @Query("state") state?: string
-  ): AuthorizationUrlResponseSchema {
+  login(@Query("state") state?: string): AuthorizationUrlResponseSchema {
     const authorizationUrl = this.authService.getAuthorizationUrl({
-      organizationId,
       state,
     });
 

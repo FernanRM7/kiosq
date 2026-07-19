@@ -138,13 +138,9 @@ export class AuthService implements OnModuleInit {
    * @param state          - Opaque string echoed back in the callback query params.
    *                         Use for CSRF protection or to preserve client state.
    */
-  getAuthorizationUrl(options?: {
-    organizationId?: string;
-    state?: string;
-  }): string {
+  getAuthorizationUrl(options?: { state?: string }): string {
     return this.workos.userManagement.getAuthorizationUrl({
       clientId: this.config.clientId,
-      organizationId: options?.organizationId,
       provider: "authkit",
       redirectUri: this.config.redirectUri,
       state: options?.state,
