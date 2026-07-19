@@ -50,7 +50,7 @@ export function CreateCashierDialog({
       return;
     }
 
-    if (!/^\d{4,6}$/.test(pin)) {
+    if (!/^\d{4,6}$/u.test(pin)) {
       setError("El PIN debe tener 4-6 dígitos numéricos");
       return;
     }
@@ -120,7 +120,7 @@ export function CreateCashierDialog({
               maxLength={6}
               disabled={createCashier.isPending}
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => setPin(e.target.value.replaceAll(/\D/gu, ""))}
             />
           </div>
 

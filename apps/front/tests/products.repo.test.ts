@@ -25,7 +25,7 @@ const mockProducts: Product[] = [
     id: "prod-2",
     isActive: true,
     name: "Sabritas 45g",
-    price: 15.0,
+    price: 15,
     sku: "SAB-45",
     taxRate: 0.16,
     totalStock: 100,

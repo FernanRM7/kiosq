@@ -24,23 +24,20 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasRoleAccess } from "@/lib/access";
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const { state } = useSidebar();
-
-
-  useEffect(() => {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     const storedTheme = window.localStorage.getItem("theme");
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)"
     ).matches;
-    const initialTheme =
-      storedTheme === "dark" || (!storedTheme && prefersDark)
-        ? "dark"
-        : "light";
 
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
+    return storedTheme === "dark" || (!storedTheme && prefersDark)
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   const handleToggle = () => {
     const nextTheme = theme === "light" ? "dark" : "light";

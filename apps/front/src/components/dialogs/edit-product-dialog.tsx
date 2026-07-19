@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { ProductFormFields } from "@/components/dialogs/product-form-fields";
@@ -45,19 +45,11 @@ export function EditProductDialog({
     control,
     handleSubmit,
     register,
-    reset,
     formState: { errors },
   } = useForm<ProductFormData>({
-    defaultValues: defaultProductFormValues,
     resolver: zodResolver(productFormSchema),
+    values: product ? productToFormData(product) : defaultProductFormValues,
   });
-
-  useEffect(() => {
-    if (product) {
-      reset(productToFormData(product));
-      setError(null);
-    }
-  }, [product, reset]);
 
   const onSubmit = async (data: ProductFormData) => {
     if (!product) {

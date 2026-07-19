@@ -20,8 +20,10 @@ import {
   useEnableMember,
   useRevokeCashierSession,
 } from "@/hooks/mutations/use-team-actions";
-import { canManageSettings } from "@/lib/access";
-import { getRoleLabel } from "@/lib/access";
+import {
+  canManageSettings,
+  getRoleLabel,
+} from "@/lib/access";
 import { MoreHorizontal } from "lucide-react";
 
 export function TeamSection() {
@@ -45,19 +47,30 @@ export function TeamSection() {
     memberId: string,
   ) => {
     switch (action) {
-      case "disable":
-        await disableMember.mutateAsync(memberId);
-        break;
-      case "enable":
-        await enableMember.mutateAsync(memberId);
-        break;
-      case "cancel":
-        await cancelInvite.mutateAsync(memberId);
-        break;
-      case "revoke":
-        await revokeCashierSession.mutateAsync(memberId);
-        break;
-    }
+  case "disable": {
+    await disableMember.mutateAsync(memberId);
+    break;
+  }
+
+  case "enable": {
+    await enableMember.mutateAsync(memberId);
+    break;
+  }
+
+  case "cancel": {
+    await cancelInvite.mutateAsync(memberId);
+    break;
+  }
+
+  case "revoke": {
+    await revokeCashierSession.mutateAsync(memberId);
+    break;
+  }
+
+  default: {
+    break;
+  }
+}
   };
 
   return (

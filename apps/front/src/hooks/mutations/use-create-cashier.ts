@@ -1,8 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { request } from "@/lib/api";
 import type { TeamMember } from "@/hooks/queries/use-team";
+import { request } from "@/lib/api";
 
 interface CreateCashierPayload {
   name: string;

@@ -25,12 +25,12 @@ export async function createLocalSale(input: {
       const subtotal = unitPrice * it.quantity;
 
       return {
-        productId: it.productId,
-        quantity: it.quantity,
-        unitPrice,
-        subtotal,
-        taxRate: product.taxRate,
-      };
+      productId: it.productId,
+      quantity: it.quantity,
+      subtotal,
+      taxRate: product.taxRate,
+     unitPrice,
+};
     })
   );
 
