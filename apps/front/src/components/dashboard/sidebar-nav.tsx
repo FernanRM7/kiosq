@@ -5,7 +5,6 @@ import { useLocation, Link } from "react-router-dom";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
 import { cn } from "@/lib/utils";
-import { useSidebar } from "@/components/ui/sidebar";
 import {
   Sidebar,
   SidebarContent,
@@ -18,12 +17,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { mainNavItems, bottomNavItems } from "@/data/sidebar-items";
 import { useAuth } from "@/hooks/use-auth";
 import { hasRoleAccess } from "@/lib/access";
 
 function ThemeToggle() {
+  const { state } = useSidebar();
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const storedTheme = window.localStorage.getItem("theme");
     const prefersDark = window.matchMedia(

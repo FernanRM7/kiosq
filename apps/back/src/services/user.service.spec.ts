@@ -1,6 +1,7 @@
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it, jest } from "@jest/globals";
 
 import type { AuthenticatedSessionResult } from "../types/session.type";
+import type { PrismaService } from "../lib/prisma.service";
 import { UserService } from "./user.service";
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
@@ -25,13 +26,20 @@ function makeSession(
     role: has("role") ? overrides.role : "admin",
     sessionId: "session_01",
     user: {
+      createdAt: "2024-01-01T00:00:00.000Z",
       email: "user@example.com",
       emailVerified: overrides.emailVerified ?? true,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      externalId: null,
       firstName: has("firstName") ? overrides.firstName! : "Jane",
       id: overrides.userId ?? "user_01",
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      lastSignInAt: null,
       lastName: has("lastName") ? overrides.lastName! : "Doe",
+      locale: null,
+      metadata: {},
+      name: "Jane Doe",
+      object: "user",
+      profilePictureUrl: null,
+      updatedAt: "2024-01-01T00:00:00.000Z",
     },
     userId: overrides.userId ?? "user_01",
   };
@@ -40,49 +48,54 @@ function makeSession(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("UserService — buildMeResponse()", () => {
-  const service = new UserService();
+  const mockPrisma = {
+    user: {
+      findFirst: jest.fn<(...args: unknown[]) => Promise<{ role: string } | null>>().mockResolvedValue(null),
+    },
+  } as unknown as PrismaService;
+  const service = new UserService(mockPrisma);
 
   // ── Field mapping ──────────────────────────────────────────────────────────
 
-  it("maps userId from session to response id", () => {
-    const result = service.buildMeResponse(makeSession({ userId: "user_99" }));
+  it("maps userId from session to response id", async () => {
+    const result = await service.buildMeResponse(makeSession({ userId: "user_99" }));
     expect(result.id).toBe("user_99");
   });
 
-  it("maps user.email from session to response email", () => {
-    const result = service.buildMeResponse(makeSession());
+  it("maps user.email from session to response email", async () => {
+    const result = await service.buildMeResponse(makeSession());
     expect(result.email).toBe("user@example.com");
   });
 
-  it("maps user.firstName (string value)", () => {
-    const result = service.buildMeResponse(makeSession({ firstName: "Ana" }));
+  it("maps user.firstName (string value)", async () => {
+    const result = await service.buildMeResponse(makeSession({ firstName: "Ana" }));
     expect(result.firstName).toBe("Ana");
   });
 
-  it("maps user.firstName as null when absent", () => {
-    const result = service.buildMeResponse(makeSession({ firstName: null }));
+  it("maps user.firstName as null when absent", async () => {
+    const result = await service.buildMeResponse(makeSession({ firstName: null }));
     expect(result.firstName).toBeNull();
   });
 
-  it("maps user.lastName (string value)", () => {
-    const result = service.buildMeResponse(makeSession({ lastName: "García" }));
+  it("maps user.lastName (string value)", async () => {
+    const result = await service.buildMeResponse(makeSession({ lastName: "García" }));
     expect(result.lastName).toBe("García");
   });
 
-  it("maps user.lastName as null when absent", () => {
-    const result = service.buildMeResponse(makeSession({ lastName: null }));
+  it("maps user.lastName as null when absent", async () => {
+    const result = await service.buildMeResponse(makeSession({ lastName: null }));
     expect(result.lastName).toBeNull();
   });
 
-  it("maps user.emailVerified = true", () => {
-    const result = service.buildMeResponse(
+  it("maps user.emailVerified = true", async () => {
+    const result = await service.buildMeResponse(
       makeSession({ emailVerified: true })
     );
     expect(result.emailVerified).toBe(true);
   });
 
-  it("maps user.emailVerified = false", () => {
-    const result = service.buildMeResponse(
+  it("maps user.emailVerified = false", async () => {
+    const result = await service.buildMeResponse(
       makeSession({ emailVerified: false })
     );
     expect(result.emailVerified).toBe(false);
@@ -90,32 +103,32 @@ describe("UserService — buildMeResponse()", () => {
 
   // ── Organization claim ─────────────────────────────────────────────────────
 
-  it("maps organizationId when user belongs to an org", () => {
-    const result = service.buildMeResponse(makeSession({ orgId: "org_42" }));
+  it("maps organizationId when user belongs to an org", async () => {
+    const result = await service.buildMeResponse(makeSession({ orgId: "org_42" }));
     expect(result.organizationId).toBe("org_42");
   });
 
-  it("maps organizationId as undefined when user has no org", () => {
-    const result = service.buildMeResponse(makeSession({ orgId: undefined }));
+  it("maps organizationId as undefined when user has no org", async () => {
+    const result = await service.buildMeResponse(makeSession({ orgId: undefined }));
     expect(result.organizationId).toBeUndefined();
   });
 
   // ── RBAC role claim ────────────────────────────────────────────────────────
 
-  it("maps role when present", () => {
-    const result = service.buildMeResponse(makeSession({ role: "owner" }));
+  it("maps role when present", async () => {
+    const result = await service.buildMeResponse(makeSession({ role: "owner" }));
     expect(result.role).toBe("owner");
   });
 
-  it("maps role as undefined when not set", () => {
-    const result = service.buildMeResponse(makeSession({ role: undefined }));
+  it("maps role as undefined when not set", async () => {
+    const result = await service.buildMeResponse(makeSession({ role: undefined }));
     expect(result.role).toBeUndefined();
   });
 
   // ── Complete response shape ────────────────────────────────────────────────
 
-  it("returns a response with all seven defined fields", () => {
-    const result = service.buildMeResponse(makeSession());
+  it("returns a response with all seven defined fields", async () => {
+    const result = await service.buildMeResponse(makeSession());
 
     expect(Object.keys(result)).toStrictEqual(
       expect.arrayContaining([

@@ -13,6 +13,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "../constants/cookie.constants";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+import type { SessionResult } from "../types/session.type";
 import { CashierSessionService } from "../services/cashier-session.service";
 import { SessionService } from "../services/session.service";
 import { AuthGuard } from "./auth.guard";
@@ -52,9 +53,9 @@ function makeHttpContext(
 describe("AuthGuard", () => {
   let guard: AuthGuard;
 
-  const mockAuthenticateSession = jest.fn();
-  const mockAuthenticateCashierSession = jest.fn();
-  const mockGetAllAndOverride = jest.fn();
+  const mockAuthenticateSession = jest.fn<(...args: unknown[]) => Promise<SessionResult>>();
+  const mockAuthenticateCashierSession = jest.fn<(...args: unknown[]) => Promise<SessionResult>>();
+  const mockGetAllAndOverride = jest.fn<(...args: unknown[]) => boolean>();
 
   const mockSessionService = {
     authenticateSession: mockAuthenticateSession,
@@ -118,11 +119,20 @@ describe("AuthGuard", () => {
       role: "admin",
       sessionId: "session_01",
       user: {
-        id: overrides.userId ?? "user_01",
+        createdAt: "2024-01-01T00:00:00.000Z",
         email: "user@example.com",
         emailVerified: true,
+        externalId: null,
         firstName: "Test",
+        id: overrides.userId ?? "user_01",
+        lastSignInAt: null,
         lastName: "User",
+        locale: null,
+        metadata: {},
+        name: "Test User",
+        object: "user" as const,
+        profilePictureUrl: null,
+        updatedAt: "2024-01-01T00:00:00.000Z",
       },
       userId: overrides.userId ?? "user_01",
     };

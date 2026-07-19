@@ -5,6 +5,7 @@ import { Test } from "@nestjs/testing";
 
 import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
 import { AuthService } from "./auth.service";
+import { SessionRegistryService } from "./session-registry.service";
 import { SessionService } from "./session.service";
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
@@ -25,11 +26,20 @@ function makeAuthenticatedResult(
     role: overrides.role ?? "admin",
     sessionId: overrides.sessionId ?? "session_01",
     user: {
-      id: overrides.userId ?? "user_01",
+      createdAt: "2024-01-01T00:00:00.000Z",
       email: "user@example.com",
       emailVerified: true,
+      externalId: null,
       firstName: "Test",
+      id: overrides.userId ?? "user_01",
+      lastSignInAt: null,
       lastName: "User",
+      locale: null,
+      metadata: {},
+      name: "Test User",
+      object: "user" as const,
+      profilePictureUrl: null,
+      updatedAt: "2024-01-01T00:00:00.000Z",
     },
   };
 }
@@ -43,11 +53,20 @@ function makeRefreshedResult(overrides: { sealedSession?: string } = {}) {
     role: "admin",
     sessionId: "session_02",
     user: {
-      id: "user_01",
+      createdAt: "2024-01-01T00:00:00.000Z",
       email: "user@example.com",
       emailVerified: true,
+      externalId: null,
       firstName: "Test",
+      id: "user_01",
+      lastSignInAt: null,
       lastName: "User",
+      locale: null,
+      metadata: {},
+      name: "Test User",
+      object: "user" as const,
+      profilePictureUrl: null,
+      updatedAt: "2024-01-01T00:00:00.000Z",
     },
   };
 }
@@ -57,10 +76,10 @@ function makeRefreshedResult(overrides: { sealedSession?: string } = {}) {
 describe("SessionService", () => {
   let service: SessionService;
 
-  const mockAuthenticate = jest.fn();
-  const mockRefresh = jest.fn();
+  const mockAuthenticate = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+  const mockRefresh = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
-  const mockLoadSealedSession = jest.fn().mockReturnValue({
+  const mockLoadSealedSession = jest.fn<(...args: unknown[]) => { authenticate: (...args: unknown[]) => Promise<unknown>; refresh: (...args: unknown[]) => Promise<unknown> }>().mockReturnValue({
     authenticate: mockAuthenticate,
     refresh: mockRefresh,
   });
@@ -83,10 +102,18 @@ describe("SessionService", () => {
       refresh: mockRefresh,
     });
 
-    const module: TestingModule = await Test.createTestingModule({
+    const mockSessionRegistry = {
+    registerSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+    revokeSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+    isSessionActive: jest.fn<(...args: unknown[]) => Promise<boolean>>(),
+    touchSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+  } as unknown as SessionRegistryService;
+
+  const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
         { provide: AuthService, useValue: mockAuthService },
+        { provide: SessionRegistryService, useValue: mockSessionRegistry },
       ],
     }).compile();
 

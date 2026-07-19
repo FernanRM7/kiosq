@@ -166,7 +166,8 @@ describe("AuthController — GET /auth/callback", () => {
       "valid-code",
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).toHaveBeenCalledWith(
@@ -189,7 +190,7 @@ describe("AuthController — GET /auth/callback", () => {
       userId: "user_02",
     });
 
-    await controller.callback("code", undefined, undefined, response as never);
+    await controller.callback("code", undefined, undefined, response as never, {} as never);
 
     expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/dashboard`);
   });
@@ -203,7 +204,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "access_denied",
       "User cancelled",
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -219,7 +221,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "unknown_error_code",
       "Something went wrong on WorkOS",
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(response.redirect).toHaveBeenCalledWith(
@@ -238,7 +241,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -260,7 +264,8 @@ describe("AuthController — GET /auth/callback", () => {
       "used-code",
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(response.cookie).not.toHaveBeenCalled();
@@ -277,7 +282,7 @@ describe("AuthController — GET /auth/callback", () => {
       .mocked(mockAuthService.exchangeCodeForSession)
       .mockRejectedValueOnce(new Error(sensitiveMessage));
 
-    await controller.callback("code", undefined, undefined, response as never);
+    await controller.callback("code", undefined, undefined, response as never, {} as never);
 
     const redirectArg: string = (response.redirect as jest.Mock).mock
       .calls[0][0] as string;
