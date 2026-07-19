@@ -22,7 +22,8 @@ import type { SessionMetadata } from "./session-registry.service";
  * remaining, which is below 3 600 — triggering a concurrent-request race
  * condition that produced HTTP 500/502 errors on /api/me.
  */
-const PROACTIVE_REFRESH_SECONDS = 5 * 60; // 5 minutes
+// 5 minutes
+const PROACTIVE_REFRESH_SECONDS = 5 * 60;
 
 @Injectable()
 export class SessionService {
