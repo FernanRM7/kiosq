@@ -1,7 +1,6 @@
-import { createTable, getCoreRowModel } from "@tanstack/table-core";
-import { flexRender } from "@tanstack/react-table";
+import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { flexRender } from "@tanstack/react-table";
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
@@ -9,27 +8,11 @@ interface DataTableProps<TData> {
 }
 
 export function DataTable<TData>({ columns, data }: DataTableProps<TData>) {
-  const [table, setTable] = useState(() =>
-    createTable({
-      columns,
-      data,
-      getCoreRowModel: getCoreRowModel(),
-      onStateChange: () => null,
-      renderFallbackValue: null,
-      state: {},
-    })
-  );
-  const [state, setState] = useState(() => table.initialState);
-
-  void setTable;
-
-  table.setOptions((previous) => ({
-    ...previous,
+  const table = useReactTable({
     columns,
     data,
-    onStateChange: setState,
-    state,
-  }));
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   return (
     <div className="rounded-lg border border-zinc-200">

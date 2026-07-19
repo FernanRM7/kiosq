@@ -1,3 +1,4 @@
+import type { PrismaService } from "../../lib/prisma.service";
 import type { AuthenticatedSessionResult } from "../../types/session.type";
 import type { SyncPayloadInput } from "../../schemas/sync.schema";
 
@@ -72,7 +73,7 @@ export function makeCreateSaleEvent(
   return {
     id: overrides?.id ?? 1,
     payload,
-    type: overrides?.type ?? "CREATE_SALE",
+    type: (overrides?.type ?? "CREATE_SALE") as "CREATE_SALE",
   };
 }
 
@@ -105,14 +106,7 @@ export function makeMockPrisma(
             }
       ),
     },
-  } as unknown as {
-    $transaction: jest.Mock;
-    onModuleInit: jest.Mock;
-    onModuleDestroy: jest.Mock;
-    syncEvent: { create: jest.Mock };
-    user: { findUnique: jest.Mock };
-    sale: { findMany: jest.Mock };
-  };
+  } as unknown as PrismaService;
 }
 
 export function makeMockSession(): AuthenticatedSessionResult {
@@ -122,7 +116,22 @@ export function makeMockSession(): AuthenticatedSessionResult {
     organizationId: "org-1",
     role: "admin",
     sessionId: "session-1",
-    user: {} as never,
+    user: {
+      createdAt: "2024-01-01T00:00:00.000Z",
+      email: "user@example.com",
+      emailVerified: true,
+      externalId: null,
+      firstName: "Test",
+      id: "workos-user-1",
+      lastSignInAt: null,
+      lastName: "User",
+      locale: null,
+      metadata: {},
+      name: "Test User",
+      object: "user",
+      profilePictureUrl: null,
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    },
     userId: "workos-user-1",
   };
 }
