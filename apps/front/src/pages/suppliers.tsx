@@ -94,7 +94,7 @@ export default function SuppliersPage() {
             </Card>
           ))}
         </div>
-      ))}
+      )}
 
       <CreateSupplierDialog open={createOpen} onOpenChange={setCreateOpen} />
 

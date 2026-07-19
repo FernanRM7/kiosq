@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasRoleAccess } from "@/lib/access";
 
 function ThemeToggle() {
+  const { state } = useSidebar();
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const storedTheme = window.localStorage.getItem("theme");
     const prefersDark = window.matchMedia(
