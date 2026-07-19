@@ -2,6 +2,8 @@ import { LogOut, ChevronsUpDown } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   Popover,
   PopoverContent,
@@ -28,6 +30,7 @@ function getInitials(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
 
 export function UserNav() {
   const { error, logout, pendingAction, user } = useAuth();
+  const { state } = useSidebar();
   const isLoggingOut = pendingAction === "logout";
   const displayName = user ? getDisplayName(user) : "User";
   const initials = user ? getInitials(user) : "U";
@@ -36,29 +39,45 @@ export function UserNav() {
   return (
     <Popover>
       <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl px-3 py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90"
-          />
-        }
-      >
-        <Avatar className="size-7 rounded-full ring-1 ring-sidebar-border/60">
-          <AvatarFallback className="rounded-full text-xs">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate font-semibold text-sm text-sidebar-foreground">
-            {displayName}
-          </span>
-          <span className="truncate text-xs text-sidebar-foreground/60">
-            {roleLabel}
-          </span>
-        </div>
-        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-1" side="top" align="start">
+  render={
+    <Button
+      variant="ghost"
+      className={cn(
+        "w-full rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90",
+        state === "collapsed"
+          ? "justify-center px-1"
+          : "justify-start gap-3 px-3"
+      )}
+    />
+  }
+>
+  <Avatar className="size-7 rounded-full ring-1 ring-sidebar-border/60">
+    <AvatarFallback className="rounded-full text-xs">
+      {initials}
+    </AvatarFallback>
+  </Avatar>
+
+  {state !== "collapsed" && (
+    <>
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-semibold text-sm text-sidebar-foreground">
+          {displayName}
+        </span>
+
+        <span className="truncate text-xs text-sidebar-foreground/60">
+          {roleLabel}
+        </span>
+      </div>
+
+      <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+    </>
+  )}
+</PopoverTrigger>
+         <PopoverContent
+         className="w-56 p-1"
+         side={state === "collapsed" ? "right" : "top"}
+         align={state === "collapsed" ? "center" : "start"}
+         >
         {user ? (
           <div className="px-2 py-1.5">
             <p className="truncate font-medium text-sm">{displayName}</p>
