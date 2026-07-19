@@ -28,7 +28,7 @@ const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "15rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+const SIDEBAR_WIDTH_ICON = "4rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 interface SidebarContextProps {
@@ -287,7 +287,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-header"
       data-sidebar="header"
       className={cn(
-        "flex flex-col gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/85 backdrop-blur-xl p-3 shadow-sm shadow-black/5",
+        "flex flex-col gap-2 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/85 backdrop-blur-xl p-3 group-data-[collapsible=icon]:p-2",
         className
       )}
       {...props}
@@ -346,7 +346,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-group"
       data-sidebar="group"
       className={cn(
-        "relative flex w-full min-w-0 flex-col gap-3 rounded-[1.75rem] bg-sidebar/50 backdrop-blur-xl border border-sidebar-border/15 px-3 py-2",
+        "relative flex w-full min-w-0 flex-col gap-3 rounded-[1.75rem] bg-sidebar/50 backdrop-blur-xl border border-sidebar-border/15 px-3 py-2 group-data-[collapsible=icon]:px-1",
         className
       )}
       {...props}
@@ -456,7 +456,10 @@ function SidebarMenuButton({
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ size, variant }), className)}
+      className={cn(sidebarMenuButtonVariants({ size, variant }),
+      state === "collapsed" && "mx-auto",
+      className)}
+
       {...props}
     />
   );

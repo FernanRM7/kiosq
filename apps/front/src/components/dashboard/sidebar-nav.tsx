@@ -4,6 +4,8 @@ import { useLocation, Link } from "react-router-dom";
 
 import { UserNav } from "@/components/dashboard/user-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
+import { cn } from "@/lib/utils";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   Sidebar,
   SidebarContent,
@@ -48,17 +50,24 @@ function ThemeToggle() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
-          onClick={handleToggle}
-          variant="outline"
-          className="justify-start gap-3"
-        >
-          {theme === "dark" ? (
-            <Sun className="size-4" />
-          ) : (
-            <Moon className="size-4" />
-          )}
-          <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
-        </SidebarMenuButton>
+  onClick={handleToggle}
+  variant="outline"
+  className={cn(
+    state === "collapsed"
+      ? "justify-center px-0"
+      : "justify-start gap-3"
+  )}
+>
+  {theme === "dark" ? (
+    <Sun className="size-4" />
+  ) : (
+    <Moon className="size-4" />
+  )}
+
+  {state !== "collapsed" && (
+    <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
+  )}
+</SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   );
@@ -79,7 +88,12 @@ export function DashboardSidebar() {
       <SidebarHeader className="rounded-[2.25rem] border border-sidebar-border/40 bg-sidebar/85 px-3 py-4 shadow-sm shadow-black/10 dark:bg-sidebar/95 dark:border-sidebar-border/30">
         <div className="flex flex-col gap-3">
           <WorkspaceSwitcher />
-          <div className="rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15">
+          <div
+  className={cn(
+    "rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15",
+    "group-data-[collapsible=icon]:p-1"
+  )}
+>
             <ThemeToggle />
           </div>
         </div>
