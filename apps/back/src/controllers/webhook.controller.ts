@@ -61,16 +61,29 @@ interface WebhookVerificationContext {
 @Controller("webhooks")
 export class WebhookController {
   private readonly logger = new Logger(WebhookController.name);
-  private readonly webhookSecret: string;
-  private readonly webhookToleranceMs: number;
+
+  /**
+   * Webhook configuration is loaded lazily on the first request rather than
+   * eagerly in the constructor. This prevents a missing WORKOS_WEBHOOK_SECRET
+   * from crashing the entire application at startup and making all endpoints
+   * (including /health, /auth/login and /me) return HTTP 500.
+   *
+   * A missing secret will now correctly surface as a 500 on POST /webhooks/workos
+   * only, while the rest of the application continues to function normally.
+   */
+  private webhookConfig: ReturnType<typeof loadWebhookConfig> | undefined;
 
   constructor(
     private readonly authService: AuthService,
     private readonly syncService: SyncService
-  ) {
-    const config = loadWebhookConfig();
-    this.webhookSecret = config.secret;
-    this.webhookToleranceMs = config.toleranceMs;
+  ) {}
+
+  private getWebhookConfig(): ReturnType<typeof loadWebhookConfig> {
+    if (!this.webhookConfig) {
+      this.webhookConfig = loadWebhookConfig();
+    }
+
+    return this.webhookConfig;
   }
 
   /**
@@ -206,11 +219,12 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     const bodyHash = this.hashPayload(ctx.rawBody);
 
     try {
+      const { secret, toleranceMs } = this.getWebhookConfig();
       const payload = this.authService.workos.webhooks.constructEvent({
         payload: ctx.rawBody,
-        secret: this.webhookSecret,
+        secret,
         sigHeader: signature,
-        tolerance: this.webhookToleranceMs,
+        tolerance: toleranceMs,
       });
       this.logger.debug(
         `${cid()} Webhook signature verified (bodyHash=${bodyHash})`
@@ -230,7 +244,7 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
           serverTs: ctx.serverTimestamp,
           sigHash: ctx.sigHash,
           skewMs: ctx.skewMs,
-          toleranceMs: this.webhookToleranceMs,
+          toleranceMs: this.getWebhookConfig().toleranceMs,
         },
         `${cid()} Webhook signature verification failed: ${message}`
       );
