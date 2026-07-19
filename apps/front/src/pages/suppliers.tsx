@@ -38,66 +38,62 @@ export default function SuppliersPage() {
         </p>
       )}
 
-      {isLoading ? (
+      {isLoading && (
         <p className="text-muted-foreground text-sm">Cargando proveedores...</p>
-      ) : (
-        <>
-           : suppliers.active.length === 0 ? (
-  <p className="text-muted-foreground text-sm">
-    No hay proveedores registrados.
-  </p>
-) : 
-  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    {suppliers.active.map((supplier) => (
-      <Card key={supplier.id}>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <CardTitle className="truncate">
-                {supplier.name}
-              </CardTitle>
-              <CardDescription className="truncate">
-                {supplier.email ?? "Sin email"}
-              </CardDescription>
-            </div>
-            <div className="flex shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="-mr-2"
-                onClick={() => setEditSupplier(supplier)}
-              >
-                <Pencil className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="-mr-2"
-                onClick={() => setDeleteSupplier(supplier)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardPanel>
-          <div className="space-y-1 text-sm">
-            {supplier.phone && <p>{supplier.phone}</p>}
-            {supplier.rfc && (
-              <p className="text-muted-foreground">{supplier.rfc}</p>
-            )}
-            {supplier.address && (
-              <p className="text-muted-foreground truncate">
-                {supplier.address}
-              </p>
-            )}
-          </div>
-        </CardPanel>
-      </Card>
-    ))}
-  </div>
-
-        </>
+      )}
+      {!isLoading && suppliers.active.length === 0 && (
+        <p className="text-muted-foreground text-sm">
+          No hay proveedores registrados.
+        </p>
+      )}
+      {!isLoading && suppliers.active.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {suppliers.active.map((supplier) => (
+            <Card key={supplier.id}>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="truncate">{supplier.name}</CardTitle>
+                    <CardDescription className="truncate">
+                      {supplier.email ?? "Sin email"}
+                    </CardDescription>
+                  </div>
+                  <div className="flex shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-mr-2"
+                      onClick={() => setEditSupplier(supplier)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-mr-2"
+                      onClick={() => setDeleteSupplier(supplier)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardPanel>
+                <div className="space-y-1 text-sm">
+                  {supplier.phone && <p>{supplier.phone}</p>}
+                  {supplier.rfc && (
+                    <p className="text-muted-foreground">{supplier.rfc}</p>
+                  )}
+                  {supplier.address && (
+                    <p className="text-muted-foreground truncate">
+                      {supplier.address}
+                    </p>
+                  )}
+                </div>
+              </CardPanel>
+            </Card>
+          ))}
+        </div>
       )}
 
       <CreateSupplierDialog open={createOpen} onOpenChange={setCreateOpen} />
