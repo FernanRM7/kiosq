@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -46,19 +46,11 @@ export function EditCategoryDialog({
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors },
   } = useForm<CategoryFormData>({
-    defaultValues: defaultCategoryFormValues,
     resolver: zodResolver(categoryFormSchema),
+    values: category ? categoryToFormData(category) : defaultCategoryFormValues,
   });
-
-  useEffect(() => {
-    if (category) {
-      reset(categoryToFormData(category));
-      setError(null);
-    }
-  }, [category, reset]);
 
   const onSubmit = async (data: CategoryFormData) => {
     if (!category) {

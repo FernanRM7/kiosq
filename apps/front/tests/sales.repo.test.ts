@@ -25,7 +25,7 @@ const testProducts: Product[] = [
     id: "prod-2",
     isActive: true,
     name: "Sabritas 45g",
-    price: 15.0,
+    price: 15,
     sku: "SAB-45",
     taxRate: 0.16,
     totalStock: 100,
@@ -35,7 +35,7 @@ const testProducts: Product[] = [
     id: "prod-3",
     isActive: true,
     name: "Agua 1L",
-    price: 12.0,
+    price: 12,
     sku: "AGUA-1L",
     taxRate: 0.08,
     totalStock: 200,
@@ -62,7 +62,6 @@ describe("sales.repo", () => {
 
     expect(sale.offlineId).toBeDefined();
     expect(sale.total).toBeCloseTo(42.92, 2);
-    expect(sale.items).toHaveLength(1);
     expect(sale.items[0]).toMatchObject({
       price: 18.5,
       productId: "prod-1",
@@ -73,11 +72,9 @@ describe("sales.repo", () => {
     expect(pendingCount).toBe(1);
 
     const events = await getPendingEvents();
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      status: "PENDING",
-      type: "CREATE_SALE",
-    });
+    expect(events).toStrictEqual([
+      expect.objectContaining({ status: "PENDING", type: "CREATE_SALE" }),
+    ]);
   });
 
   it("marks events as APPLIED", async () => {

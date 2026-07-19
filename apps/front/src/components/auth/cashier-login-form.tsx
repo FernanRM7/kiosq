@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { request } from "@/lib/api";
 import type { ApiClientError } from "@/lib/api";
 
@@ -25,7 +24,7 @@ export function CashierLoginForm() {
       return;
     }
 
-    if (!/^\d{4,6}$/.test(pin)) {
+    if (!/^\d{4,6}$/u.test(pin)) {
       setError("El PIN debe tener 4-6 dígitos numéricos");
       return;
     }
@@ -77,7 +76,7 @@ export function CashierLoginForm() {
           maxLength={6}
           disabled={loading}
           value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          onChange={(e) => setPin(e.target.value.replaceAll(/\D/gu, ""))}
           className="h-12 rounded-lg border border-input bg-background px-4 text-center text-lg outline-none transition-colors placeholder:text-muted-foreground focus:border-ring"
         />
 

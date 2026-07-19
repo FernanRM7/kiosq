@@ -38,7 +38,7 @@ export function InviteManagerDialog({
     e.preventDefault();
     setError(null);
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
       setError("Debes proporcionar un email válido");
       return;
     }

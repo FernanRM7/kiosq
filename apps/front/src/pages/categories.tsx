@@ -37,21 +37,21 @@ export default function CategoriesPage() {
     (category: Category) => {
       restoreCategoryMutation.mutate(category.id);
     },
-    [restoreCategoryMutation]
+    [restoreCategoryMutation],
   );
 
   const activeColumns = useMemo(
     () =>
       getCategoryColumns(
         (category) => setEditCategory(category),
-        (category) => setDeleteCategory(category)
+        (category) => setDeleteCategory(category),
       ),
-    []
+    [],
   );
 
   const deletedColumns = useMemo(
     () => getDeletedCategoryColumns(handleRestoreCategory),
-    [handleRestoreCategory]
+    [handleRestoreCategory],
   );
 
   return (
@@ -83,8 +83,8 @@ export default function CategoriesPage() {
           <TabsContent value="active" className="mt-4">
             {categories.active.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No hay categorías activas. Crea una con el botón "Nueva
-                categoría".
+                No hay categorías activas. Crea una con el botón{" "}
+                <strong>&quot;Nueva categoría&quot;</strong>.
               </p>
             ) : (
               <DataTable columns={activeColumns} data={categories.active} />

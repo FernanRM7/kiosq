@@ -6,23 +6,23 @@ import type { Product } from "@/db";
 import { populateProducts } from "@/db/repositories/products.repo";
 import { createLocalSale } from "@/db/repositories/sales.repo";
 
+import { request } from "@/lib/api";
+
 import { SyncProvider, useSync } from "@/contexts/sync.context";
 
 vi.mock(import("@/lib/api"), () => ({
-  request: vi.fn(),
+  request: vi.fn<typeof request>(),
 }));
-
-import { request } from "@/lib/api";
 
 const testProducts: Product[] = [
   {
     id: "prod-1",
+    isActive: true,
     name: "Coca Cola 600ml",
     price: 18.5,
     sku: "COCA-600",
     taxRate: 0.16,
     totalStock: 50,
-    isActive: true,
     updatedAt: "2024-01-01T00:00:00.000Z",
   },
 ];
@@ -33,7 +33,7 @@ function SyncHarness() {
     <div>
       <span data-testid="pending">{pendingCount}</span>
       <span data-testid="status">{status}</span>
-      <button data-testid="sync-btn" onClick={() => syncNow()}>
+      <button type="button" data-testid="sync-btn" onClick={() => syncNow()}>
         sync
       </button>
     </div>

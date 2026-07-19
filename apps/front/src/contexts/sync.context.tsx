@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,6 +55,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncNowRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const MAX_RETRIES = 8;
   const BASE_DELAY = 2000;
@@ -83,9 +85,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
     const delay = nextDelay(retryCountRef.current);
     retryCountRef.current += 1;
 
-    retryTimerRef.current = setTimeout(() => {
-      syncNow();
-    }, delay);
+    retryTimerRef.current = setTimeout(() => void syncNowRef.current(), delay);
   }, [nextDelay]);
 
   const refreshPending = useCallback(async () => {
@@ -94,7 +94,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    refreshPending();
+    const refreshTimer = window.setTimeout(() => void refreshPending(), 0);
     const onOnline = () => {
       setIsOnline(true);
     };
@@ -104,6 +104,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     return () => {
+      clearTimeout(refreshTimer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
@@ -134,13 +135,16 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       }
 
-      for (const fail of res.failed) {
-        if (CONFLICT_CODES.has(fail.code)) {
-          await salesRepo.markEventConflict(fail.id);
-        } else if (REJECTED_CODES.has(fail.code)) {
-          await salesRepo.markEventRejected(fail.id);
-        }
-      }
+      await Promise.all(
+        res.failed.map((fail) => {
+          if (CONFLICT_CODES.has(fail.code)) {
+            return salesRepo.markEventConflict(fail.id);
+          }
+          return REJECTED_CODES.has(fail.code)
+            ? salesRepo.markEventRejected(fail.id)
+            : undefined;
+        })
+      );
 
       const hasRetryable = res.failed.some((f) => isRetryable(f.code));
 
@@ -161,6 +165,10 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [refreshPending, resetRetry, scheduleRetry]);
 
   useEffect(() => {
+    syncNowRef.current = syncNow;
+  }, [syncNow]);
+
+  useEffect(() => {
     if (isOnline) {
       const t = setTimeout(() => {
         syncNow();
@@ -169,14 +177,15 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [isOnline, syncNow]);
 
-  useEffect(() => {
-    return () => {
-      resetRetry();
-    };
-  }, [resetRetry]);
+  useEffect(() => () => resetRetry(), [resetRetry]);
+
+  const contextValue = useMemo(
+    () => ({ isOnline, pendingCount, status, syncNow }),
+    [isOnline, pendingCount, status, syncNow]
+  );
 
   return (
-    <SyncContext.Provider value={{ isOnline, pendingCount, status, syncNow }}>
+    <SyncContext.Provider value={contextValue}>
       {children}
     </SyncContext.Provider>
   );

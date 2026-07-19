@@ -48,4 +48,6 @@ export function AvatarFallback({
   );
 }
 
-export { AvatarPrimitive };
+
+
+export { Avatar as AvatarPrimitive } from "@base-ui/react/avatar";

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -43,19 +43,11 @@ export function EditSupplierDialog({
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors },
   } = useForm<SupplierFormData>({
-    defaultValues: defaultSupplierFormValues,
     resolver: zodResolver(supplierFormSchema),
+    values: supplier ? supplierToFormData(supplier) : defaultSupplierFormValues,
   });
-
-  useEffect(() => {
-    if (supplier) {
-      reset(supplierToFormData(supplier));
-      setError(null);
-    }
-  }, [supplier, reset]);
 
   const onSubmit = async (data: SupplierFormData) => {
     if (!supplier) {

@@ -5,7 +5,9 @@ import type React from "react";
 
 import { cn } from "@/lib/utils";
 
-export const Popover: typeof PopoverPrimitive.Root = PopoverPrimitive.Root;
+const PopoverRoot = PopoverPrimitive.Root;
+
+export { PopoverRoot as Popover };
 
 export function PopoverTrigger({
   className,
@@ -74,4 +76,4 @@ export function PopoverPopup({
   );
 }
 
-export { PopoverPrimitive, PopoverPopup as PopoverContent };
+export { PopoverPopup as PopoverContent };

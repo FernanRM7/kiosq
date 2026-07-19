@@ -10,7 +10,7 @@ export interface TeamMember {
   status: string;
 }
 
-async function fetchTeam(): Promise<TeamMember[]> {
+function fetchTeam(): Promise<TeamMember[]> {
   return request<TeamMember[]>("/api/team/members");
 }
 
