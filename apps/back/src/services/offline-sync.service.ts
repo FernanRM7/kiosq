@@ -6,13 +6,13 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 
+import { PrismaService } from "../lib/prisma.service";
 import {
   InsufficientStockError,
   MissingOfflineIdError,
   ProductNotFoundError,
   SyncError,
 } from "../lib/sync-errors";
-import { PrismaService } from "../lib/prisma.service";
 import type {
   SyncEventInput,
   SyncFailedItem,
@@ -165,7 +165,7 @@ export class OfflineSyncService {
       throw new MissingOfflineIdError();
     }
 
-    const {branchId} = ctx;
+    const { branchId } = ctx;
 
     if (!branchId) {
       throw new BadRequestException(
@@ -363,7 +363,7 @@ export class OfflineSyncService {
 
     return {
       hasMore,
-      nextCursor: hasMore ? sales[sales.length - 1].id : null,
+      nextCursor: hasMore ? sales.at(-1)?.id : null,
       sales: hasMore ? sales.slice(0, take - 1) : sales,
     };
   }

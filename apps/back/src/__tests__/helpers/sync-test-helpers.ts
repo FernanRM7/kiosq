@@ -1,6 +1,7 @@
+import { jest } from '@jest/globals';
 import type { PrismaService } from "../../lib/prisma.service";
-import type { AuthenticatedSessionResult } from "../../types/session.type";
 import type { SyncPayloadInput } from "../../schemas/sync.schema";
+import type { AuthenticatedSessionResult } from "../../types/session.type";
 
 export function makeMockTransaction(overrides?: {
   productBranchStock?: number;
@@ -13,25 +14,25 @@ export function makeMockTransaction(overrides?: {
   return {
     productBranch: {
       findUnique: jest
-        .fn()
+        .fn<any>()
         .mockResolvedValue(
           found ? { branchId: "branch-1", productId: "prod-1", stock } : null
         ),
-      update: jest.fn().mockResolvedValue({
+      update: jest.fn<any>().mockResolvedValue({
         branchId: "branch-1",
         productId: "prod-1",
         stock: Math.max(0, stock - 2),
       }),
     },
     sale: {
-      create: jest.fn().mockResolvedValue({ id: "sale-1" }),
-      findUnique: jest.fn().mockResolvedValue(overrides?.existingSale ?? null),
+      create: jest.fn<any>().mockResolvedValue({ id: "sale-1" }),
+      findUnique: jest.fn<any>().mockResolvedValue(overrides?.existingSale ?? null),
     },
     saleItem: {
-      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      createMany: jest.fn<any>().mockResolvedValue({ count: 1 }),
     },
     stockMovement: {
-      create: jest.fn().mockResolvedValue({ id: "movement-1" }),
+      create: jest.fn<any>().mockResolvedValue({ id: "movement-1" }),
     },
   };
 }
@@ -89,13 +90,13 @@ export function makeMockPrisma(
   return {
     $transaction: jest.fn((cb: (tx: unknown) => Promise<unknown>) => cb(tx)),
     sale: {
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn<any>().mockResolvedValue([]),
     },
     syncEvent: {
-      create: jest.fn().mockResolvedValue({ id: "sync-event-1" }),
+      create: jest.fn<any>().mockResolvedValue({ id: "sync-event-1" }),
     },
     user: {
-      findUnique: jest.fn().mockResolvedValue(
+      findUnique: jest.fn<any>().mockResolvedValue(
         userOverrides?.userNotFound
           ? null
           : {
@@ -123,8 +124,8 @@ export function makeMockSession(): AuthenticatedSessionResult {
       externalId: null,
       firstName: "Test",
       id: "workos-user-1",
-      lastSignInAt: null,
       lastName: "User",
+      lastSignInAt: null,
       locale: null,
       metadata: {},
       name: "Test User",
