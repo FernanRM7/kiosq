@@ -9,6 +9,9 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { cashierLogin, getCashierLoginErrorMessage } from "@/lib/auth";
 
+const TENANT_SLUG =
+  (import.meta.env["VITE_KIOSK_TENANT_SLUG"] as string | undefined) ?? "";
+
 export function LoginForm() {
   const { error, login, pendingAction } = useAuth();
   const [searchParams] = useSearchParams();
@@ -22,7 +25,7 @@ export function LoginForm() {
   const [cashierCode, setCashierCode] = useState("");
   const [cashierError, setCashierError] = useState<string | null>(null);
   const [cashierPin, setCashierPin] = useState("");
-  const [cashierTenantSlug, setCashierTenantSlug] = useState("");
+  const [cashierTenantSlug, setCashierTenantSlug] = useState(TENANT_SLUG);
   const [isCashierSubmitting, setIsCashierSubmitting] = useState(false);
   const [showCashierLogin, setShowCashierLogin] = useState(false);
 
@@ -129,6 +132,7 @@ export function LoginForm() {
               id="cashier-code"
               placeholder="CJ-123456"
               value={cashierCode}
+              inputMode="text"
               onChange={(event) => setCashierCode(event.target.value)}
             />
           </div>

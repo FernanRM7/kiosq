@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const WINDOWS_ENGINE = "query_engine-windows.dll.node";
 const LINUX_ENGINE = "libquery_engine-rhel-openssl-3.0.x.so.node";
@@ -7,7 +8,9 @@ const preferredEngine =
   process.platform === "win32" ? WINDOWS_ENGINE : LINUX_ENGINE;
 const fallbackEngine =
   process.platform === "win32" ? LINUX_ENGINE : WINDOWS_ENGINE;
-const currentDir = import.meta.dirname;
+// Webpack + Nest watch still need a filesystem path here.
+// eslint-disable-next-line unicorn/prefer-import-meta-properties
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Prisma 6 uses the *library* engine by default (loadLibrary).

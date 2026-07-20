@@ -53,8 +53,9 @@ export class CashierService {
     const tenantSlug = input.tenantSlug.trim().toLowerCase();
     const pin = input.pin.trim();
 
-    const cashier = await this.prisma.user.findFirst({
+    const cashiers = await this.prisma.user.findMany({
       select: {
+        cashierCode: true,
         id: true,
         isActive: true,
         name: true,
@@ -70,12 +71,16 @@ export class CashierService {
         tenantId: true,
       },
       where: {
-        cashierCode,
+        cashierCode: { not: null },
         isActive: true,
         role: "CASHIER",
         tenant: { slug: tenantSlug },
       },
     });
+
+    const cashier = cashiers.find(
+      (user) => user.cashierCode?.trim().toUpperCase() === cashierCode
+    );
 
     if (!cashier || !cashier.pinHash) {
       throw new UnauthorizedException("Credenciales de cajero inválidas");

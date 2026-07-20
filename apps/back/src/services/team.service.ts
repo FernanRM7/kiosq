@@ -79,6 +79,7 @@ export class TeamService {
     const caller = await this.getCallerInfo(callerId);
     const { tenantId } = caller;
     const normalizedEmail = data.email ? data.email.toLowerCase() : undefined;
+    const cashierCode = data.code.trim().toUpperCase();
 
     const pinHash = await bcrypt.hash(data.pin, SALT_ROUNDS);
 
@@ -86,7 +87,7 @@ export class TeamService {
       const result = await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {
-            cashierCode: data.code,
+            cashierCode,
             email: normalizedEmail,
             isActive: true,
             name: data.name,
