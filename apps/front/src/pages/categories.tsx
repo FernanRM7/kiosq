@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   getCategoryColumns,
@@ -13,17 +14,27 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRestoreCategory } from "@/hooks/mutations/use-restore-category";
 import { useCategories } from "@/hooks/queries/use-categories";
+import { useMyTenant } from "@/hooks/queries/use-tenants";
 import type { Category } from "@/lib/categories";
 
 const EMPTY_LIST = { active: [], deleted: [] };
 
 export default function CategoriesPage() {
-  const { data: categories = EMPTY_LIST, error, isLoading } = useCategories();
+  const { data: myTenant, isLoading: isTenantLoading } = useMyTenant();
+  const hasTenant = Boolean(myTenant?.tenant);
+  const {
+    data: categories = EMPTY_LIST,
+    error,
+    isLoading,
+  } = useCategories({
+    enabled: hasTenant,
+  });
   const queryClient = useQueryClient();
   const restoreCategoryMutation = useRestoreCategory();
   const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [deleteCategory, setDeleteCategory] = useState<Category | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const visibleError = hasTenant ? error : null;
 
   const handleSaveCategory = () => {
     queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -54,82 +65,111 @@ export default function CategoriesPage() {
     [handleRestoreCategory]
   );
 
+  let statusMessage: ReactNode = null;
+  let categoryContent: ReactNode = null;
+
+  if (isTenantLoading) {
+    statusMessage = (
+      <p className="text-muted-foreground text-sm">Verificando tu negocio...</p>
+    );
+  } else if (!hasTenant) {
+    statusMessage = (
+      <p className="text-muted-foreground text-sm">
+        Crea o activa un negocio para ver y administrar las categorías.
+      </p>
+    );
+  }
+
+  if (hasTenant) {
+    categoryContent = isLoading ? (
+      <p className="text-muted-foreground text-sm">Cargando categorías...</p>
+    ) : (
+      <Tabs defaultValue="active">
+        <TabsList>
+          <TabsTrigger value="active">
+            Activas ({categories.active.length})
+          </TabsTrigger>
+          <TabsTrigger value="deleted">
+            Eliminadas ({categories.deleted.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active" className="mt-4">
+          {categories.active.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No hay categorías activas. Crea una con el botón "Nueva
+              categoría".
+            </p>
+          ) : (
+            <DataTable columns={activeColumns} data={categories.active} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="deleted" className="mt-4">
+          {categories.deleted.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No hay categorías eliminadas.
+            </p>
+          ) : (
+            <DataTable columns={deletedColumns} data={categories.deleted} />
+          )}
+        </TabsContent>
+      </Tabs>
+    );
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="font-semibold text-lg">Categorías</h1>
-        <Button onClick={() => setCreateOpen(true)}>Nueva categoría</Button>
+        {hasTenant && (
+          <Button onClick={() => setCreateOpen(true)}>Nueva categoría</Button>
+        )}
       </div>
-      {error && (
+      {statusMessage}
+      {visibleError && (
         <p className="mb-4 text-destructive text-sm">
-          {error instanceof Error
-            ? error.message
+          {visibleError instanceof Error
+            ? visibleError.message
             : "No se pudieron cargar las categorías"}
         </p>
       )}
-      {isLoading ? (
-        <p className="text-muted-foreground text-sm">Cargando categorías...</p>
-      ) : (
-        <Tabs defaultValue="active">
-          <TabsList>
-            <TabsTrigger value="active">
-              Activas ({categories.active.length})
-            </TabsTrigger>
-            <TabsTrigger value="deleted">
-              Eliminadas ({categories.deleted.length})
-            </TabsTrigger>
-          </TabsList>
+      {categoryContent}
 
-          <TabsContent value="active" className="mt-4">
-            {categories.active.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No hay categorías activas. Crea una con el botón "Nueva
-                categoría".
-              </p>
-            ) : (
-              <DataTable columns={activeColumns} data={categories.active} />
-            )}
-          </TabsContent>
-
-          <TabsContent value="deleted" className="mt-4">
-            {categories.deleted.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No hay categorías eliminadas.
-              </p>
-            ) : (
-              <DataTable columns={deletedColumns} data={categories.deleted} />
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {restoreCategoryMutation.isPending && (
+      {hasTenant && restoreCategoryMutation.isPending && (
         <p className="mt-2 text-muted-foreground text-sm">Restaurando...</p>
       )}
 
-      <CreateCategoryDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {hasTenant && (
+        <>
+          <CreateCategoryDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+          />
 
-      <EditCategoryDialog
-        category={editCategory}
-        open={editCategory !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditCategory(null);
-          }
-        }}
-        onSave={handleSaveCategory}
-      />
+          <EditCategoryDialog
+            category={editCategory}
+            open={editCategory !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditCategory(null);
+              }
+            }}
+            onSave={handleSaveCategory}
+          />
 
-      <DeleteCategoryDialog
-        category={deleteCategory}
-        open={deleteCategory !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteCategory(null);
-          }
-        }}
-        onDelete={handleDeleteCategory}
-      />
+          <DeleteCategoryDialog
+            category={deleteCategory}
+            open={deleteCategory !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setDeleteCategory(null);
+              }
+            }}
+            onDelete={handleDeleteCategory}
+          />
+        </>
+      )}
     </div>
   );
 }

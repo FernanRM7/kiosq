@@ -843,29 +843,31 @@ function EditCashierDialog({
   );
 }
 
-export function DashboardContent() {
-  const {
-    data: tenantData,
-    error: tenantError,
-    isLoading: isTenantLoading,
-  } = useMyTenant();
-  const {
-    data: products = [],
-    error: productsError,
-    isLoading: isProductsLoading,
-  } = useProducts();
-  const {
-    data: sales = [],
-    error: salesError,
-    isLoading: isSalesLoading,
-  } = useSales();
-  const updateTenantSettingsMutation = useUpdateTenantSettings();
+interface CashierManagementPanelProps {
+  canAddCashier: boolean;
+  canManageCashiers: boolean;
+  cashierLabel: string;
+  cashierLimit: number;
+  cashierSlotsLeft: number;
+  now: Date;
+  productCostMap: Map<string, number>;
+  sales: Sale[];
+  tenant: TenantData;
+}
+
+function CashierManagementPanel({
+  canAddCashier,
+  canManageCashiers,
+  cashierLabel,
+  cashierLimit,
+  cashierSlotsLeft,
+  now,
+  productCostMap,
+  sales,
+  tenant,
+}: CashierManagementPanelProps) {
   const createCashierMutation = useCreateCashier();
   const updateCashierMutation = useUpdateCashier();
-  const [isOpeningCashDialogOpen, setIsOpeningCashDialogOpen] = useState(false);
-  const [openingCashDraft, setOpeningCashDraft] = useState(
-    String(DEFAULT_OPENING_CASH)
-  );
   const [isCashierDialogOpen, setIsCashierDialogOpen] = useState(false);
   const [isEditCashierDialogOpen, setIsEditCashierDialogOpen] = useState(false);
   const [cashierName, setCashierName] = useState("");
@@ -874,76 +876,6 @@ export function DashboardContent() {
   const [editingCashierPin, setEditingCashierPin] = useState("");
   const [latestCashierCredential, setLatestCashierCredential] =
     useState<CashierCredential | null>(null);
-
-  const isLoading = isTenantLoading || isProductsLoading || isSalesLoading;
-  const error = tenantError ?? productsError ?? salesError;
-
-  const tenant = tenantData?.tenant;
-
-  if (isLoading) {
-    return (
-      <p className="text-muted-foreground text-sm">Cargando estadísticas...</p>
-    );
-  }
-
-  if (error) {
-    const errorMessage = formatDashboardError(error);
-
-    return (
-      <p className="text-destructive text-sm" role="alert">
-        {errorMessage}
-      </p>
-    );
-  }
-
-  if (!tenant) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Sin negocio activo</CardTitle>
-          <CardDescription>
-            Crea o selecciona un negocio para ver las métricas del panel.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const now = new Date();
-  const productCostMap = getProductCostMap(products);
-  const summary = buildPeriodSummary(sales, now, productCostMap);
-  const openingCash = getOpeningCash(tenant.settings);
-  const cashierLimit = Math.max((tenant.plan?.maxUsers ?? 3) - 1, 0);
-  const totalCashiers = tenant.users.length;
-  const cashierLabel = getCashierLabel(totalCashiers);
-  const cashierSlotsLeft = Math.max(cashierLimit - totalCashiers, 0);
-  const canManageCashiers = tenantData?.role !== "CASHIER";
-  const canAddCashier = canManageCashiers && cashierSlotsLeft > 0;
-
-  function handleOpenOpeningCashDialog() {
-    if (!canManageCashiers) {
-      return;
-    }
-
-    updateTenantSettingsMutation.reset();
-    setOpeningCashDraft(String(openingCash));
-    setIsOpeningCashDialogOpen(true);
-  }
-
-  function handleOpeningCashSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    updateTenantSettingsMutation.mutate(
-      {
-        cashOpeningAmount: Number(openingCashDraft),
-      },
-      {
-        onSuccess: () => {
-          setIsOpeningCashDialogOpen(false);
-        },
-      }
-    );
-  }
 
   function handleOpenCashierDialog() {
     if (!canAddCashier) {
@@ -1037,47 +969,10 @@ export function DashboardContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          description="Ventas completadas hoy"
-          icon={DollarSign}
-          title="Ventas del día"
-          value={formatMoney(summary.todaySales)}
-        />
-        <MetricCard
-          description="Monto base para el corte de caja"
-          icon={Banknote}
-          title="Fondo inicial"
-          value={formatMoney(openingCash)}
-          action={
-            canManageCashiers ? (
-              <Button
-                onClick={handleOpenOpeningCashDialog}
-                size="xs"
-                variant="outline"
-              >
-                <PencilLine className="size-4" />
-                Editar
-              </Button>
-            ) : undefined
-          }
-        />
-        <MetricCard
-          description="Utilidad estimada con costos registrados"
-          icon={TrendingUp}
-          title="Ganancia semanal"
-          value={formatMoney(summary.weeklyProfit)}
-        />
-        <TopProductCard
-          quantity={summary.topProduct.quantity}
-          title={summary.topProduct.name}
-        />
-      </div>
-
+    <>
       <CashierSection
-        canManageCashiers={canManageCashiers}
         canAddCashier={canAddCashier}
+        canManageCashiers={canManageCashiers}
         cashierLabel={cashierLabel}
         cashierLimit={cashierLimit}
         cashierSlotsLeft={cashierSlotsLeft}
@@ -1112,20 +1007,6 @@ export function DashboardContent() {
           </CardPanel>
         </Card>
       )}
-
-      <OpeningCashDialog
-        error={
-          updateTenantSettingsMutation.error instanceof Error
-            ? updateTenantSettingsMutation.error
-            : null
-        }
-        isPending={updateTenantSettingsMutation.isPending}
-        onOpenChange={setIsOpeningCashDialogOpen}
-        onSubmit={handleOpeningCashSubmit}
-        onValueChange={setOpeningCashDraft}
-        open={isOpeningCashDialogOpen}
-        value={openingCashDraft}
-      />
 
       <CashierDialog
         error={
@@ -1163,6 +1044,172 @@ export function DashboardContent() {
         onSubmit={handleEditCashierSubmit}
         open={isEditCashierDialogOpen}
         pinValue={editingCashierPin}
+      />
+    </>
+  );
+}
+
+// eslint-disable-next-line complexity
+export function DashboardContent() {
+  const {
+    data: tenantData,
+    error: tenantError,
+    isLoading: isTenantLoading,
+  } = useMyTenant();
+  const hasTenant = Boolean(tenantData?.tenant);
+  const {
+    data: products = [],
+    error: productsError,
+    isLoading: isProductsLoading,
+  } = useProducts({ enabled: hasTenant });
+  const {
+    data: sales = [],
+    error: salesError,
+    isLoading: isSalesLoading,
+  } = useSales({ enabled: hasTenant });
+  const updateTenantSettingsMutation = useUpdateTenantSettings();
+  const [isOpeningCashDialogOpen, setIsOpeningCashDialogOpen] = useState(false);
+  const [openingCashDraft, setOpeningCashDraft] = useState(
+    String(DEFAULT_OPENING_CASH)
+  );
+
+  const isLoading =
+    isTenantLoading ||
+    (hasTenant && isProductsLoading) ||
+    (hasTenant && isSalesLoading);
+  const error =
+    tenantError ?? (hasTenant ? (productsError ?? salesError) : null);
+
+  const tenant = tenantData?.tenant;
+
+  if (isLoading) {
+    return (
+      <p className="text-muted-foreground text-sm">Cargando estadísticas...</p>
+    );
+  }
+
+  if (error) {
+    const errorMessage = formatDashboardError(error);
+
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        {errorMessage}
+      </p>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Sin negocio activo</CardTitle>
+          <CardDescription>
+            Crea o selecciona un negocio para ver las métricas del panel.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const now = new Date();
+  const productCostMap = getProductCostMap(products);
+  const summary = buildPeriodSummary(sales, now, productCostMap);
+  const openingCash = getOpeningCash(tenant.settings);
+  const cashierLimit = Math.max((tenant.plan?.maxUsers ?? 3) - 1, 0);
+  const totalCashiers = tenant.users.length;
+  const cashierLabel = getCashierLabel(totalCashiers);
+  const cashierSlotsLeft = Math.max(cashierLimit - totalCashiers, 0);
+  const canManageCashiers = tenantData?.role !== "CASHIER";
+  const canAddCashier = canManageCashiers && cashierSlotsLeft > 0;
+
+  function handleOpenOpeningCashDialog() {
+    if (!canManageCashiers) {
+      return;
+    }
+
+    updateTenantSettingsMutation.reset();
+    setOpeningCashDraft(String(openingCash));
+    setIsOpeningCashDialogOpen(true);
+  }
+
+  function handleOpeningCashSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    updateTenantSettingsMutation.mutate(
+      {
+        cashOpeningAmount: Number(openingCashDraft),
+      },
+      {
+        onSuccess: () => {
+          setIsOpeningCashDialogOpen(false);
+        },
+      }
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          description="Ventas completadas hoy"
+          icon={DollarSign}
+          title="Ventas del día"
+          value={formatMoney(summary.todaySales)}
+        />
+        <MetricCard
+          description="Monto base para el corte de caja"
+          icon={Banknote}
+          title="Fondo inicial"
+          value={formatMoney(openingCash)}
+          action={
+            canManageCashiers && (
+              <Button
+                onClick={handleOpenOpeningCashDialog}
+                size="xs"
+                variant="outline"
+              >
+                <PencilLine className="size-4" />
+                Editar
+              </Button>
+            )
+          }
+        />
+        <MetricCard
+          description="Utilidad estimada con costos registrados"
+          icon={TrendingUp}
+          title="Ganancia semanal"
+          value={formatMoney(summary.weeklyProfit)}
+        />
+        <TopProductCard
+          quantity={summary.topProduct.quantity}
+          title={summary.topProduct.name}
+        />
+      </div>
+
+      <OpeningCashDialog
+        error={
+          updateTenantSettingsMutation.error instanceof Error
+            ? updateTenantSettingsMutation.error
+            : null
+        }
+        isPending={updateTenantSettingsMutation.isPending}
+        onOpenChange={setIsOpeningCashDialogOpen}
+        onSubmit={handleOpeningCashSubmit}
+        onValueChange={setOpeningCashDraft}
+        open={isOpeningCashDialogOpen}
+        value={openingCashDraft}
+      />
+
+      <CashierManagementPanel
+        canAddCashier={canAddCashier}
+        canManageCashiers={canManageCashiers}
+        cashierLabel={cashierLabel}
+        cashierLimit={cashierLimit}
+        cashierSlotsLeft={cashierSlotsLeft}
+        now={now}
+        productCostMap={productCostMap}
+        sales={sales}
+        tenant={tenant}
       />
     </div>
   );

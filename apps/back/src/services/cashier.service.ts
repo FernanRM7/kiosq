@@ -61,6 +61,7 @@ export class CashierService {
             id: true,
             settings: true,
             slug: true,
+            status: true,
           },
         },
         tenantId: true,
@@ -74,6 +75,10 @@ export class CashierService {
     });
 
     if (!cashier || !cashier.pinHash) {
+      throw new UnauthorizedException("Credenciales de cajero inválidas");
+    }
+
+    if (cashier.tenant.status === "CANCELLED") {
       throw new UnauthorizedException("Credenciales de cajero inválidas");
     }
 
@@ -96,7 +101,10 @@ export class CashierService {
 
   async openCashierShift(cashierId: string): Promise<void> {
     const cashier = await this.prisma.user.findUnique({
-      select: { tenantId: true },
+      select: {
+        tenant: { select: { status: true } },
+        tenantId: true,
+      },
       where: { id: cashierId },
     });
 
@@ -104,10 +112,18 @@ export class CashierService {
       throw new BadRequestException("El cajero no existe");
     }
 
+    if (cashier.tenant?.status === "CANCELLED") {
+      throw new BadRequestException("El negocio no está activo");
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
-      select: { settings: true },
+      select: { settings: true, status: true },
       where: { id: cashier.tenantId },
     });
+
+    if (!tenant || tenant.status === "CANCELLED") {
+      throw new BadRequestException("El negocio no está activo");
+    }
 
     await this.prisma.cashierShift.create({
       data: {

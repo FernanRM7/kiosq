@@ -2,6 +2,7 @@ import { pbkdf2Sync, randomBytes, randomInt, randomUUID } from "node:crypto";
 
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -11,7 +12,9 @@ import {
 import { PrismaService } from "../lib/prisma.service";
 import type {
   CreateCashierInput,
+  DeleteTenantInput,
   UpdateCashierInput,
+  UpdateTenantInput,
   UpdateTenantSettingsInput,
 } from "../schemas/tenant-dashboard.schema";
 import { SessionRegistryService } from "./session-registry.service";
@@ -34,6 +37,16 @@ export class TenantService {
       email: string | null;
     }
   ) {
+    const currentUser = await this.findUser(userId);
+
+    if (currentUser?.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para crear un negocio");
+    }
+
+    if (currentUser?.tenant && currentUser.tenant.status !== "CANCELLED") {
+      throw new ConflictException("Ya tienes un negocio registrado");
+    }
+
     const slug = await this.resolveUniqueSlug(this.toSlug(name));
 
     const plan = await this.prisma.plan.findFirst({
@@ -70,7 +83,7 @@ export class TenantService {
 
     const dbUser = await (existingUser
       ? this.prisma.user.update({
-          data: { role: "ADMIN", tenantId: tenant.id },
+          data: { isActive: true, role: "ADMIN", tenantId: tenant.id },
           where: { workosUserId: userId },
         })
       : this.prisma.user.create({
@@ -115,6 +128,8 @@ export class TenantService {
       );
     }
 
+    this.ensureActiveTenant(currentUser);
+
     const tenant = await this.prisma.tenant.findUnique({
       select: { id: true, settings: true },
       where: { id: currentUser.tenantId },
@@ -140,6 +155,77 @@ export class TenantService {
     return this.getTenantByUserId(userId);
   }
 
+  async updateTenant(userId: string, input: UpdateTenantInput) {
+    const currentUser = await this.findUser(userId);
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para editar negocios");
+    }
+
+    this.ensureActiveTenant(currentUser);
+
+    await this.prisma.tenant.update({
+      data: { name: input.name.trim() },
+      where: { id: currentUser.tenantId },
+    });
+
+    this.logger.log(
+      `Tenant updated: ${currentUser.tenantId} for user ${userId}`
+    );
+    return { tenant: await this.getTenantByUserId(userId) };
+  }
+
+  async deleteTenant(userId: string, input: DeleteTenantInput) {
+    const currentUser = await this.findUser(userId);
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para eliminar negocios");
+    }
+
+    this.ensureActiveTenant(currentUser);
+
+    const confirmationName = input.confirmationName.trim().toLowerCase();
+    const { tenant, tenantId } = currentUser;
+    const tenantName = tenant?.name.trim().toLowerCase();
+
+    if (!tenantName || confirmationName !== tenantName) {
+      throw new BadRequestException(
+        "La confirmación no coincide con el nombre del negocio"
+      );
+    }
+
+    await this.prisma.tenant.update({
+      data: { status: "CANCELLED" },
+      where: { id: tenantId },
+    });
+
+    await this.prisma.user.updateMany({
+      data: { isActive: false },
+      where: { tenantId },
+    });
+
+    try {
+      await this.prisma.userTenant.deleteMany({
+        where: { tenantId },
+      });
+    } catch {
+      this.logger.warn(
+        `user_tenants table unavailable while deleting tenant ${tenantId}`
+      );
+    }
+
+    this.logger.log(`Tenant deleted: ${tenantId} for user ${userId}`);
+    return { tenant: null };
+  }
+
   async createCashier(userId: string, input: CreateCashierInput) {
     const currentUser = await this.findUser(userId);
 
@@ -150,6 +236,8 @@ export class TenantService {
     if (currentUser.role === "CASHIER") {
       throw new ForbiddenException("No tienes permisos para crear cajeros");
     }
+
+    this.ensureActiveTenant(currentUser);
 
     const tenant = await this.prisma.tenant.findUnique({
       select: {
@@ -240,6 +328,8 @@ export class TenantService {
       throw new ForbiddenException("No tienes permisos para editar cajeros");
     }
 
+    this.ensureActiveTenant(currentUser);
+
     const cashier = await this.prisma.user.findFirst({
       select: {
         id: true,
@@ -295,8 +385,8 @@ export class TenantService {
     };
   }
 
-  getTenantByUserId(userId: string) {
-    return this.prisma.user.findFirst({
+  async getTenantByUserId(userId: string) {
+    const user = await this.prisma.user.findFirst({
       select: {
         email: true,
         id: true,
@@ -355,6 +445,12 @@ export class TenantService {
         OR: [{ id: userId }, { workosUserId: userId }],
       },
     });
+
+    if (user?.tenant?.status === "CANCELLED") {
+      return null;
+    }
+
+    return user;
   }
 
   async listUserTenants(userId: string) {
@@ -368,7 +464,10 @@ export class TenantService {
       const userTenants = await this.prisma.userTenant.findMany({
         include: { tenant: true },
         orderBy: { joinedAt: "asc" },
-        where: { userId: user.id },
+        where: {
+          tenant: { status: { not: "CANCELLED" } },
+          userId: user.id,
+        },
       });
 
       return userTenants.map((ut) => ({
@@ -394,6 +493,7 @@ export class TenantService {
         SELECT id, name, slug, status::text, "createdAt"
         FROM tenants
         WHERE settings->>'createdByWorkosUserId' = ${user.workosUserId ?? userId}
+          AND status <> 'CANCELLED'
         ORDER BY "createdAt" ASC
       `;
 
@@ -421,7 +521,11 @@ export class TenantService {
         }
       }
 
-      if (user.tenant && !seen.has(user.tenant.id)) {
+      if (
+        user.tenant &&
+        user.tenant.status !== "CANCELLED" &&
+        !seen.has(user.tenant.id)
+      ) {
         result.push({
           id: user.tenant.id,
           joinedAt: user.createdAt.toISOString(),
@@ -454,7 +558,11 @@ export class TenantService {
 
     try {
       const membership = await this.prisma.userTenant.findUnique({
-        include: { tenant: { select: { id: true, name: true, slug: true } } },
+        include: {
+          tenant: {
+            select: { id: true, name: true, slug: true, status: true },
+          },
+        },
         where: {
           userId_tenantId: { tenantId, userId: user.id },
         },
@@ -462,6 +570,10 @@ export class TenantService {
 
       if (!membership) {
         throw new ForbiddenException("No perteneces a este workspace");
+      }
+
+      if (membership.tenant.status === "CANCELLED") {
+        throw new NotFoundException("El workspace no existe");
       }
     } catch (error) {
       if (
@@ -474,11 +586,15 @@ export class TenantService {
         );
         // Table may not exist — verify tenant exists
         const tenant = await this.prisma.tenant.findUnique({
-          select: { id: true, name: true, slug: true },
+          select: { id: true, name: true, slug: true, status: true },
           where: { id: tenantId },
         });
 
         if (!tenant) {
+          throw new NotFoundException("El workspace no existe");
+        }
+
+        if (tenant.status === "CANCELLED") {
           throw new NotFoundException("El workspace no existe");
         }
 
@@ -513,11 +629,15 @@ export class TenantService {
     }
 
     const tenant = await this.prisma.tenant.findUnique({
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, status: true },
       where: { id: tenantId },
     });
 
     if (!tenant) {
+      throw new NotFoundException("El workspace no existe");
+    }
+
+    if (tenant.status === "CANCELLED") {
       throw new NotFoundException("El workspace no existe");
     }
 
@@ -565,6 +685,14 @@ export class TenantService {
         OR: [{ id: userId }, { workosUserId: userId }],
       },
     });
+  }
+
+  private ensureActiveTenant(currentUser: {
+    tenant: { status: string } | null;
+  }): void {
+    if (!currentUser.tenant || currentUser.tenant.status === "CANCELLED") {
+      throw new NotFoundException("Negocio no encontrado");
+    }
   }
 
   private getCashierLimit(maxUsers: number | undefined | null): number {

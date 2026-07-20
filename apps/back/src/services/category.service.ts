@@ -198,14 +198,18 @@ export class CategoryService {
     }
 
     const user = await this.prisma.user.findUnique({
-      select: { isActive: true, tenantId: true },
+      select: {
+        isActive: true,
+        tenant: { select: { status: true } },
+        tenantId: true,
+      },
       where:
         session.authType === "cashier"
           ? { id: session.userId }
           : { workosUserId: session.userId },
     });
 
-    if (!user?.isActive) {
+    if (!user?.isActive || user.tenant?.status === "CANCELLED") {
       throw new ForbiddenException("Debes tener un workspace activo");
     }
 

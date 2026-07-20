@@ -11,6 +11,22 @@ export const UpdateTenantSettingsSchema = z.object({
     ),
 });
 
+export const UpdateTenantSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "El nombre del negocio es obligatorio")
+    .max(120, "El negocio debe tener máximo 120 caracteres"),
+});
+
+export const DeleteTenantSchema = z.object({
+  confirmationName: z
+    .string()
+    .trim()
+    .min(2, "Debes escribir el nombre del negocio")
+    .max(120, "El nombre debe tener máximo 120 caracteres"),
+});
+
 export const CreateCashierSchema = z.object({
   name: z
     .string()
@@ -42,5 +58,7 @@ export const UpdateCashierSchema = z
 export type UpdateTenantSettingsInput = z.infer<
   typeof UpdateTenantSettingsSchema
 >;
+export type UpdateTenantInput = z.infer<typeof UpdateTenantSchema>;
+export type DeleteTenantInput = z.infer<typeof DeleteTenantSchema>;
 export type CreateCashierInput = z.infer<typeof CreateCashierSchema>;
 export type UpdateCashierInput = z.infer<typeof UpdateCashierSchema>;

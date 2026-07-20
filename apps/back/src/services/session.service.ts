@@ -245,12 +245,22 @@ export class SessionService {
         isActive: true,
         name: true,
         role: true,
+        tenant: {
+          select: {
+            status: true,
+          },
+        },
         tenantId: true,
       },
       where: { id: payload.userId },
     });
 
-    if (!user || !user.isActive || user.role !== "CASHIER") {
+    if (
+      !user ||
+      !user.isActive ||
+      user.role !== "CASHIER" ||
+      user.tenant?.status === "CANCELLED"
+    ) {
       return { authenticated: false, reason: "cashier_session_invalid" };
     }
 
@@ -291,6 +301,43 @@ export class SessionService {
     };
   }
 
+  private async ensureRedisSessionActive(
+    userId: string,
+    sessionId: string,
+    options: {
+      failureMessage: string;
+      revokedMessage: string;
+      touchHeartbeat?: boolean;
+    }
+  ): Promise<boolean> {
+    if (!sessionId) {
+      return true;
+    }
+
+    try {
+      const isActive = await this.sessionRegistry.isSessionActive(
+        userId,
+        sessionId
+      );
+
+      if (!isActive) {
+        this.logger.warn(options.revokedMessage);
+        return false;
+      }
+
+      if (options.touchHeartbeat) {
+        await this.sessionRegistry.touchSession(userId, sessionId).catch(() => {
+          // Non-critical: a failed heartbeat does not invalidate the session
+        });
+      }
+
+      return true;
+    } catch {
+      this.logger.warn(options.failureMessage);
+      return true;
+    }
+  }
+
   private async handleAuthenticatedWorkosSession(
     session: ReturnType<
       typeof this.authService.workos.userManagement.loadSealedSession
@@ -301,40 +348,25 @@ export class SessionService {
     const sessionId = String(result.sessionId ?? "");
     const userId = result.user.id;
 
-    // Strict revocation check: if the session is absent from Redis it was
-    // explicitly revoked. Only a genuine Redis error (throw) is treated as
-    // non-critical (fail-open) — a clean false return means revoked.
-    if (sessionId) {
-      try {
-        const isActive = await this.sessionRegistry.isSessionActive(
-          userId,
-          sessionId
-        );
-
-        if (!isActive) {
-          this.logger.warn(
-            `Session ${sessionId} is not active in Redis — rejecting (session_revoked)`
-          );
-          return { authenticated: false, reason: "session_revoked" };
-        }
-
-        // Session is active — update the heartbeat timestamp (non-critical)
-        await this.sessionRegistry.touchSession(userId, sessionId).catch(() => {
-          // Non-critical: a failed heartbeat does not invalidate the session
-        });
-      } catch {
-        // Redis is unavailable — fail-open. WorkOS sealed session is the
-        // primary auth mechanism; we cannot revoke sessions while Redis is down,
-        // but we should not lock out all users either.
-        this.logger.warn(
-          `Redis unavailable during session check for ${sessionId} — allowing request through`
-        );
-      }
-    }
-
     this.logger.debug(`Session authenticated for user ${userId}`);
 
     const localUser = await this.resolveLocalUserByWorkosUserId(userId);
+    const sessionIsActive = await this.ensureRedisSessionActive(
+      userId,
+      sessionId,
+      {
+        failureMessage: `Redis unavailable during session check for ${sessionId} — allowing request through`,
+        revokedMessage: `Session ${sessionId} is not active in Redis — rejecting (session_revoked)`,
+        touchHeartbeat: true,
+      }
+    );
+
+    if (!sessionIsActive) {
+      return { authenticated: false, reason: "session_revoked" };
+    }
+
+    const tenantId =
+      localUser?.tenantStatus === "CANCELLED" ? undefined : localUser?.tenantId;
     const authenticatedResult: SessionResult = {
       accessToken: result.accessToken,
       authType: "workos",
@@ -345,7 +377,7 @@ export class SessionService {
         : undefined,
       role: result.role ? String(result.role) : undefined,
       sessionId,
-      tenantId: localUser?.tenantId,
+      tenantId,
       user: {
         ...result.user,
         email: result.user.email ?? null,
@@ -407,16 +439,33 @@ export class SessionService {
     }
   }
 
-  private resolveLocalUserByWorkosUserId(
-    workosUserId: string
-  ): Promise<{ id: string; tenantId: string } | null> {
-    return this.prisma.user.findUnique({
-      select: {
-        id: true,
-        tenantId: true,
-      },
-      where: { workosUserId },
-    });
+  private resolveLocalUserByWorkosUserId(workosUserId: string): Promise<{
+    id: string;
+    tenantId: string;
+    tenantStatus: string | null;
+  } | null> {
+    return this.prisma.user
+      .findUnique({
+        select: {
+          id: true,
+          tenant: {
+            select: {
+              status: true,
+            },
+          },
+          tenantId: true,
+        },
+        where: { workosUserId },
+      })
+      .then((user) =>
+        user
+          ? {
+              id: user.id,
+              tenantId: user.tenantId,
+              tenantStatus: user.tenant?.status ?? null,
+            }
+          : null
+      );
   }
 
   private buildDisplayName(input: {
@@ -456,21 +505,16 @@ export class SessionService {
 
       // Check if this session has been revoked — wrap in try/catch so a Redis
       // outage during refresh does not kill the entire refresh flow.
-      let isActive = true;
-      try {
-        isActive = await this.sessionRegistry.isSessionActive(
-          userId,
-          sessionId
-        );
-      } catch {
-        // Redis unavailable — fail-open for the same reason as authenticateSession
-        this.logger.warn(
-          `Redis unavailable during refresh session check for ${sessionId} — allowing refresh through`
-        );
-      }
+      const sessionIsActive = await this.ensureRedisSessionActive(
+        userId,
+        sessionId,
+        {
+          failureMessage: `Redis unavailable during refresh session check for ${sessionId} — allowing refresh through`,
+          revokedMessage: `Refreshed session ${sessionId} has been revoked`,
+        }
+      );
 
-      if (!isActive && sessionId) {
-        this.logger.warn(`Refreshed session ${sessionId} has been revoked`);
+      if (!sessionIsActive) {
         return { authenticated: false, reason: "session_revoked" };
       }
 
@@ -486,6 +530,10 @@ export class SessionService {
       );
 
       const localUser = await this.resolveLocalUserByWorkosUserId(userId);
+      const tenantId =
+        localUser?.tenantStatus === "CANCELLED"
+          ? undefined
+          : localUser?.tenantId;
 
       return {
         accessToken: refreshResult.session?.accessToken ?? "",
@@ -497,7 +545,7 @@ export class SessionService {
           : undefined,
         role: refreshResult.role ? String(refreshResult.role) : undefined,
         sessionId,
-        tenantId: localUser?.tenantId,
+        tenantId,
         user: {
           ...refreshResult.user,
           email: refreshResult.user.email ?? null,

@@ -13,6 +13,7 @@ import RegisterPage from "@/pages/register";
 import SalesPage from "@/pages/sales";
 import SettingsPage from "@/pages/settings";
 import SuppliersPage from "@/pages/suppliers";
+import SupportPage from "@/pages/support";
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="sales" element={<SalesPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="support" element={<SupportPage />} />
           </Route>
         </Route>
 
