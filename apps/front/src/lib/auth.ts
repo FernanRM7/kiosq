@@ -16,10 +16,11 @@ export interface HealthStatus {
 /** Shape of the authenticated user returned by GET /me */
 export interface MeUser {
   id: string;
-  email: string;
+  email: string | null;
   firstName: string | null;
   lastName: string | null;
   emailVerified: boolean;
+  name: string;
   organizationId: string | undefined;
   role: string | undefined;
 }
@@ -105,8 +106,25 @@ export interface TenantSettingsInput {
 }
 
 export interface CreateCashierResponse {
+  cashierCode: string;
   tenant: MyTenantData | null;
   temporaryPin: string;
+}
+
+export interface UpdateCashierResponse {
+  cashier: {
+    cashierCode: string | null;
+    id: string;
+    name: string;
+  };
+  tenant: MyTenantData | null;
+  temporaryPin?: string;
+}
+
+export interface CashierLoginInput {
+  cashierCode: string;
+  pin: string;
+  tenantSlug: string;
 }
 
 export function updateMyTenantSettings(
@@ -118,10 +136,53 @@ export function updateMyTenantSettings(
   });
 }
 
+export function updateTenant(data: {
+  name: string;
+}): Promise<{ tenant: MyTenantData | null }> {
+  return request<{ tenant: MyTenantData | null }>("/api/tenants/me", {
+    data,
+    method: "PATCH",
+  });
+}
+
+export function deleteTenant(data: {
+  confirmationName: string;
+}): Promise<{ tenant: MyTenantData | null }> {
+  return request<{ tenant: MyTenantData | null }>("/api/tenants/me", {
+    data,
+    method: "DELETE",
+  });
+}
+
 export function createCashier(data: {
   name: string;
 }): Promise<CreateCashierResponse> {
   return request<CreateCashierResponse>("/api/tenants/me/cashiers", {
+    data,
+    method: "POST",
+  });
+}
+
+export function updateCashier(
+  cashierId: string,
+  data: {
+    name?: string;
+    pin?: string;
+  }
+): Promise<UpdateCashierResponse> {
+  return request<UpdateCashierResponse>(
+    `/api/tenants/me/cashiers/${cashierId}`,
+    {
+      data,
+      method: "PATCH",
+    }
+  );
+}
+
+export function cashierLogin(
+  data: CashierLoginInput
+): Promise<{ redirectTo: string }> {
+  return request<{ redirectTo: string }>("/api/auth/cashier/login", {
     data,
     method: "POST",
   });
@@ -142,6 +203,23 @@ export interface MyTenantData {
     };
     settings: Record<string, unknown> | null;
     users: {
+      cashierCode: string | null;
+      cashierShifts: {
+        closedAt: string | null;
+        closingCash: number | null;
+        dailySales: number;
+        id: string;
+        openingCash: number;
+        openedAt: string;
+        soldProducts:
+          | {
+              name: string;
+              quantity: number;
+              total: number;
+            }[]
+          | null;
+        status: string;
+      }[];
       email: string | null;
       id: string;
       isActive: boolean;

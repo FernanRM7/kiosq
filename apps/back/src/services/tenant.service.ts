@@ -446,6 +446,28 @@ export class TenantService {
     };
   }
 
+  // TODO: These methods were recovered from feat/modificaciones-a-todo-el-sas.
+  // They need proper implementation aligned with the current service architecture.
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async updateTenant(_userId: string, _body: unknown): Promise<unknown> {
+    throw new BadRequestException("updateTenant not yet implemented");
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async updateCashier(
+    _userId: string,
+    _cashierId: string,
+    _body: unknown
+  ): Promise<unknown> {
+    throw new BadRequestException("updateCashier not yet implemented");
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async deleteTenant(_userId: string, _body: unknown): Promise<unknown> {
+    throw new BadRequestException("deleteTenant not yet implemented");
+  }
+
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private getCashierLimit(maxUsers: number | undefined | null): number {

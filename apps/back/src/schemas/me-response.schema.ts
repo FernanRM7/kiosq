@@ -11,9 +11,10 @@ export class MeResponseSchema {
   @ApiProperty({
     description: "User email address",
     example: "user@example.com",
+    nullable: true,
     type: String,
   })
-  email: string;
+  email: string | null;
 
   @ApiProperty({
     description: "First name",

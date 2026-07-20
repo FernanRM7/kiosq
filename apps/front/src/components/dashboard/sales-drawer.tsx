@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useCreateSale } from "@/hooks/mutations/use-create-sale";
 import { useProducts } from "@/hooks/queries/use-products";
+import { useMyTenant } from "@/hooks/queries/use-tenants";
 import type { Product } from "@/lib/products";
 
 interface CartItem {
@@ -35,7 +36,9 @@ interface CartItem {
 
 export function SalesDrawer() {
   const [open, setOpen] = useState(false);
-  const { data: products = [] } = useProducts();
+  const { data: myTenant, isLoading: isTenantLoading } = useMyTenant();
+  const hasTenant = Boolean(myTenant?.tenant);
+  const { data: products = [] } = useProducts({ enabled: hasTenant });
   const createSaleMutation = useCreateSale();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
@@ -143,6 +146,7 @@ export function SalesDrawer() {
           variant="outline"
           size="sm"
           className="w-28"
+          disabled={!hasTenant || isTenantLoading}
           onClick={() => setOpen(true)}
         >
           <Plus className="size-4" />
@@ -156,132 +160,144 @@ export function SalesDrawer() {
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="flex flex-col gap-3 px-6">
-            <div className="relative">
-              <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Buscar producto..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+          {hasTenant ? (
+            <>
+              <div className="flex flex-col gap-3 px-6">
+                <div className="relative">
+                  <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Buscar producto..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
 
-            {search && filteredProducts.length > 0 && (
-              <div className="max-h-48 overflow-y-auto rounded-lg border">
-                {filteredProducts.map((product) => {
-                  const alreadyInCart = cartProductIds.has(product.id);
+                {search && filteredProducts.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto rounded-lg border">
+                    {filteredProducts.map((product) => {
+                      const alreadyInCart = cartProductIds.has(product.id);
 
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      disabled={alreadyInCart}
-                      onClick={() => addToCart(product)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{product.name}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {product.sku} — Stock: {product.totalStock}
-                        </span>
-                      </div>
-                      <span className="tabular-nums">
-                        ${product.price.toFixed(2)}
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          disabled={alreadyInCart}
+                          onClick={() => addToCart(product)}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">{product.name}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {product.sku} — Stock: {product.totalStock}
+                            </span>
+                          </div>
+                          <span className="tabular-nums">
+                            ${product.price.toFixed(2)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {cart.map((item) => (
+                  <div
+                    key={item.productId}
+                    className="flex items-center justify-between rounded-lg bg-muted/50 p-3"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm">{item.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        ${item.price.toFixed(2)} c/u — IVA{" "}
+                        {Math.round(item.taxRate * 100)}%
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      <span className="text-muted-foreground text-xs">
+                        Stock max: {item.maxStock}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        onClick={() => updateQuantity(item.productId, -1)}
+                      >
+                        <Minus className="size-3" />
+                      </Button>
+                      <span className="w-6 text-center text-sm tabular-nums">
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        onClick={() => updateQuantity(item.productId, 1)}
+                        disabled={item.quantity >= item.maxStock}
+                      >
+                        <Plus className="size-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => removeItem(item.productId)}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
 
-            {cart.map((item) => (
-              <div
-                key={item.productId}
-                className="flex items-center justify-between rounded-lg bg-muted/50 p-3"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">{item.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    ${item.price.toFixed(2)} c/u — IVA{" "}
-                    {Math.round(item.taxRate * 100)}%
-                  </span>
-                  <span className="text-muted-foreground text-xs">
-                    Stock max: {item.maxStock}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    onClick={() => updateQuantity(item.productId, -1)}
-                  >
-                    <Minus className="size-3" />
-                  </Button>
-                  <span className="w-6 text-center text-sm tabular-nums">
-                    {item.quantity}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon-xs"
-                    onClick={() => updateQuantity(item.productId, 1)}
-                    disabled={item.quantity >= item.maxStock}
-                  >
-                    <Plus className="size-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => removeItem(item.productId)}
-                  >
-                    <Trash2 className="size-3" />
-                  </Button>
-                </div>
+                {cart.length === 0 && !search && (
+                  <p className="py-8 text-center text-muted-foreground text-sm">
+                    Busca y agrega productos para iniciar la venta
+                  </p>
+                )}
               </div>
-            ))}
 
-            {cart.length === 0 && !search && (
-              <p className="py-8 text-center text-muted-foreground text-sm">
-                Busca y agrega productos para iniciar la venta
-              </p>
-            )}
-          </div>
-
-          {cart.length > 0 && (
-            <DrawerFooter>
-              <Separator />
-              <div className="flex flex-col gap-1 pt-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="tabular-nums">${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">IVA</span>
-                  <span className="tabular-nums">${taxAmount.toFixed(2)}</span>
-                </div>
-                <Separator className="my-1" />
-                <div className="flex justify-between font-semibold text-sm">
-                  <span>Total</span>
-                  <span className="tabular-nums">${total.toFixed(2)}</span>
-                </div>
-              </div>
-              {createSaleMutation.error && (
-                <p className="text-destructive text-sm">
-                  {createSaleMutation.error instanceof Error
-                    ? createSaleMutation.error.message
-                    : "No se pudo completar la venta"}
-                </p>
+              {cart.length > 0 && (
+                <DrawerFooter>
+                  <Separator />
+                  <div className="flex flex-col gap-1 pt-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="tabular-nums">
+                        ${subtotal.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">IVA</span>
+                      <span className="tabular-nums">
+                        ${taxAmount.toFixed(2)}
+                      </span>
+                    </div>
+                    <Separator className="my-1" />
+                    <div className="flex justify-between font-semibold text-sm">
+                      <span>Total</span>
+                      <span className="tabular-nums">${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  {createSaleMutation.error && (
+                    <p className="text-destructive text-sm">
+                      {createSaleMutation.error instanceof Error
+                        ? createSaleMutation.error.message
+                        : "No se pudo completar la venta"}
+                    </p>
+                  )}
+                  <Button
+                    className="mt-2 w-full"
+                    onClick={completeSale}
+                    disabled={createSaleMutation.isPending || cart.length === 0}
+                  >
+                    {createSaleMutation.isPending
+                      ? "Procesando..."
+                      : "Completar Venta"}
+                  </Button>
+                </DrawerFooter>
               )}
-              <Button
-                className="mt-2 w-full"
-                onClick={completeSale}
-                disabled={createSaleMutation.isPending || cart.length === 0}
-              >
-                {createSaleMutation.isPending
-                  ? "Procesando..."
-                  : "Completar Venta"}
-              </Button>
-            </DrawerFooter>
+            </>
+          ) : (
+            <p className="px-6 py-4 text-sm text-muted-foreground">
+              Crea o activa un negocio para registrar ventas.
+            </p>
           )}
         </DrawerContentRight>
       </Drawer>

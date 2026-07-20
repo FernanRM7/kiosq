@@ -4,6 +4,7 @@ import type { Control, FieldErrors, UseFormRegister } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCategories } from "@/hooks/queries/use-categories";
+import { useMyTenant } from "@/hooks/queries/use-tenants";
 import type { ProductFormData } from "@/lib/product-form";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,11 @@ export function ProductFormFields({
   idPrefix,
   register,
 }: ProductFormFieldsProps) {
-  const { data: categories = { active: [], deleted: [] } } = useCategories();
+  const { data: myTenant } = useMyTenant();
+  const hasTenant = Boolean(myTenant?.tenant);
+  const { data: categories = { active: [], deleted: [] } } = useCategories({
+    enabled: hasTenant,
+  });
 
   return (
     <div className="grid gap-4">

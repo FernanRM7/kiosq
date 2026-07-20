@@ -13,6 +13,7 @@ interface ApiFailure {
   success: false;
   error?: {
     code?: string;
+    details?: unknown;
     message?: string;
     statusCode?: number;
   };
@@ -23,12 +24,17 @@ type ApiResponse<TData> = ApiSuccess<TData> | ApiFailure;
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code: string | undefined;
+  readonly details: unknown;
 
-  constructor(message: string, options: { code?: string; status: number }) {
+  constructor(
+    message: string,
+    options: { code?: string; details?: unknown; status: number }
+  ) {
     super(message);
     this.name = "ApiClientError";
     this.status = options.status;
     this.code = options.code;
+    this.details = options.details;
   }
 }
 
@@ -60,7 +66,11 @@ export async function request<TData>(
 
       throw new ApiClientError(
         body?.error?.message ?? "La solicitud no pudo completarse.",
-        { code: body?.error?.code, status: error.response.status }
+        {
+          code: body?.error?.code,
+          details: body?.error?.details,
+          status: error.response.status,
+        }
       );
     }
 

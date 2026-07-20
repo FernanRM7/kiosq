@@ -1,8 +1,67 @@
 import type { FormEvent } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { ApiClientError, cashierLogin } from "@/lib/auth";
+
+interface ValidationIssueLike {
+  message: string;
+  path?: string;
+}
+
+function formatCashierLoginError(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    const { details } = error;
+
+    if (Array.isArray(details)) {
+      const messages = details
+        .map((detail) => {
+          if (
+            detail === null ||
+            typeof detail !== "object" ||
+            !("message" in detail) ||
+            typeof (detail as ValidationIssueLike).message !== "string"
+          ) {
+            return null;
+          }
+
+          const issue = detail as ValidationIssueLike;
+
+          if (
+            "path" in issue &&
+            typeof issue.path === "string" &&
+            issue.path !== "(root)"
+          ) {
+            return `${issue.path}: ${issue.message}`;
+          }
+
+          return issue.message;
+        })
+        .filter((message): message is string => message !== null);
+
+      if (messages.length > 0) {
+        return messages.join(" · ");
+      }
+    }
+
+    if (typeof details === "string" && details.trim()) {
+      return details;
+    }
+
+    if (error.message.trim()) {
+      return error.message;
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "No se pudo iniciar sesión como cajero.";
+}
 
 export function LoginForm() {
   const { error, login, pendingAction } = useAuth();
@@ -11,21 +70,49 @@ export function LoginForm() {
   const callbackError = searchParams.get("error");
   const displayedError =
     callbackMessage ??
-    (callbackError ? "Authentication could not be completed." : error);
+    (callbackError ? "No se pudo completar la autenticación." : error);
   const isSubmitting = pendingAction === "login";
+  const [cashierCode, setCashierCode] = useState("");
+  const [cashierError, setCashierError] = useState<string | null>(null);
+  const [cashierPin, setCashierPin] = useState("");
+  const [cashierTenantSlug, setCashierTenantSlug] = useState("");
+  const [isCashierSubmitting, setIsCashierSubmitting] = useState(false);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     void login();
   }
 
+  async function onCashierSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCashierError(null);
+    setIsCashierSubmitting(true);
+
+    try {
+      const response = await cashierLogin({
+        cashierCode: cashierCode.trim(),
+        pin: cashierPin.trim(),
+        tenantSlug: cashierTenantSlug.trim(),
+      });
+
+      window.location.assign(response.redirectTo);
+    } catch (loginError) {
+      setCashierError(formatCashierLoginError(loginError));
+    } finally {
+      setIsCashierSubmitting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 text-white">
       <div className="flex flex-col items-center gap-2 text-center">
         <img src="/logo.jpg" alt="Logo" className="h-10 w-10 rounded-md" />
-        <h1 className="font-semibold text-3xl tracking-tight">Sign in</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">
+          Iniciar sesión
+        </h1>
         <p className="max-w-xs text-sm text-slate-300">
-          Continue with WorkOS AuthKit to access your account.
+          Entra con WorkOS o con tus credenciales de cajero para acceder al
+          sistema.
         </p>
       </div>
       {displayedError ? (
@@ -42,16 +129,69 @@ export function LoginForm() {
           className="w-full bg-white text-slate-950 hover:bg-slate-100"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Opening WorkOS..." : "Continue with WorkOS"}
+          {isSubmitting ? "Abriendo WorkOS..." : "Continuar con WorkOS"}
+        </Button>
+      </form>
+      <Separator className="bg-white/10" />
+      <form onSubmit={onCashierSubmit} className="grid gap-4">
+        <p className="text-sm text-slate-300">
+          Inicia sesión como cajero con el negocio, su código y su PIN.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="cashier-tenant">Negocio</Label>
+          <Input
+            autoComplete="off"
+            id="cashier-tenant"
+            placeholder="slug-del-negocio"
+            value={cashierTenantSlug}
+            onChange={(event) => setCashierTenantSlug(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="cashier-code">Código de cajero</Label>
+          <Input
+            autoComplete="off"
+            id="cashier-code"
+            placeholder="CJ-123456"
+            value={cashierCode}
+            onChange={(event) => setCashierCode(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="cashier-pin">PIN</Label>
+          <Input
+            autoComplete="off"
+            id="cashier-pin"
+            inputMode="numeric"
+            placeholder="••••••"
+            type="password"
+            value={cashierPin}
+            onChange={(event) => setCashierPin(event.target.value)}
+          />
+        </div>
+        {cashierError ? (
+          <div
+            className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-200 text-sm"
+            role="alert"
+          >
+            {cashierError}
+          </div>
+        ) : null}
+        <Button
+          type="submit"
+          className="w-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
+          disabled={isCashierSubmitting}
+        >
+          {isCashierSubmitting ? "Ingresando cajero..." : "Entrar como cajero"}
         </Button>
       </form>
       <p className="text-center text-sm text-slate-400">
-        Don&apos;t have an account?{" "}
+        ¿Todavía no tienes cuenta?{" "}
         <Link
           to="/register"
           className="font-medium text-white underline underline-offset-4 hover:text-slate-200"
         >
-          Sign up
+          Regístrate
         </Link>
       </p>
     </div>

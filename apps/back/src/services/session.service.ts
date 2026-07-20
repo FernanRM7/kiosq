@@ -137,6 +137,7 @@ export class SessionService {
 
       const authenticatedResult: SessionResult = {
         accessToken: result.accessToken,
+        authType: "workos",
         authenticated: true,
         organizationId: result.organizationId
           ? String(result.organizationId)
@@ -354,6 +355,7 @@ export class SessionService {
 
       return {
         accessToken: refreshResult.session?.accessToken ?? "",
+        authType: "workos",
         authenticated: true,
         organizationId: refreshResult.organizationId
           ? String(refreshResult.organizationId)

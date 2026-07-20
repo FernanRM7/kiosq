@@ -117,12 +117,13 @@ export function makeMockPrisma(
 export function makeMockSession(): AuthenticatedSessionResult {
   return {
     accessToken: "mock-token",
+    authType: "workos",
     authenticated: true,
     organizationId: "org-1",
     role: "admin",
     sessionId: "session-1",
     user: {
-      createdAt: "2024-01-01T00:00:00.000Z",
+      createdAt: new Date("2024-01-01T00:00:00.000Z"),
       email: "user@example.com",
       emailVerified: true,
       externalId: null,

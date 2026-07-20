@@ -1,13 +1,31 @@
-import type { User } from "@workos-inc/node";
+export interface SessionUser {
+  email: string | null;
+  emailVerified: boolean;
+  externalId?: string | null;
+  firstName: string | null;
+  id: string;
+  lastName: string | null;
+  lastSignInAt?: Date | null;
+  locale?: string | null;
+  metadata?: unknown;
+  name: string | null;
+  object?: string;
+  profilePictureUrl?: string | null;
+  updatedAt?: Date | string;
+  createdAt?: Date;
+}
 
 /** Successful session authentication result */
 export interface AuthenticatedSessionResult {
   authenticated: true;
+  authType: "workos" | "cashier";
+  dbUserId?: string;
+  tenantId?: string;
   userId: string;
   sessionId: string;
   organizationId: string | undefined;
   role: string | undefined;
-  user: User;
+  user: SessionUser;
   accessToken: string;
 }
 

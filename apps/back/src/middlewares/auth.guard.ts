@@ -68,10 +68,7 @@ export class AuthGuard implements CanActivate {
 
     if (cashierCookie) {
       const result =
-        await this.cashierSessionService.authenticateCashierSession(
-          request,
-          response
-        );
+        await this.cashierSessionService.validateSession(cashierCookie);
 
       if (result.authenticated) {
         this.logger.debug(`Cashier auth success: user=${result.userId}`);

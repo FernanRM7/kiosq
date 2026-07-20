@@ -41,7 +41,17 @@ async function bootstrap(): Promise<INestApplication> {
   }
 
   try {
-    await getRedisClient().connect();
+    const redisClient = getRedisClient();
+    void (async () => {
+      try {
+        await redisClient.connect();
+      } catch (redisError) {
+        logger.warn(
+          { error: redisError },
+          "Redis no disponible — sesiones activas no disponibles"
+        );
+      }
+    })();
   } catch (redisError) {
     logger.warn(
       { error: redisError },

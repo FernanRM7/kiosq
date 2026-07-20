@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -12,7 +13,12 @@ import {
 
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { CreateCashierDto } from "../schemas/create-cashier.dto";
-import { UpdateTenantSettingsDto } from "../schemas/tenant-dashboard.dto";
+import {
+  DeleteTenantDto,
+  UpdateTenantDto,
+  UpdateTenantSettingsDto,
+} from "../schemas/tenant-dashboard.dto";
+import { UpdateCashierDto } from "../schemas/update-cashier.dto";
 import { TenantService } from "../services/tenant.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
@@ -35,7 +41,7 @@ export class TenantController {
     @Body("name") name: string
   ) {
     const tenant = await this.tenantService.createTenant(session.userId, name, {
-      email: session.user.email,
+      email: session.user.email ?? "placeholder@example.com",
       firstName: session.user.firstName,
       lastName: session.user.lastName,
     });
@@ -50,6 +56,15 @@ export class TenantController {
   @HttpCode(HttpStatus.OK)
   getMyTenant(@CurrentUser() session: AuthenticatedSessionResult) {
     return this.tenantService.getTenantByUserId(session.userId);
+  }
+
+  @Patch("me")
+  @HttpCode(HttpStatus.OK)
+  updateMyTenant(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: UpdateTenantDto
+  ) {
+    return this.tenantService.updateTenant(session.userId, body);
   }
 
   @Patch("me/settings")
@@ -72,6 +87,34 @@ export class TenantController {
       userId: session.userId,
     });
     return tenant;
+  }
+
+  @Patch("me/cashiers/:id")
+  @HttpCode(HttpStatus.OK)
+  async updateCashier(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("id") cashierId: string,
+    @Body() body: UpdateCashierDto
+  ) {
+    const tenant = await this.tenantService.updateCashier(
+      session.userId,
+      cashierId,
+      body
+    );
+    this.logger.log(`Cashier updated`, {
+      cashierId,
+      userId: session.userId,
+    });
+    return tenant;
+  }
+
+  @Delete("me")
+  @HttpCode(HttpStatus.OK)
+  deleteMyTenant(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: DeleteTenantDto
+  ) {
+    return this.tenantService.deleteTenant(session.userId, body);
   }
 
   @Post(":id/switch")
