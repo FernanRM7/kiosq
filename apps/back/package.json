@@ -8,7 +8,7 @@
   "main": "dist/main.js",
   "scripts": {
     "postinstall": "prisma generate",
-    "build": "prisma generate && nest build",
+    "build": "prisma generate && nest build && find / -name 'libquery_engine-rhel*' 2>/dev/null || true",
     "start": "node dist/main",
     "check": "ultracite check",
     "fix": "ultracite fix",
