@@ -73,6 +73,11 @@ enum SyncStatus {
   REJECTED
 }
 
+enum CashierShiftStatus {
+  OPEN
+  CLOSED
+}
+
 // ── RBAC ───────────────────────────────────────────
 
 model Permission {
@@ -201,6 +206,7 @@ model Tenant {
   sales          Sale[]
   syncEvents     SyncEvent[]
   stockMovements StockMovement[]
+  cashierShifts  CashierShift[]
   abacPolicies   AbacPolicy[]
 
   @@index([workosOrgId])
@@ -238,6 +244,7 @@ model User {
   /// Bcrypt hash of the PIN for cashier fast-switch (Tauri only).
   /// Null for users authenticated exclusively via WorkOS.
   pinHash      String?
+  cashierCode  String?
   name         String
   role         Role      @default(CASHIER)
   branchId     String?
@@ -250,6 +257,7 @@ model User {
   sessions           Session[]
   sales              Sale[]
   userTenants        UserTenant[]
+  cashierShifts      CashierShift[] @relation("CashierShifts")
   // FIX: dos relaciones nombradas para distinguir permisos propios vs permisos otorgados
   permissions        UserPermission[] @relation("UserPermissions")
   grantedPermissions UserPermission[] @relation("GrantedPermissions")
@@ -258,6 +266,7 @@ model User {
   stockMovements     StockMovement[]
 
   @@unique([tenantId, email])
+  @@unique([tenantId, cashierCode])
   @@index([tenantId, role])
   @@index([workosUserId])
   @@map("users")
@@ -483,6 +492,27 @@ model Sale {
   // FIX: índice para reportes por cajero
   @@index([tenantId, userId])
   @@map("sales")
+}
+
+model CashierShift {
+  id          String             @id @default(cuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashierId   String
+  cashier     User               @relation("CashierShifts", fields: [cashierId], references: [id], onDelete: Cascade)
+  status      CashierShiftStatus @default(OPEN)
+  openedAt    DateTime           @default(now())
+  closedAt    DateTime?
+  openingCash Decimal            @db.Decimal(10, 2)
+  closingCash Decimal?           @db.Decimal(10, 2)
+  dailySales  Decimal            @default(0) @db.Decimal(10, 2)
+  soldProducts Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([tenantId, cashierId, status])
+  @@index([tenantId, openedAt])
+  @@map("cashier_shifts")
 }
 
 // FIX: agregado @@index([saleId]) para lookups de items por venta.

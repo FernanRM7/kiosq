@@ -37,7 +37,7 @@ export class CategoryService {
   async listCategories(
     session: AuthenticatedSessionResult
   ): Promise<CategoryListResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    const tenantId = await this.getTenantId(session);
 
     const [active, deleted] = await Promise.all([
       this.prisma.category.findMany({
@@ -60,7 +60,8 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     input: CreateCategoryInput
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageCategories(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       const category = await this.prisma.category.create({
@@ -85,7 +86,8 @@ export class CategoryService {
     categoryId: string,
     input: UpdateCategoryInput
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageCategories(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -124,7 +126,8 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     categoryId: string
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageCategories(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -157,7 +160,8 @@ export class CategoryService {
     session: AuthenticatedSessionResult,
     categoryId: string
   ): Promise<CategoryResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageCategories(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -186,10 +190,19 @@ export class CategoryService {
     }
   }
 
-  private async getTenantId(userId: string): Promise<string> {
+  private async getTenantId(
+    session: AuthenticatedSessionResult
+  ): Promise<string> {
+    if (session.tenantId) {
+      return session.tenantId;
+    }
+
     const user = await this.prisma.user.findUnique({
       select: { isActive: true, tenantId: true },
-      where: { workosUserId: userId },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
     });
 
     if (!user?.isActive) {
@@ -197,6 +210,14 @@ export class CategoryService {
     }
 
     return user.tenantId;
+  }
+
+  private ensureCanManageCategories(session: AuthenticatedSessionResult): void {
+    if (session.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar categorías"
+      );
+    }
   }
 
   private toResponse(category: CategoryRecord): CategoryResponse {

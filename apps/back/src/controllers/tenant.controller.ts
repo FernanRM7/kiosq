@@ -13,6 +13,7 @@ import {
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { CreateCashierDto } from "../schemas/create-cashier.dto";
 import { UpdateTenantSettingsDto } from "../schemas/tenant-dashboard.dto";
+import { UpdateCashierDto } from "../schemas/update-cashier.dto";
 import { TenantService } from "../services/tenant.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
@@ -69,6 +70,25 @@ export class TenantController {
   ) {
     const tenant = await this.tenantService.createCashier(session.userId, body);
     this.logger.log(`Cashier created`, {
+      userId: session.userId,
+    });
+    return tenant;
+  }
+
+  @Patch("me/cashiers/:id")
+  @HttpCode(HttpStatus.OK)
+  async updateCashier(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("id") cashierId: string,
+    @Body() body: UpdateCashierDto
+  ) {
+    const tenant = await this.tenantService.updateCashier(
+      session.userId,
+      cashierId,
+      body
+    );
+    this.logger.log(`Cashier updated`, {
+      cashierId,
       userId: session.userId,
     });
     return tenant;

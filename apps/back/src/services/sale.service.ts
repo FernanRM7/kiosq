@@ -60,7 +60,7 @@ export class SaleService {
   async listSales(
     session: AuthenticatedSessionResult
   ): Promise<SaleResponse[]> {
-    const tenantId = await this.getTenantId(session.userId);
+    const tenantId = await this.getTenantId(session);
 
     const sales = await this.prisma.sale.findMany({
       include: saleInclude,
@@ -76,11 +76,8 @@ export class SaleService {
     session: AuthenticatedSessionResult,
     input: CreateSaleInput
   ): Promise<SaleResponse> {
-    const tenantId = await this.getTenantId(session.userId);
-    const dbUser = await this.prisma.user.findUnique({
-      select: { branchId: true, id: true },
-      where: { workosUserId: session.userId },
-    });
+    const tenantId = await this.getTenantId(session);
+    const dbUser = await this.getCurrentUser(session);
 
     if (!dbUser) {
       throw new ForbiddenException("Usuario no encontrado en el workspace");
@@ -232,10 +229,19 @@ export class SaleService {
     }
   }
 
-  private async getTenantId(userId: string): Promise<string> {
+  private async getTenantId(
+    session: AuthenticatedSessionResult
+  ): Promise<string> {
+    if (session.tenantId) {
+      return session.tenantId;
+    }
+
     const user = await this.prisma.user.findUnique({
       select: { isActive: true, tenantId: true },
-      where: { workosUserId: userId },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
     });
 
     if (!user?.isActive) {
@@ -243,6 +249,18 @@ export class SaleService {
     }
 
     return user.tenantId;
+  }
+
+  private getCurrentUser(
+    session: AuthenticatedSessionResult
+  ): Promise<{ branchId: string | null; id: string } | null> {
+    return this.prisma.user.findUnique({
+      select: { branchId: true, id: true },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
+    });
   }
 
   private requiredDecimalToNumber(value: { toString: () => string }): number {

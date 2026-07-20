@@ -60,7 +60,7 @@ export class ProductService {
   async listProducts(
     session: AuthenticatedSessionResult
   ): Promise<ProductResponse[]> {
-    const tenantId = await this.getTenantId(session.userId);
+    const tenantId = await this.getTenantId(session);
 
     const products = await this.prisma.product.findMany({
       include: productInclude,
@@ -75,7 +75,8 @@ export class ProductService {
     session: AuthenticatedSessionResult,
     input: CreateProductInput
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageProducts(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -105,11 +106,7 @@ export class ProductService {
         });
 
         if (input.stock && input.stock > 0) {
-          const branchId = await this.resolveBranchId(
-            tx,
-            tenantId,
-            session.userId
-          );
+          const branchId = await this.resolveBranchId(tx, tenantId, session);
           if (branchId) {
             await tx.productBranch.create({
               data: {
@@ -137,7 +134,8 @@ export class ProductService {
     productId: string,
     input: UpdateProductInput
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageProducts(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       // eslint-disable-next-line complexity
@@ -196,11 +194,7 @@ export class ProductService {
           input.stock !== undefined &&
           input.stock !== null
         ) {
-          const branchId = await this.resolveBranchId(
-            tx,
-            tenantId,
-            session.userId
-          );
+          const branchId = await this.resolveBranchId(tx, tenantId, session);
           if (branchId) {
             await tx.productBranch.upsert({
               create: {
@@ -231,7 +225,8 @@ export class ProductService {
     session: AuthenticatedSessionResult,
     productId: string
   ): Promise<ProductResponse> {
-    const tenantId = await this.getTenantId(session.userId);
+    this.ensureCanManageProducts(session);
+    const tenantId = await this.getTenantId(session);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -261,10 +256,19 @@ export class ProductService {
     }
   }
 
-  private async getTenantId(userId: string): Promise<string> {
+  private async getTenantId(
+    session: AuthenticatedSessionResult
+  ): Promise<string> {
+    if (session.tenantId) {
+      return session.tenantId;
+    }
+
     const user = await this.prisma.user.findUnique({
       select: { isActive: true, tenantId: true },
-      where: { workosUserId: userId },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
     });
 
     if (!user?.isActive) {
@@ -274,14 +278,25 @@ export class ProductService {
     return user.tenantId;
   }
 
+  private ensureCanManageProducts(session: AuthenticatedSessionResult): void {
+    if (session.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar productos"
+      );
+    }
+  }
+
   private async resolveBranchId(
     tx: Prisma.TransactionClient,
     tenantId: string,
-    userId: string
+    session: AuthenticatedSessionResult
   ): Promise<string | null> {
     const user = await tx.user.findUnique({
       select: { branchId: true },
-      where: { workosUserId: userId },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
     });
 
     if (user?.branchId) {
@@ -304,7 +319,10 @@ export class ProductService {
 
     await tx.user.update({
       data: { branchId: defaultBranch.id },
-      where: { workosUserId: userId },
+      where:
+        session.authType === "cashier"
+          ? { id: session.userId }
+          : { workosUserId: session.userId },
     });
 
     return defaultBranch.id;

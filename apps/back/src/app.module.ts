@@ -19,6 +19,7 @@ import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
+import { CashierService } from "./services/cashier.service";
 import { CategoryService } from "./services/category.service";
 import { OfflineSyncService } from "./services/offline-sync.service";
 import { ProductService } from "./services/product.service";
@@ -51,6 +52,7 @@ import { UserService } from "./services/user.service";
     PrismaService,
     ProductService,
     CategoryService,
+    CashierService,
     SaleService,
     SessionRegistryService,
     SessionService,

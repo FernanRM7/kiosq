@@ -1,4 +1,4 @@
-import { pbkdf2Sync, randomBytes, randomInt } from "node:crypto";
+import { pbkdf2Sync, randomBytes, randomInt, randomUUID } from "node:crypto";
 
 import {
   BadRequestException,
@@ -11,14 +11,19 @@ import {
 import { PrismaService } from "../lib/prisma.service";
 import type {
   CreateCashierInput,
+  UpdateCashierInput,
   UpdateTenantSettingsInput,
 } from "../schemas/tenant-dashboard.schema";
+import { SessionRegistryService } from "./session-registry.service";
 
 @Injectable()
 export class TenantService {
   private readonly logger = new Logger(TenantService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessionRegistry: SessionRegistryService
+  ) {}
 
   async createTenant(
     userId: string,
@@ -26,7 +31,7 @@ export class TenantService {
     user: {
       firstName?: string | null;
       lastName?: string | null;
-      email: string;
+      email: string | null;
     }
   ) {
     const slug = await this.resolveUniqueSlug(this.toSlug(name));
@@ -55,7 +60,9 @@ export class TenantService {
     });
 
     const userName =
-      [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+      user.email ||
+      "Usuario";
 
     const existingUser = await this.prisma.user.findUnique({
       where: { workosUserId: userId },
@@ -96,13 +103,16 @@ export class TenantService {
   }
 
   async updateTenantSettings(userId: string, input: UpdateTenantSettingsInput) {
-    const currentUser = await this.prisma.user.findUnique({
-      select: { id: true, tenantId: true },
-      where: { workosUserId: userId },
-    });
+    const currentUser = await this.findUser(userId);
 
     if (!currentUser) {
       throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para editar este ajuste"
+      );
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -131,13 +141,14 @@ export class TenantService {
   }
 
   async createCashier(userId: string, input: CreateCashierInput) {
-    const currentUser = await this.prisma.user.findUnique({
-      select: { id: true, tenantId: true },
-      where: { workosUserId: userId },
-    });
+    const currentUser = await this.findUser(userId);
 
     if (!currentUser) {
       throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para crear cajeros");
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -168,10 +179,12 @@ export class TenantService {
       );
     }
 
+    const cashierCode = await this.generateUniqueCashierCode(tenant.id);
     const credentials = this.generateCashierCredentials();
 
     const cashier = await this.prisma.user.create({
       data: {
+        cashierCode,
         email: null,
         isActive: true,
         name: input.name.trim(),
@@ -206,13 +219,84 @@ export class TenantService {
 
     this.logger.log(`Cashier created: ${cashier.id} for tenant ${tenant.id}`);
     return {
+      cashierCode,
       temporaryPin: credentials.pin,
       tenant: await this.getTenantByUserId(userId),
     };
   }
 
+  async updateCashier(
+    userId: string,
+    cashierId: string,
+    input: UpdateCashierInput
+  ) {
+    const currentUser = await this.findUser(userId);
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para editar cajeros");
+    }
+
+    const cashier = await this.prisma.user.findFirst({
+      select: {
+        id: true,
+        name: true,
+        tenantId: true,
+      },
+      where: {
+        id: cashierId,
+        role: "CASHIER",
+        tenantId: currentUser.tenantId,
+      },
+    });
+
+    if (!cashier) {
+      throw new NotFoundException("Cajero no encontrado");
+    }
+
+    const data: {
+      name?: string;
+      pinHash?: string;
+    } = {};
+
+    if (input.name) {
+      data.name = input.name.trim();
+    }
+
+    let temporaryPin: string | undefined;
+
+    if (input.pin) {
+      const credentials = this.generateCashierCredentials(input.pin);
+      data.pinHash = credentials.pinHash;
+      temporaryPin = credentials.pin;
+    }
+
+    const updatedCashier = await this.prisma.user.update({
+      data,
+      select: {
+        cashierCode: true,
+        id: true,
+        name: true,
+      },
+      where: { id: cashier.id },
+    });
+
+    if (input.pin) {
+      await this.sessionRegistry.removeAllSessions(cashier.id);
+    }
+
+    return {
+      cashier: updatedCashier,
+      temporaryPin,
+      tenant: await this.getTenantByUserId(userId),
+    };
+  }
+
   getTenantByUserId(userId: string) {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       select: {
         email: true,
         id: true,
@@ -238,6 +322,21 @@ export class TenantService {
             users: {
               orderBy: { createdAt: "asc" },
               select: {
+                cashierCode: true,
+                cashierShifts: {
+                  orderBy: { openedAt: "desc" },
+                  select: {
+                    closedAt: true,
+                    closingCash: true,
+                    dailySales: true,
+                    id: true,
+                    openedAt: true,
+                    openingCash: true,
+                    soldProducts: true,
+                    status: true,
+                  },
+                  take: 1,
+                },
                 email: true,
                 id: true,
                 isActive: true,
@@ -252,17 +351,14 @@ export class TenantService {
         tenantId: true,
         workosUserId: true,
       },
-      where: { workosUserId: userId },
+      where: {
+        OR: [{ id: userId }, { workosUserId: userId }],
+      },
     });
   }
 
   async listUserTenants(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      include: {
-        tenant: { select: { id: true, name: true, slug: true, status: true } },
-      },
-      where: { workosUserId: userId },
-    });
+    const user = await this.findUser(userId);
 
     if (!user) {
       return [];
@@ -297,7 +393,7 @@ export class TenantService {
       >`
         SELECT id, name, slug, status::text, "createdAt"
         FROM tenants
-        WHERE settings->>'createdByWorkosUserId' = ${userId}
+        WHERE settings->>'createdByWorkosUserId' = ${user.workosUserId ?? userId}
         ORDER BY "createdAt" ASC
       `;
 
@@ -344,13 +440,16 @@ export class TenantService {
     userId: string,
     tenantId: string
   ): Promise<{ id: string; name: string; slug: string }> {
-    const user = await this.prisma.user.findUnique({
-      select: { id: true },
-      where: { workosUserId: userId },
-    });
+    const user = await this.findUser(userId);
 
     if (!user) {
       throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para cambiar de workspace"
+      );
     }
 
     try {
@@ -387,7 +486,7 @@ export class TenantService {
         const rows = await this.prisma.$queryRaw<{ id: string }[]>`
           SELECT id FROM tenants
           WHERE id = ${tenantId}
-            AND settings->>'createdByWorkosUserId' = ${userId}
+            AND settings->>'createdByWorkosUserId' = ${user.workosUserId ?? userId}
         `;
 
         if (rows.length === 0) {
@@ -438,22 +537,75 @@ export class TenantService {
 
   // ─── Private ──────────────────────────────────────────────────────────────
 
+  private findUser(userId: string): Promise<{
+    createdAt: Date;
+    id: string;
+    role: string;
+    tenant: {
+      id: string;
+      name: string;
+      slug: string;
+      status: string;
+    } | null;
+    tenantId: string;
+    workosUserId: string | null;
+  } | null> {
+    return this.prisma.user.findFirst({
+      select: {
+        createdAt: true,
+        id: true,
+        role: true,
+        tenant: {
+          select: { id: true, name: true, slug: true, status: true },
+        },
+        tenantId: true,
+        workosUserId: true,
+      },
+      where: {
+        OR: [{ id: userId }, { workosUserId: userId }],
+      },
+    });
+  }
+
   private getCashierLimit(maxUsers: number | undefined | null): number {
     return Math.max((maxUsers ?? 3) - 1, 0);
   }
 
-  private generateCashierCredentials(): {
+  private generateCashierCredentials(pin?: string): {
     pin: string;
     pinHash: string;
   } {
-    const pin = String(randomInt(100_000, 1_000_000));
+    const resolvedPin = pin?.trim() || String(randomInt(100_000, 1_000_000));
     const salt = randomBytes(16).toString("hex");
-    const hash = pbkdf2Sync(pin, salt, 100_000, 64, "sha256").toString("hex");
+    const hash = pbkdf2Sync(resolvedPin, salt, 100_000, 64, "sha256").toString(
+      "hex"
+    );
 
     return {
-      pin,
+      pin: resolvedPin,
       pinHash: `pbkdf2$100000$${salt}$${hash}`,
     };
+  }
+
+  private async generateUniqueCashierCode(tenantId: string): Promise<string> {
+    const users = await this.prisma.user.findMany({
+      select: { cashierCode: true },
+      where: { cashierCode: { not: null }, tenantId },
+    });
+
+    const existingCodes = new Set(
+      users
+        .map((user) => user.cashierCode)
+        .filter((code): code is string => code !== null && code !== "")
+    );
+
+    let code = "";
+
+    do {
+      code = `CJ-${String(randomInt(100_000, 1_000_000))}`;
+    } while (existingCodes.has(code));
+
+    return code;
   }
 
   private normalizeTenantSettings(settings: unknown): Record<string, unknown> {
@@ -477,7 +629,7 @@ export class TenantService {
       .replaceAll(/^-+|-+$/gu, "");
 
     if (!cleaned) {
-      return `tenant-${crypto.randomUUID().slice(0, 8)}`;
+      return `tenant-${randomUUID().slice(0, 8)}`;
     }
 
     return cleaned;
