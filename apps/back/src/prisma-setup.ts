@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-const ENGINE = "libquery_engine-rhel-openssl-3.0.x.so.node";
+const ENGINE =
+  process.platform === "win32"
+    ? "query_engine-windows.dll.node"
+    : "libquery_engine-rhel-openssl-3.0.x.so.node";
 
 /**
  * Prisma 6 uses the *library* engine by default (loadLibrary).

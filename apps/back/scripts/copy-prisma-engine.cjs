@@ -1,7 +1,10 @@
 const { copyFileSync, existsSync, mkdirSync } = require("node:fs");
 const path = require("node:path");
 
-const ENGINE = "libquery_engine-rhel-openssl-3.0.x.so.node";
+const ENGINE =
+  process.platform === "win32"
+    ? "query_engine-windows.dll.node"
+    : "libquery_engine-rhel-openssl-3.0.x.so.node";
 const root = path.join(__dirname, "..");
 const monorepoRoot = path.join(root, "../..");
 
