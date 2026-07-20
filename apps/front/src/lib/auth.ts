@@ -136,6 +136,24 @@ export function updateMyTenantSettings(
   });
 }
 
+export function updateTenant(data: {
+  name: string;
+}): Promise<{ tenant: MyTenantData | null }> {
+  return request<{ tenant: MyTenantData | null }>("/api/tenants/me", {
+    data,
+    method: "PATCH",
+  });
+}
+
+export function deleteTenant(data: {
+  confirmationName: string;
+}): Promise<{ tenant: MyTenantData | null }> {
+  return request<{ tenant: MyTenantData | null }>("/api/tenants/me", {
+    data,
+    method: "DELETE",
+  });
+}
+
 export function createCashier(data: {
   name: string;
 }): Promise<CreateCashierResponse> {

@@ -7,6 +7,7 @@ export function useMyTenant(enabled = true) {
     enabled,
     queryFn: getMyTenant,
     queryKey: ["my-tenant"] as const,
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -15,5 +16,6 @@ export function useTenants(enabled = true) {
     enabled,
     queryFn: listTenants,
     queryKey: ["tenants"] as const,
+    staleTime: 5 * 60_000,
   });
 }

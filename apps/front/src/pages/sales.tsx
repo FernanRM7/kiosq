@@ -5,15 +5,35 @@ import type { ReactNode } from "react";
 import { SaleDetailDialog } from "@/components/dialogs/sale-detail-dialog";
 import { Card, CardHeader, CardTitle, CardPanel } from "@/components/ui/card";
 import { useSales } from "@/hooks/queries/use-sales";
+import { useMyTenant } from "@/hooks/queries/use-tenants";
 import type { Sale } from "@/lib/sales";
 
 export default function SalesPage() {
-  const { data: sales = [], error, isLoading } = useSales();
+  const { data: myTenant, isLoading: isTenantLoading } = useMyTenant();
+  const hasTenant = Boolean(myTenant?.tenant);
+  const {
+    data: sales = [],
+    error,
+    isLoading,
+  } = useSales({
+    enabled: hasTenant,
+  });
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const visibleError = hasTenant ? error : null;
 
   let content: ReactNode;
 
-  if (isLoading) {
+  if (isTenantLoading) {
+    content = (
+      <p className="text-muted-foreground text-sm">Verificando tu negocio...</p>
+    );
+  } else if (!hasTenant) {
+    content = (
+      <p className="text-muted-foreground text-sm">
+        Crea o activa un negocio para ver las ventas.
+      </p>
+    );
+  } else if (isLoading) {
     content = (
       <p className="text-muted-foreground text-sm">Cargando ventas...</p>
     );
@@ -71,24 +91,26 @@ export default function SalesPage() {
   return (
     <div>
       <h1 className="mb-4 font-semibold text-lg">Ventas</h1>
-      {error && (
+      {visibleError && (
         <p className="mb-4 text-destructive text-sm">
-          {error instanceof Error
-            ? error.message
+          {visibleError instanceof Error
+            ? visibleError.message
             : "No se pudieron cargar las ventas"}
         </p>
       )}
       {content}
 
-      <SaleDetailDialog
-        sale={selectedSale}
-        open={selectedSale !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedSale(null);
-          }
-        }}
-      />
+      {hasTenant ? (
+        <SaleDetailDialog
+          sale={selectedSale}
+          open={selectedSale !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedSale(null);
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }
