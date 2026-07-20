@@ -8,7 +8,7 @@
   "main": "dist/main.js",
   "scripts": {
     "postinstall": "prisma generate",
-    "build": "prisma generate && nest build && cp ../../node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node ./ 2>/dev/null || true",
+    "build": "prisma generate && nest build && cp ../../node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node ./dist/ 2>/dev/null || true",
     "start": "node dist/main",
     "check": "ultracite check",
     "fix": "ultracite fix",
