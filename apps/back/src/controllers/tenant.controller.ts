@@ -41,7 +41,7 @@ export class TenantController {
     @Body("name") name: string
   ) {
     const tenant = await this.tenantService.createTenant(session.userId, name, {
-      email: session.user.email,
+      email: session.user.email ?? "placeholder@example.com",
       firstName: session.user.firstName,
       lastName: session.user.lastName,
     });

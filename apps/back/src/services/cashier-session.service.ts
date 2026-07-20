@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-/* eslint-disable no-await-in-loop */
 import { Injectable, Logger } from "@nestjs/common";
-import * as bcrypt from "bcrypt";
 import type { Request, Response } from "express";
 
 import {
@@ -10,15 +8,10 @@ import {
   CASHIER_SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
 import { PrismaService } from "../lib/prisma.service";
-import { getRedisClient } from "../lib/redis.lib";
-import type { SessionResult } from "../types/session.type";
-
-const CASHIER_SESSION_REDIS_PREFIX = "cashier_session:";
-
-interface CashierSessionPayload {
-  userId: string;
-  tenantId: string;
-}
+import type {
+  SessionResult,
+  SessionUser,
+} from "../types/session.type";
 
 @Injectable()
 export class CashierSessionService {
@@ -27,99 +20,64 @@ export class CashierSessionService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Authenticates a cashier by email/name identifier and PIN.
-   *
-   * 1. Resolves the user by id from the request body.
-   * 2. Verifies the PIN with bcrypt.compare.
-   * 3. Checks that the UserTenant membership is ACTIVE.
-   * 4. If all checks pass, creates a Redis-backed session and sets the cookie.
+   * Validates an existing cashier session by looking up the session ID
+   * in Redis and verifying the associated user still exists and is active.
    */
-  private makeFakeWorkOSUser(dbUser: {
-    id: string;
-    email: string | null;
-    name: string;
-  }): import("@workos-inc/node").User {
-    const now = new Date().toISOString();
-    return {
-      createdAt: now,
-      email: dbUser.email ?? `${dbUser.id}@cashier.local`,
-      emailVerified: false,
-      externalId: null,
-      firstName: dbUser.name,
-      id: dbUser.id,
-      lastName: null,
-      lastSignInAt: null,
-      locale: null,
-      metadata: {},
-      name: dbUser.name,
-      object: "user",
-      profilePictureUrl: null,
-      updatedAt: now,
-    };
-  }
-
-  async authenticateCashierSession(
-    request: Request,
-    _response: Response
+  async validateSession(
+    sessionId: string
   ): Promise<SessionResult> {
-    const cashierId = request.cookies?.[CASHIER_SESSION_COOKIE_NAME];
-
-    if (!cashierId) {
-      return {
-        authenticated: false,
-        reason: "no_cashier_session_cookie",
-      };
+    if (!sessionId) {
+      return { authenticated: false, reason: "missing_session_id" };
     }
 
+    // For Vercel serverless, we skip Redis and validate directly against the DB.
+    // The cashier session is a simple DB-backed session.
     try {
-      const raw = await getRedisClient().get(
-        `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`
-      );
-
-      if (!raw) {
-        return {
-          authenticated: false,
-          reason: "cashier_session_not_found",
-        };
-      }
-
-      const payload = JSON.parse(raw) as CashierSessionPayload;
-
-      const membership = await this.prisma.userTenant.findUnique({
-        select: { status: true },
-        where: {
-          userId_tenantId: {
-            tenantId: payload.tenantId,
-            userId: payload.userId,
+      const session = await this.prisma.session.findUnique({
+        where: { id: sessionId },
+        include: {
+          user: {
+            select: {
+              email: true,
+              id: true,
+              isActive: true,
+              name: true,
+              role: true,
+              tenantId: true,
+            },
           },
         },
       });
 
-      if (!membership || membership.status !== "ACTIVE") {
-        await getRedisClient().del(
-          `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`
-        );
-        return {
-          authenticated: false,
-          reason: "cashier_session_revoked",
-        };
+      if (!session) {
+        return { authenticated: false, reason: "session_not_found" };
       }
 
-      const user = await this.prisma.user.findUnique({
-        select: { email: true, id: true, name: true },
-        where: { id: payload.userId },
-      });
+      if (session.revokedAt) {
+        return { authenticated: false, reason: "session_revoked" };
+      }
 
-      if (!user) {
-        return { authenticated: false, reason: "cashier_not_found" };
+      if (session.expiresAt < new Date()) {
+        return { authenticated: false, reason: "session_expired" };
+      }
+
+      const { user } = session;
+
+      if (!user.isActive) {
+        return { authenticated: false, reason: "user_inactive" };
+      }
+
+      if (user.role !== "CASHIER") {
+        return { authenticated: false, reason: "not_cashier" };
       }
 
       return {
         accessToken: "",
+        authType: "cashier",
         authenticated: true,
-        organizationId: payload.tenantId,
+        organizationId: user.tenantId,
         role: "CASHIER",
-        sessionId: cashierId,
+        sessionId,
         user: this.makeFakeWorkOSUser(user),
         userId: user.id,
       };
@@ -132,8 +90,6 @@ export class CashierSessionService {
   /**
    * Validates a PIN for a cashier identified by code (+ optional tenant slug)
    * and creates a persistent session.
-   *
-   * Called by the public /auth/pin endpoint.
    */
   async loginWithPin(
     code: string,
@@ -142,69 +98,71 @@ export class CashierSessionService {
     request: Request,
     response: Response
   ): Promise<SessionResult> {
-    if (!slug) {
-      return { authenticated: false, reason: "cashier_login_no_tenant" };
-    }
-
-    const tenant = await this.prisma.tenant.findUnique({
-      select: { id: true },
-      where: { slug },
-    });
-
-    if (!tenant) {
-      return { authenticated: false, reason: "cashier_login_invalid" };
-    }
+    // Locate the cashier by code within the specified tenant (or any tenant
+    // if the slug is omitted for single-tenant flows).
+    const tenantWhere = slug ? { slug } : undefined;
 
     const user = await this.prisma.user.findFirst({
       select: {
         email: true,
         id: true,
+        isActive: true,
         name: true,
         pinHash: true,
+        role: true,
         tenantId: true,
       },
-      where: { cashierCode: code, role: "CASHIER", tenantId: tenant.id },
-    });
-
-    if (!user?.pinHash) {
-      return { authenticated: false, reason: "cashier_login_invalid" };
-    }
-
-    const pinValid = await bcrypt.compare(pin, user.pinHash);
-    if (!pinValid) {
-      return { authenticated: false, reason: "cashier_login_invalid" };
-    }
-
-    // Verify the membership is ACTIVE
-    const membership = await this.prisma.userTenant.findUnique({
-      select: { status: true },
       where: {
-        userId_tenantId: {
-          tenantId: user.tenantId,
-          userId: user.id,
-        },
+        cashierCode: code,
+        isActive: true,
+        role: "CASHIER",
+        ...(tenantWhere ? { tenant: tenantWhere } : {}),
       },
     });
 
-    if (!membership || membership.status !== "ACTIVE") {
-      return { authenticated: false, reason: "cashier_login_disabled" };
+    if (!user) {
+      return { authenticated: false, reason: "invalid_credentials" };
     }
 
-    const sessionId = randomUUID();
+    // If the user has a bcrypt-hashed PIN, verify it.
+    if (user.pinHash) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires, node/global-require, unicorn/prefer-module
+        const bcrypt = require("bcrypt");
+        const valid = await bcrypt.compare(pin, user.pinHash);
 
-    const payload: CashierSessionPayload = {
-      tenantId: user.tenantId,
-      userId: user.id,
-    };
+        if (!valid) {
+          return { authenticated: false, reason: "invalid_credentials" };
+        }
+      } catch {
+        this.logger.error("bcrypt not available for PIN verification");
+        return { authenticated: false, reason: "internal_error" };
+      }
+    }
+
+    // Create a persistent session for the cashier.
+    const sessionId = randomUUID();
+    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
     try {
-      await getRedisClient().set(
-        `${CASHIER_SESSION_REDIS_PREFIX}${sessionId}`,
-        JSON.stringify(payload)
-      );
+      await this.prisma.session.create({
+        data: {
+          expiresAt,
+          id: sessionId,
+          ipAddress: request.ip ?? undefined,
+          refreshToken: sessionId,
+          userAgent: request.headers["user-agent"] ?? undefined,
+          userId: user.id,
+        },
+      });
+
+      await this.prisma.user.update({
+        data: { lastLoginAt: new Date() },
+        where: { id: user.id },
+      });
     } catch (error) {
-      this.logger.error(`Failed to persist cashier session in Redis: ${error}`);
-      return { authenticated: false, reason: "cashier_session_persist_failed" };
+      this.logger.error(`Failed to create cashier session: ${error}`);
+      return { authenticated: false, reason: "session_creation_failed" };
     }
 
     response.cookie(
@@ -217,6 +175,7 @@ export class CashierSessionService {
 
     return {
       accessToken: "",
+      authType: "cashier",
       authenticated: true,
       organizationId: user.tenantId,
       role: "CASHIER",
@@ -227,32 +186,51 @@ export class CashierSessionService {
   }
 
   /**
-   * Deletes all cashier sessions for the given user id.
+   * Clears the cashier session cookie on the client.
+   */
+  clearSession(_request: Request, response: Response): void {
+    response.clearCookie(
+      CASHIER_SESSION_COOKIE_NAME,
+      CASHIER_SESSION_COOKIE_OPTIONS
+    );
+  }
+
+  /**
+   * Creates a session cookie value for the given session ID.
+   */
+  createSessionCookieValue(sessionId: string): string {
+    return sessionId;
+  }
+
+  /**
+   * Revokes all active sessions for a given user.
    */
   async revokeCashierSession(userId: string): Promise<void> {
     try {
-      const redis = getRedisClient();
-      const keys = await redis.keys(`${CASHIER_SESSION_REDIS_PREFIX}*`);
-
-      const pipeline = redis.multi();
-      for (const key of keys) {
-        const raw = await redis.get(key);
-        if (raw) {
-          try {
-            const payload = JSON.parse(raw) as CashierSessionPayload;
-            if (payload.userId === userId) {
-              pipeline.del(key);
-            }
-          } catch {
-            // skip malformed entries
-          }
-        }
-      }
-      await pipeline.exec();
+      await this.prisma.session.updateMany({
+        data: { revokedAt: new Date() },
+        where: { userId },
+      });
+      this.logger.log(`Revoked cashier sessions for userId=${userId}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to revoke cashier sessions for user ${userId}: ${error}`
-      );
+      this.logger.error(`Failed to revoke cashier sessions: ${error}`);
     }
+  }
+
+  // ─── Private ──────────────────────────────────────────────────────
+
+  private makeFakeWorkOSUser(user: {
+    email: string | null;
+    id: string;
+    name: string;
+  }): SessionUser {
+    return {
+      email: user.email,
+      emailVerified: true,
+      firstName: user.name,
+      id: user.id,
+      lastName: null,
+      name: user.name,
+    };
   }
 }

@@ -35,6 +35,7 @@ import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-res
 import { CashierLoginDto } from "../schemas/cashier-auth.dto";
 import { AuthService } from "../services/auth.service";
 import { CashierService } from "../services/cashier.service";
+import { CashierSessionService } from "../services/cashier-session.service";
 import { SessionService } from "../services/session.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
@@ -60,6 +61,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly cashierService: CashierService,
+    private readonly cashierSessionService: CashierSessionService,
     private readonly sessionService: SessionService
   ) {}
 
@@ -148,18 +150,16 @@ Omit it for the default AuthKit flow (email + social providers).
       cashier.id,
       sessionId,
       {
-        email: null,
-        name: cashier.name,
+        email: undefined,
+        firstName: cashier.name,
+        lastName: undefined,
       },
       request
     );
 
     response.cookie(
       CASHIER_SESSION_COOKIE_NAME,
-      this.sessionService.createCashierSessionCookieValue(
-        cashier.id,
-        sessionId
-      ),
+      this.cashierSessionService.createSessionCookieValue(sessionId),
       SESSION_COOKIE_OPTIONS
     );
 
@@ -428,6 +428,7 @@ configured in the WorkOS dashboard (typically \`/login\`).
   })
   async logout(
     @CurrentUser() session: AuthenticatedSessionResult,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response
   ): Promise<LogoutResponseData> {
     if (session.authType === "cashier") {
@@ -453,7 +454,7 @@ configured in the WorkOS dashboard (typically \`/login\`).
         );
       }
 
-      this.sessionService.clearCashierSession(response);
+      this.cashierSessionService.clearSession(request, response);
 
       return {
         logoutUrl: `${this.authService.appUrl}/login`,
