@@ -10,9 +10,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useMyTenant, useTenants } from "@/hooks/queries/use-tenants";
+import { useAuth } from "@/hooks/use-auth";
+import { canSwitchWorkspace } from "@/lib/access";
 import { switchTenant } from "@/lib/auth";
 import type { TenantListItem } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 function getRoleLabel(role: string): string {
   switch (role) {
@@ -31,9 +35,13 @@ function getRoleLabel(role: string): string {
   }
 }
 
+/* eslint-disable complexity */
 export function WorkspaceSwitcher() {
-  const { data: myTenant } = useMyTenant();
-  const { data: tenants = [] } = useTenants();
+  const { user } = useAuth();
+  const { state } = useSidebar();
+  const canSwitch = canSwitchWorkspace(user?.role);
+  const { data: myTenant } = useMyTenant(canSwitch);
+  const { data: tenants = [] } = useTenants(canSwitch);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -76,6 +84,10 @@ export function WorkspaceSwitcher() {
     ? `Plan ${myTenant?.tenant?.plan?.name ?? "activo"} · ${cashierLimit} cajeros`
     : "Plan gratuito";
 
+  if (!canSwitch) {
+    return null;
+  }
+
   return (
     <>
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -83,7 +95,12 @@ export function WorkspaceSwitcher() {
           render={
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl px-3 py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90"
+              className={cn(
+                "w-full rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90",
+                state === "collapsed"
+                  ? "justify-center px-2"
+                  : "justify-start gap-3 px-3"
+              )}
             />
           }
         >
@@ -94,15 +111,22 @@ export function WorkspaceSwitcher() {
               className="size-full rounded-2xl object-cover"
             />
           </Avatar>
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate font-semibold text-sm text-sidebar-foreground">
-              {workspaceLabel}
-            </span>
-            <span className="truncate text-xs text-sidebar-foreground/60">
-              {workspaceMeta}
-            </span>
-          </div>
-          <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+
+          {state !== "collapsed" && (
+            <>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-semibold text-sm text-sidebar-foreground">
+                  {workspaceLabel}
+                </span>
+
+                <span className="truncate text-xs text-sidebar-foreground/60">
+                  {workspaceMeta}
+                </span>
+              </div>
+
+              <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+            </>
+          )}
         </PopoverTrigger>
         <PopoverContent className="w-60" side="bottom" align="end">
           <div className="flex items-center gap-2 rounded-md px-2 py-1.5">

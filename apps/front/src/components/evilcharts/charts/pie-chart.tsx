@@ -2,7 +2,6 @@
 
 import { motion } from "motion/react";
 import {
-  Children,
   createContext,
   isValidElement,
   use,
@@ -172,9 +171,9 @@ export function EvilPieChart<TData extends Record<string, unknown>>({
 const resolveLabel = (children: ReactNode, valueKey: string): ReactNode => {
   let label: ReactNode = null;
 
-  Children.forEach(children, (child) => {
+  for (const child of Array.isArray(children) ? children : [children]) {
     if (!isValidElement(child) || child.type !== Label) {
-      return;
+      continue;
     }
 
     const { dataKey, labelListProps } = (child as ReactElement<LabelProps>)
@@ -191,7 +190,7 @@ const resolveLabel = (children: ReactNode, valueKey: string): ReactNode => {
         {...labelListProps}
       />
     );
-  });
+  }
 
   return label;
 };
@@ -379,6 +378,27 @@ export function Pie({
   } = usePieChart();
   const id = useId().replaceAll(":", "");
 
+  const shapeContextValue = useMemo<PieShapeContextValue>(
+    () => ({
+      data,
+      glowingSectors,
+      id,
+      isClickable,
+      nameKey,
+      paddingAngle,
+      selectedSector,
+    }),
+    [
+      id,
+      data,
+      nameKey,
+      isClickable,
+      selectedSector,
+      glowingSectors,
+      paddingAngle,
+    ]
+  );
+
   if (isLoading) {
     return (
       <RechartsPie
@@ -404,27 +424,6 @@ export function Pie({
     ...item,
     fill: `url(#${id}-colors-${item[nameKey] as string})`,
   }));
-
-  const shapeContextValue = useMemo<PieShapeContextValue>(
-    () => ({
-      data,
-      glowingSectors,
-      id,
-      isClickable,
-      nameKey,
-      paddingAngle,
-      selectedSector,
-    }),
-    [
-      id,
-      data,
-      nameKey,
-      isClickable,
-      selectedSector,
-      glowingSectors,
-      paddingAngle,
-    ]
-  );
 
   return (
     <>

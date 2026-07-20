@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDeleteCategory } from "@/hooks/mutations/use-delete-category";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Category } from "@/lib/categories";
 
 interface DeleteCategoryDialogProps {
@@ -24,6 +26,12 @@ export function DeleteCategoryDialog({
   onDelete,
 }: DeleteCategoryDialogProps) {
   const deleteMutation = useDeleteCategory();
+  const { user } = useAuth();
+  const canDeleteCategory = canManageCatalog(user?.role);
+
+  if (!canDeleteCategory) {
+    return null;
+  }
 
   const handleDelete = () => {
     if (!category) {

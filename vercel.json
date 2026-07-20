@@ -1,6 +1,11 @@
 {
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "apps/front/dist",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "{node_modules/.prisma/client/**,node_modules/@prisma/client/**,apps/back/dist/**,apps/back/.prisma/client/**,apps/back/libquery_engine-rhel-openssl-3.0.x.so.node}"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }

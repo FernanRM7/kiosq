@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateCategory } from "@/hooks/mutations/use-update-category";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Category } from "@/lib/categories";
 import {
   categoryFormSchema,
@@ -39,25 +41,23 @@ export function EditCategoryDialog({
   const updateCategoryMutation = useUpdateCategory();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canEditCategory = canManageCatalog(user?.role);
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors },
   } = useForm<CategoryFormData>({
-    defaultValues: defaultCategoryFormValues,
     resolver: zodResolver(categoryFormSchema),
+    values: category ? categoryToFormData(category) : defaultCategoryFormValues,
   });
-
-  useEffect(() => {
-    if (category) {
-      reset(categoryToFormData(category));
-      setError(null);
-    }
-  }, [category, reset]);
 
   const onSubmit = async (data: CategoryFormData) => {
     if (!category) {
+      return;
+    }
+
+    if (!canEditCategory) {
       return;
     }
 
@@ -83,7 +83,7 @@ export function EditCategoryDialog({
     }
   };
 
-  return (
+  return canEditCategory ? (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -125,5 +125,5 @@ export function EditCategoryDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 }

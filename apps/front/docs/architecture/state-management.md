@@ -1,7 +1,6 @@
 # State Management — Kiosq Frontend
 
-> Arquitectura de estado global y fetching en `apps/front`.
-> Última actualización: 2026-07-08.
+> Arquitectura de estado global y fetching en `apps/front`. Última actualización: 2026-07-08.
 
 ---
 
@@ -99,8 +98,7 @@ export const queryClient = new QueryClient({
 
 **Convención de nombrado:** `use-<recurso>.ts`, exporta un hook `use<Recurso>()`.
 
-**QueryKeys:** arrays planos con nombre de recurso como primer elemento. Si un recurso
-tiene variantes (por ID, filtros), se agregan elementos adicionales (ej. `["products", productId]`).
+**QueryKeys:** arrays planos con nombre de recurso como primer elemento. Si un recurso tiene variantes (por ID, filtros), se agregan elementos adicionales (ej. `["products", productId]`).
 
 **Ejemplo canónico:**
 
@@ -227,8 +225,7 @@ Estas funciones son el `queryFn` / `mutationFn` de los hooks de TanStack Query.
 
 ## 6. Referencia histórica
 
-La migración desde React Context + event bus (`window.dispatchEvent`) a Zustand + TanStack Query
-está documentada en [`docs/migration-zustand-query.md`](../../docs/migration-zustand-query.md).
+La migración desde React Context + event bus (`window.dispatchEvent`) a Zustand + TanStack Query está documentada en [`docs/migration-zustand-query.md`](../../docs/migration-zustand-query.md).
 
 Resumen de lo eliminado:
 

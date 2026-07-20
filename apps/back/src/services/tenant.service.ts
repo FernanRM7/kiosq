@@ -57,8 +57,8 @@ export class TenantService {
     const userName =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { workosUserId: userId },
+    const existingUser = await this.prisma.user.findFirst({
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     const dbUser = await (existingUser
@@ -212,7 +212,7 @@ export class TenantService {
   }
 
   getTenantByUserId(userId: string) {
-    return this.prisma.user.findUnique({
+    return this.prisma.user.findFirst({
       select: {
         email: true,
         id: true,
@@ -252,20 +252,24 @@ export class TenantService {
         tenantId: true,
         workosUserId: true,
       },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
   }
 
   async listUserTenants(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       include: {
         tenant: { select: { id: true, name: true, slug: true, status: true } },
       },
-      where: { workosUserId: userId },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     if (!user) {
       return [];
+    }
+
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para ver workspaces");
     }
 
     try {
@@ -344,13 +348,19 @@ export class TenantService {
     userId: string,
     tenantId: string
   ): Promise<{ id: string; name: string; slug: string }> {
-    const user = await this.prisma.user.findUnique({
-      select: { id: true },
-      where: { workosUserId: userId },
+    const user = await this.prisma.user.findFirst({
+      select: { id: true, role: true },
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     if (!user) {
       throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para cambiar de workspace"
+      );
     }
 
     try {

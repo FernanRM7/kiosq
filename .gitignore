@@ -10,3 +10,10 @@ schema.sql
 .vscode/
 .vercel
 
+.dockerignore
+docker-compose.yml
+Dockerfile.backend
+Dockerfile.frontend
+.opencode
+docs-site/
+.env*

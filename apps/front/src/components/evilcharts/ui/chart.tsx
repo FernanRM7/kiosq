@@ -128,7 +128,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     )
     .join("\n");
 
-  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style>{css}</style>;
 };
 
 interface ChartContainerProps
@@ -170,8 +170,10 @@ function ChartContainer({
 
   validateChartConfigColors(config);
 
+  const contextValue = React.useMemo(() => ({ config }), [config]);
+
   return (
-    <ChartContext.Provider value={{ config }}>
+    <ChartContext.Provider value={contextValue}>
       <div
         data-slot="chart"
         data-chart={chartId}

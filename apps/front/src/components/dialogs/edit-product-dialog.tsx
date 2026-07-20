@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { ProductFormFields } from "@/components/dialogs/product-form-fields";
@@ -12,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import {
   defaultProductFormValues,
   productFormSchema,
@@ -37,26 +39,24 @@ export function EditProductDialog({
 }: EditProductDialogProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canEditProduct = canManageCatalog(user?.role);
   const {
     control,
     handleSubmit,
     register,
-    reset,
     formState: { errors },
   } = useForm<ProductFormData>({
-    defaultValues: defaultProductFormValues,
     resolver: zodResolver(productFormSchema),
+    values: product ? productToFormData(product) : defaultProductFormValues,
   });
-
-  useEffect(() => {
-    if (product) {
-      reset(productToFormData(product));
-      setError(null);
-    }
-  }, [product, reset]);
 
   const onSubmit = async (data: ProductFormData) => {
     if (!product) {
+      return;
+    }
+
+    if (!canEditProduct) {
       return;
     }
 
@@ -82,7 +82,7 @@ export function EditProductDialog({
     }
   };
 
-  return (
+  return canEditProduct ? (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -118,5 +118,5 @@ export function EditProductDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  ) : null;
 }

@@ -5,7 +5,10 @@
   "builds": [
     {
       "src": "dist/main.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "dist/libquery_engine-rhel-openssl-3.0.x.so.node"
+      }
     }
   ],
   "routes": [

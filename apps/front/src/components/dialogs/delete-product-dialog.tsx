@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDeleteProduct } from "@/hooks/mutations/use-delete-product";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Product } from "@/lib/products";
 
 interface DeleteProductDialogProps {
@@ -24,6 +26,12 @@ export function DeleteProductDialog({
   onDelete,
 }: DeleteProductDialogProps) {
   const deleteMutation = useDeleteProduct();
+  const { user } = useAuth();
+  const canDeleteProduct = canManageCatalog(user?.role);
+
+  if (!canDeleteProduct) {
+    return null;
+  }
 
   const handleDelete = () => {
     if (!product) {

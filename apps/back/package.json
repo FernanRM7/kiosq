@@ -7,7 +7,8 @@
   "author": "",
   "main": "dist/main.js",
   "scripts": {
-    "build": "prisma generate && nest build",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && nest build && node ./scripts/copy-prisma-engine.cjs",
     "start": "node dist/main",
     "check": "ultracite check",
     "fix": "ultracite fix",
@@ -16,10 +17,10 @@
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test": "jest --config jest.config.cjs",
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:cov": "jest --config jest.config.cjs --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --config jest.config.cjs --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@nestjs/swagger": "^11.4.5",
     "@prisma/client": "^6.19.3",
     "@workos-inc/node": "^10.2.0",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "helmet": "^8.2.0",
     "jose": "^6.2.3",
@@ -47,6 +49,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.27",
+    "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -66,7 +69,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "ultracite": "^7.8.2"
+    "ultracite": "^7.8.2",
+    "webpack-node-externals": "^3.0.0"
   },
   "jest": {
     "collectCoverageFrom": [
@@ -78,6 +82,10 @@
       "json",
       "ts"
     ],
+    "moduleNameMapper": {
+      "^jose$": "<rootDir>/__mocks__/jose.cjs",
+      "^jose/(.*)$": "<rootDir>/__mocks__/jose.cjs"
+    },
     "rootDir": "src",
     "testEnvironment": "node",
     "testRegex": ".*\\.spec\\.ts$",

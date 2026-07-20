@@ -6,24 +6,55 @@ import {
   DollarSign,
   Truck,
   Settings,
-  LifeBuoy,
 } from "lucide-react";
+
+import type { AppRole } from "@/lib/access";
 
 export interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
+  allowedRoles: readonly AppRole[];
 }
 
 export const mainNavItems: NavItem[] = [
-  { icon: LayoutDashboard, title: "Panel", url: "/dashboard" },
-  { icon: Package, title: "Productos", url: "/dashboard/products" },
-  { icon: Tags, title: "Categorías", url: "/dashboard/categories" },
-  { icon: DollarSign, title: "Ventas", url: "/dashboard/sales" },
-  { icon: Truck, title: "Proveedores", url: "/dashboard/suppliers" },
+  {
+    allowedRoles: ["CASHIER", "MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: LayoutDashboard,
+    title: "Dashboard",
+    url: "/dashboard",
+  },
+  {
+    allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: Package,
+    title: "Products",
+    url: "/dashboard/products",
+  },
+  {
+    allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: Tags,
+    title: "Categories",
+    url: "/dashboard/categories",
+  },
+  {
+    allowedRoles: ["CASHIER", "MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: DollarSign,
+    title: "Sales",
+    url: "/dashboard/sales",
+  },
+  {
+    allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: Truck,
+    title: "Suppliers",
+    url: "/dashboard/suppliers",
+  },
 ];
 
 export const bottomNavItems: NavItem[] = [
-  { icon: Settings, title: "Ajustes", url: "/dashboard/settings" },
-  { icon: LifeBuoy, title: "Soporte", url: "/dashboard/support" },
+  {
+    allowedRoles: ["ADMIN", "SUPER_ADMIN"],
+    icon: Settings,
+    title: "Settings",
+    url: "/dashboard/settings",
+  },
 ];

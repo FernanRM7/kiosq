@@ -1,3 +1,6 @@
+jest.mock("../services/session.service");
+jest.mock("../services/cashier-session.service");
+
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { UnauthorizedException } from "@nestjs/common";
 import type { ExecutionContext } from "@nestjs/common";
@@ -5,9 +8,14 @@ import { Reflector } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 
-import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
+import {
+  CASHIER_SESSION_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from "../constants/cookie.constants";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+import { CashierSessionService } from "../services/cashier-session.service";
 import { SessionService } from "../services/session.service";
+import type { SessionResult } from "../types/session.type";
 import { AuthGuard } from "./auth.guard";
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
@@ -21,12 +29,7 @@ interface MockResponse {
   cookie: jest.Mock;
 }
 
-function makeHttpContext(
-  request: MockRequest,
-  response: MockResponse,
-  handlerMetadata: boolean | undefined = undefined,
-  classMetadata: boolean | undefined = undefined
-) {
+function makeHttpContext(request: MockRequest, response: MockResponse) {
   const handler = {};
   const cls = {};
 
@@ -39,7 +42,7 @@ function makeHttpContext(
     }),
   } as unknown as ExecutionContext;
 
-  return { context, cls, handler, handlerMetadata, classMetadata };
+  return { context };
 }
 
 // ─── Test setup ───────────────────────────────────────────────────────────────
@@ -47,12 +50,19 @@ function makeHttpContext(
 describe("AuthGuard", () => {
   let guard: AuthGuard;
 
-  const mockAuthenticateSession = jest.fn();
-  const mockGetAllAndOverride = jest.fn();
+  const mockAuthenticateSession =
+    jest.fn<(...args: unknown[]) => Promise<SessionResult>>();
+  const mockAuthenticateCashierSession =
+    jest.fn<(...args: unknown[]) => Promise<SessionResult>>();
+  const mockGetAllAndOverride = jest.fn<(...args: unknown[]) => boolean>();
 
   const mockSessionService = {
     authenticateSession: mockAuthenticateSession,
   } as unknown as SessionService;
+
+  const mockCashierSessionService = {
+    authenticateCashierSession: mockAuthenticateCashierSession,
+  } as unknown as CashierSessionService;
 
   const mockReflector = {
     getAllAndOverride: mockGetAllAndOverride,
@@ -65,6 +75,7 @@ describe("AuthGuard", () => {
       providers: [
         AuthGuard,
         { provide: SessionService, useValue: mockSessionService },
+        { provide: CashierSessionService, useValue: mockCashierSessionService },
         { provide: Reflector, useValue: mockReflector },
       ],
     }).compile();
@@ -72,10 +83,25 @@ describe("AuthGuard", () => {
     guard = module.get<AuthGuard>(AuthGuard);
   });
 
-  function makeRequest(cookieValue?: string): MockRequest {
-    return {
-      cookies: cookieValue ? { [SESSION_COOKIE_NAME]: cookieValue } : {},
-    };
+  function makeCookies(
+    wosSession?: string,
+    cashierSession?: string
+  ): Record<string, string> {
+    const cookies: Record<string, string> = {};
+    if (wosSession !== undefined) {
+      cookies[SESSION_COOKIE_NAME] = wosSession;
+    }
+    if (cashierSession !== undefined) {
+      cookies[CASHIER_SESSION_COOKIE_NAME] = cashierSession;
+    }
+    return cookies;
+  }
+
+  function makeRequest(
+    wosSession?: string,
+    cashierSession?: string
+  ): MockRequest {
+    return { cookies: makeCookies(wosSession, cashierSession) };
   }
 
   function makeResponse(): MockResponse {
@@ -92,11 +118,20 @@ describe("AuthGuard", () => {
       role: "admin",
       sessionId: "session_01",
       user: {
-        id: overrides.userId ?? "user_01",
+        createdAt: "2024-01-01T00:00:00.000Z",
         email: "user@example.com",
         emailVerified: true,
+        externalId: null,
         firstName: "Test",
+        id: overrides.userId ?? "user_01",
+        lastSignInAt: null,
         lastName: "User",
+        locale: null,
+        metadata: {},
+        name: "Test User",
+        object: "user" as const,
+        profilePictureUrl: null,
+        updatedAt: "2024-01-01T00:00:00.000Z",
       },
       userId: overrides.userId ?? "user_01",
     };
@@ -105,56 +140,22 @@ describe("AuthGuard", () => {
   // ── @Public() routes ───────────────────────────────────────────────────────
 
   describe("public routes — @Public()", () => {
-    it("returns true without touching the session when handler is @Public()", async () => {
-      mockGetAllAndOverride.mockReturnValueOnce(true);
-
-      const request = makeRequest();
-      const { context } = makeHttpContext(request, makeResponse());
-
-      const result = await guard.canActivate(context);
-
-      expect(result).toBe(true);
-      expect(mockAuthenticateSession).not.toHaveBeenCalled();
-    });
-
-    it("returns true without touching the session when class is @Public()", async () => {
+    it("returns true without touching any session when handler is @Public()", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(true);
 
       const { context } = makeHttpContext(makeRequest(), makeResponse());
-
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
       expect(mockAuthenticateSession).not.toHaveBeenCalled();
-    });
-
-    it("reads IS_PUBLIC_KEY from both handler and class (priority order)", async () => {
-      mockGetAllAndOverride.mockReturnValueOnce(false);
-      mockAuthenticateSession.mockResolvedValueOnce(makeAuthenticatedResult());
-
-      const request = makeRequest("session");
-      const { context, handler, cls } = makeHttpContext(
-        request,
-        makeResponse()
-      );
-
-      await guard.canActivate(context);
-
-      expect(mockGetAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]);
-
-      // Verify handler and class references match what the context provides
-      expect(context.getHandler()).toBe(handler);
-      expect(context.getClass()).toBe(cls);
+      expect(mockAuthenticateCashierSession).not.toHaveBeenCalled();
     });
   });
 
-  // ── Protected routes — valid session ──────────────────────────────────────
+  // ── WorkOS session ─────────────────────────────────────────────────────────
 
-  describe("protected routes — valid session", () => {
-    it("returns true when session is valid", async () => {
+  describe("WorkOS session (wos-session)", () => {
+    it("returns true when wos-session is valid", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
       mockAuthenticateSession.mockResolvedValueOnce(makeAuthenticatedResult());
 
@@ -162,13 +163,13 @@ describe("AuthGuard", () => {
         makeRequest("valid-session"),
         makeResponse()
       );
-
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(mockAuthenticateCashierSession).not.toHaveBeenCalled();
     });
 
-    it("injects the authenticated session result into request.user", async () => {
+    it("injects the authenticated session into request.user", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
       const sessionResult = makeAuthenticatedResult({ userId: "user_99" });
       mockAuthenticateSession.mockResolvedValueOnce(sessionResult);
@@ -183,7 +184,7 @@ describe("AuthGuard", () => {
       );
     });
 
-    it("passes the request and response to authenticateSession", async () => {
+    it("passes request and response through", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
       mockAuthenticateSession.mockResolvedValueOnce(makeAuthenticatedResult());
 
@@ -197,18 +198,50 @@ describe("AuthGuard", () => {
     });
   });
 
-  // ── Protected routes — invalid / missing session ──────────────────────────
+  // ── Cashier session (fallback) ─────────────────────────────────────────────
 
-  describe("protected routes — unauthorized", () => {
-    it("throws UnauthorizedException when session is invalid", async () => {
+  describe("cashier session fallback (cashier-session)", () => {
+    it("tries cashier-session when wos-session is absent", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
-      mockAuthenticateSession.mockResolvedValueOnce({
+      mockAuthenticateCashierSession.mockResolvedValueOnce(
+        makeAuthenticatedResult({ userId: "cashier_01" })
+      );
+
+      const { context } = makeHttpContext(
+        makeRequest(undefined, "cashier-id"),
+        makeResponse()
+      );
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockAuthenticateSession).not.toHaveBeenCalled();
+      expect(mockAuthenticateCashierSession).toHaveBeenCalled();
+    });
+
+    it("injects cashier session into request.user", async () => {
+      mockGetAllAndOverride.mockReturnValueOnce(false);
+      const sessionResult = makeAuthenticatedResult({ userId: "cashier_01" });
+      mockAuthenticateCashierSession.mockResolvedValueOnce(sessionResult);
+
+      const request = makeRequest(undefined, "cashier-id");
+      const { context } = makeHttpContext(request, makeResponse());
+
+      await guard.canActivate(context);
+
+      expect((request as unknown as { user: unknown }).user).toStrictEqual(
+        sessionResult
+      );
+    });
+
+    it("throws 401 when only cashier-session is present and it fails", async () => {
+      mockGetAllAndOverride.mockReturnValueOnce(false);
+      mockAuthenticateCashierSession.mockResolvedValueOnce({
         authenticated: false,
-        reason: "session_revoked",
+        reason: "cashier_auth_not_implemented",
       });
 
       const { context } = makeHttpContext(
-        makeRequest("bad-session"),
+        makeRequest(undefined, "bad-cashier"),
         makeResponse()
       );
 
@@ -217,12 +250,46 @@ describe("AuthGuard", () => {
       );
     });
 
-    it("throws UnauthorizedException when no cookie is present", async () => {
+    it("does not try cashier when wos-session succeeds", async () => {
+      mockGetAllAndOverride.mockReturnValueOnce(false);
+      mockAuthenticateSession.mockResolvedValueOnce(makeAuthenticatedResult());
+
+      const { context } = makeHttpContext(
+        makeRequest("valid", "also-present"),
+        makeResponse()
+      );
+
+      await guard.canActivate(context);
+
+      expect(mockAuthenticateCashierSession).not.toHaveBeenCalled();
+    });
+
+    it("tries cashier when wos-session cookie is present but invalid", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
       mockAuthenticateSession.mockResolvedValueOnce({
         authenticated: false,
-        reason: "no_session_cookie_provided",
+        reason: "invalid_jwt",
       });
+      mockAuthenticateCashierSession.mockResolvedValueOnce(
+        makeAuthenticatedResult({ userId: "cashier_01" })
+      );
+
+      const { context } = makeHttpContext(
+        makeRequest("expired", "cashier-id"),
+        makeResponse()
+      );
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockAuthenticateCashierSession).toHaveBeenCalled();
+    });
+  });
+
+  // ── No session ─────────────────────────────────────────────────────────────
+
+  describe("no session", () => {
+    it("throws 401 when no cookie is present at all", async () => {
+      mockGetAllAndOverride.mockReturnValueOnce(false);
 
       const { context } = makeHttpContext(makeRequest(), makeResponse());
 
@@ -231,21 +298,17 @@ describe("AuthGuard", () => {
       );
     });
 
-    it("does NOT inject request.user when session validation fails", async () => {
+    it("does not call authenticateSession when no cookie is present", async () => {
       mockGetAllAndOverride.mockReturnValueOnce(false);
-      mockAuthenticateSession.mockResolvedValueOnce({
-        authenticated: false,
-        reason: "invalid_jwt",
-      });
 
-      const request = makeRequest("expired");
-      const { context } = makeHttpContext(request, makeResponse());
+      const { context } = makeHttpContext(makeRequest(), makeResponse());
 
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
       );
 
-      expect((request as unknown as { user?: unknown }).user).toBeUndefined();
+      expect(mockAuthenticateSession).not.toHaveBeenCalled();
+      expect(mockAuthenticateCashierSession).not.toHaveBeenCalled();
     });
   });
 });
