@@ -70,7 +70,7 @@ export default function SalesPage() {
 
   return (
     <div>
-      <h1 className="mb-4 font-semibold text-lg">Sales</h1>
+      <h1 className="mb-4 font-semibold text-lg">Ventas</h1>
       {error && (
         <p className="mb-4 text-destructive text-sm">
           {error instanceof Error

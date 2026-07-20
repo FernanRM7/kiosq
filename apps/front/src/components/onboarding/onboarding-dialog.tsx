@@ -51,7 +51,7 @@ export function OnboardingDialog({
     const workspaceName = data.get("workspaceName") as string;
 
     if (!workspaceName?.trim()) {
-      setError("El nombre del local es obligatorio");
+      setError("El nombre del negocio es obligatorio");
       return;
     }
 
@@ -77,26 +77,26 @@ export function OnboardingDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuevo Workspace</DialogTitle>
+          <DialogTitle>Nuevo negocio</DialogTitle>
           <DialogDescription>
-            Configura tu espacio de trabajo para comenzar.
+            Configura tu negocio para comenzar.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="grid gap-4">
           <div className="flex items-center gap-4">
             <Empty
               title="Logo"
-              description="Click to upload"
+              description="Haz clic para subir"
               className="h-32 w-32 shrink-0 cursor-pointer p-4"
             />
             <div className="flex flex-1 flex-col items-center gap-2">
               <Label htmlFor="workspaceName" className="text-center">
-                Nombre del Local
+                Nombre del negocio
               </Label>
               <Input
                 id="workspaceName"
                 name="workspaceName"
-                placeholder="Mi Local"
+                placeholder="Mi negocio"
                 className="text-center"
               />
             </div>
@@ -106,7 +106,7 @@ export function OnboardingDialog({
               {error ??
                 (createTenantMutation.error instanceof Error
                   ? createTenantMutation.error.message
-                  : "Error al crear el workspace")}
+                  : "Error al crear el negocio")}
             </p>
           )}
           <DialogFooter>
@@ -115,9 +115,7 @@ export function OnboardingDialog({
               className="w-full"
               disabled={createTenantMutation.isPending}
             >
-              {createTenantMutation.isPending
-                ? "Creando..."
-                : "Crear Workspace"}
+              {createTenantMutation.isPending ? "Creando..." : "Crear negocio"}
             </Button>
           </DialogFooter>
         </form>

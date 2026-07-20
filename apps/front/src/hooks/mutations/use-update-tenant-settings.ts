@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { createCashier } from "@/lib/auth";
+import { updateMyTenantSettings } from "@/lib/auth";
 
-export function useCreateCashier() {
+export function useUpdateTenantSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createCashier,
+    mutationFn: updateMyTenantSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-tenant"] });
     },

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 
 const ENGINE = "libquery_engine-rhel-openssl-3.0.x.so.node";
 
@@ -14,8 +14,10 @@ const ENGINE = "libquery_engine-rhel-openssl-3.0.x.so.node";
 const candidates = [
   process.env.PRISMA_QUERY_ENGINE_LIBRARY,
   // Next to the webpack bundle (apps/back/dist)
+  // eslint-disable-next-line unicorn/prefer-module
   path.join(__dirname, ENGINE),
   // App root (Prisma searches /var/task/apps/back)
+  // eslint-disable-next-line unicorn/prefer-module
   path.join(__dirname, "..", ENGINE),
   // Generated client (hoisted monorepo node_modules)
   path.join(process.cwd(), "node_modules", ".prisma", "client", ENGINE),
@@ -24,7 +26,7 @@ const candidates = [
   path.join(process.cwd(), "apps", "back", "dist", ENGINE),
   path.join(process.cwd(), "apps", "back", ENGINE),
   path.join(process.cwd(), ".prisma", "client", ENGINE),
-].filter((value): value is string => Boolean(value));
+].filter((value): value is string => value !== undefined && value !== null);
 
 const resolved = candidates.find((candidate) => existsSync(candidate));
 
@@ -32,5 +34,6 @@ if (resolved) {
   process.env.PRISMA_QUERY_ENGINE_LIBRARY = resolved;
 } else if (!process.env.PRISMA_QUERY_ENGINE_LIBRARY) {
   // Last resort: default next to bundle (includeFiles should place it here)
+  // eslint-disable-next-line unicorn/prefer-module
   process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(__dirname, ENGINE);
 }

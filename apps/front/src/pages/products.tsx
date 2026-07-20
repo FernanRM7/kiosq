@@ -33,7 +33,7 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 font-semibold text-lg">Products</h1>
+      <h1 className="mb-4 font-semibold text-lg">Productos</h1>
       {error && (
         <p className="mb-4 text-destructive text-sm">
           {error instanceof Error

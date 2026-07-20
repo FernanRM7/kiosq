@@ -6,10 +6,13 @@ import {
   HttpStatus,
   Logger,
   Param,
+  Patch,
   Post,
 } from "@nestjs/common";
 
 import { CurrentUser } from "../decorators/current-user.decorator";
+import { CreateCashierDto } from "../schemas/create-cashier.dto";
+import { UpdateTenantSettingsDto } from "../schemas/tenant-dashboard.dto";
 import { TenantService } from "../services/tenant.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
@@ -47,6 +50,28 @@ export class TenantController {
   @HttpCode(HttpStatus.OK)
   getMyTenant(@CurrentUser() session: AuthenticatedSessionResult) {
     return this.tenantService.getTenantByUserId(session.userId);
+  }
+
+  @Patch("me/settings")
+  @HttpCode(HttpStatus.OK)
+  updateMyTenantSettings(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: UpdateTenantSettingsDto
+  ) {
+    return this.tenantService.updateTenantSettings(session.userId, body);
+  }
+
+  @Post("me/cashiers")
+  @HttpCode(HttpStatus.CREATED)
+  async createCashier(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Body() body: CreateCashierDto
+  ) {
+    const tenant = await this.tenantService.createCashier(session.userId, body);
+    this.logger.log(`Cashier created`, {
+      userId: session.userId,
+    });
+    return tenant;
   }
 
   @Post(":id/switch")

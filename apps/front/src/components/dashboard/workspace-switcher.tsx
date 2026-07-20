@@ -18,6 +18,24 @@ import { switchTenant } from "@/lib/auth";
 import type { TenantListItem } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+function getRoleLabel(role: string): string {
+  switch (role) {
+    case "ADMIN": {
+      return "Administrador";
+    }
+    case "MANAGER": {
+      return "Gerente";
+    }
+    case "CASHIER": {
+      return "Cajero";
+    }
+    default: {
+      return role;
+    }
+  }
+}
+
+/* eslint-disable complexity */
 export function WorkspaceSwitcher() {
   const { user } = useAuth();
   const { state } = useSidebar();
@@ -31,6 +49,7 @@ export function WorkspaceSwitcher() {
   const activeTenantId = myTenant?.tenant?.id ?? null;
   const activeTenantName = myTenant?.tenant?.name ?? null;
   const workspaces = tenants as TenantListItem[];
+  const cashierLimit = Math.max((myTenant?.tenant?.plan?.maxUsers ?? 3) - 1, 0);
 
   async function handleSwitch(tenantId: string) {
     if (tenantId === activeTenantId) {
@@ -60,9 +79,10 @@ export function WorkspaceSwitcher() {
     setShowOnboarding(false);
   }
 
-  const workspaceLabel =
-    activeTenantName ?? user?.organizationId ?? "Workspace";
-  const workspaceMeta = activeTenantName ? "Plan activo" : "Plan gratuito";
+  const workspaceLabel = activeTenantName ?? "Negocio";
+  const workspaceMeta = activeTenantName
+    ? `Plan ${myTenant?.tenant?.plan?.name ?? "activo"} · ${cashierLimit} cajeros`
+    : "Plan gratuito";
 
   if (!canSwitch) {
     return null;
@@ -87,7 +107,7 @@ export function WorkspaceSwitcher() {
           <Avatar className="size-7 rounded-2xl ring-1 ring-sidebar-border/60">
             <img
               src="/logo.jpg"
-              alt="Workspace"
+              alt="Negocio"
               className="size-full rounded-2xl object-cover"
             />
           </Avatar>
@@ -113,7 +133,7 @@ export function WorkspaceSwitcher() {
             <Avatar className="size-8 rounded-md">
               <img
                 src="/logo.jpg"
-                alt="Workspace"
+                alt="Negocio"
                 className="size-full rounded-md object-cover"
               />
             </Avatar>
@@ -151,7 +171,7 @@ export function WorkspaceSwitcher() {
                       {ws.name}
                     </span>
                     <span className="text-muted-foreground text-xs">
-                      {ws.role === "ADMIN" ? "Admin" : ws.role}
+                      {getRoleLabel(ws.role)}
                     </span>
                   </div>
                   {isActive && (
@@ -173,7 +193,7 @@ export function WorkspaceSwitcher() {
             onClick={handleCreateWorkspace}
           >
             <Plus className="size-4" />
-            <span className="text-sm">Nuevo workspace</span>
+            <span className="text-sm">Nuevo negocio</span>
           </Button>
         </PopoverContent>
       </Popover>

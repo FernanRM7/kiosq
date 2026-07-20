@@ -7,10 +7,10 @@ import { EditSupplierDialog } from "@/components/dialogs/edit-supplier-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardHeader,
-  CardTitle,
   CardDescription,
+  CardHeader,
   CardPanel,
+  CardTitle,
 } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/queries/use-suppliers";
 import type { Supplier } from "@/lib/suppliers";

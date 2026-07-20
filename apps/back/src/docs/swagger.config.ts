@@ -31,7 +31,7 @@ interface SwaggerModuleLike {
     path: string,
     app: INestApplication,
     document: unknown,
-    options?: Record<string, string>
+    options?: Record<string, unknown>
   ) => void;
 }
 
@@ -53,8 +53,8 @@ interface DocumentBuilderLike {
 type DocumentBuilderCtor = new () => DocumentBuilderLike;
 
 export function setupSwagger(app: INestApplication): void {
-  let SwaggerModule: SwaggerModuleLike | undefined;
-  let DocumentBuilder: DocumentBuilderCtor | undefined;
+  let swaggerModuleRuntime: SwaggerModuleLike | undefined;
+  let documentBuilderRuntime: DocumentBuilderCtor | undefined;
 
   try {
     // Load @nestjs/swagger at runtime so that incompatible @nestjs/*
@@ -69,9 +69,9 @@ export function setupSwagger(app: INestApplication): void {
         SwaggerModule?: SwaggerModuleLike;
       };
     };
-    SwaggerModule =
+    swaggerModuleRuntime =
       swaggerPkg.SwaggerModule ?? swaggerPkg.default?.SwaggerModule;
-    DocumentBuilder =
+    documentBuilderRuntime =
       swaggerPkg.DocumentBuilder ?? swaggerPkg.default?.DocumentBuilder;
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -82,11 +82,11 @@ export function setupSwagger(app: INestApplication): void {
     return;
   }
 
-  if (!SwaggerModule || !DocumentBuilder) {
+  if (!swaggerModuleRuntime || !documentBuilderRuntime) {
     return;
   }
 
-  const config = new DocumentBuilder()
+  const config = new documentBuilderRuntime()
     .setTitle("Kiosq API")
     .setDescription(DESCRIPTION)
     .setVersion("1.0")
@@ -111,7 +111,7 @@ export function setupSwagger(app: INestApplication): void {
 
   let document: unknown;
   try {
-    document = SwaggerModule.createDocument(app, config);
+    document = swaggerModuleRuntime.createDocument(app, config);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -121,7 +121,7 @@ export function setupSwagger(app: INestApplication): void {
     return;
   }
 
-  SwaggerModule.setup(SWAGGER_PATH, app, document, {
+  swaggerModuleRuntime.setup(SWAGGER_PATH, app, document, {
     customSiteTitle: "Kiosq API Docs",
     explorer: "false",
   });

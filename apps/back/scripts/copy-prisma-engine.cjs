@@ -16,8 +16,9 @@ const source = sources.find((candidate) => existsSync(candidate));
 
 if (!source) {
   console.error(
-    "[copy-prisma-engine] Engine not found. Searched:\n" +
-      sources.map((s) => `  - ${s}`).join("\n")
+    `[copy-prisma-engine] Engine not found. Searched:\n${sources
+      .map((s) => `  - ${s}`)
+      .join("\n")}`
   );
   process.exit(1);
 }

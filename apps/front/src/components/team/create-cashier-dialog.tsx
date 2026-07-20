@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCreateCashier } from "@/hooks/mutations/use-create-cashier";
+import { useCreateTeamCashier } from "@/hooks/mutations/use-create-team-cashier";
 import { useAuth } from "@/hooks/use-auth";
 import { canManageSettings } from "@/lib/access";
 
@@ -26,7 +26,7 @@ export function CreateCashierDialog({
 }: CreateCashierDialogProps) {
   const { user } = useAuth();
   const canManage = canManageSettings(user?.role);
-  const createCashier = useCreateCashier();
+  const createCashier = useCreateTeamCashier();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
