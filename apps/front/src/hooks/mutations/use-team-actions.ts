@@ -41,7 +41,7 @@ export function useRevokeCashierSession() {
     mutationFn: (userId: string) =>
       request<{ success: boolean }>(
         `/api/team/members/${userId}/revoke-sessions`,
-        { method: "POST" },
+        { method: "POST" }
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team"] }),
   });

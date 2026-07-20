@@ -456,10 +456,11 @@ function SidebarMenuButton({
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ size, variant }),
-      state === "collapsed" && "mx-auto",
-      className)}
-
+      className={cn(
+        sidebarMenuButtonVariants({ size, variant }),
+        state === "collapsed" && "mx-auto",
+        className
+      )}
       {...props}
     />
   );

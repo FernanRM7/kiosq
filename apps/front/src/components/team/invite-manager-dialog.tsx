@@ -51,7 +51,7 @@ export function InviteManagerDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "No se pudo crear el manager",
+          : "No se pudo crear el manager"
       );
     }
   };

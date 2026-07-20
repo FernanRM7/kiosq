@@ -7,6 +7,7 @@ export type SyncErrorCode =
   | "UNKNOWN_EVENT_TYPE"
   | "INTERNAL_ERROR";
 
+/* eslint-disable max-classes-per-file, unicorn/custom-error-definition */
 export class SyncError extends Error {
   constructor(
     public readonly code: SyncErrorCode,
@@ -19,10 +20,7 @@ export class SyncError extends Error {
 
 export class InsufficientStockError extends SyncError {
   constructor(productId: string) {
-    super(
-      "INSUFFICIENT_STOCK",
-      `Insufficient stock for product ${productId}`
-    );
+    super("INSUFFICIENT_STOCK", `Insufficient stock for product ${productId}`);
   }
 }
 
@@ -37,9 +35,6 @@ export class ProductNotFoundError extends SyncError {
 
 export class MissingOfflineIdError extends SyncError {
   constructor() {
-    super(
-      "MISSING_OFFLINE_ID",
-      "Missing offlineId in CREATE_SALE payload"
-    );
+    super("MISSING_OFFLINE_ID", "Missing offlineId in CREATE_SALE payload");
   }
 }

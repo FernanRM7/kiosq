@@ -256,7 +256,7 @@ export class SyncService {
             name: this.buildName(
               workosUser.firstName,
               workosUser.lastName,
-              workosUser.email,
+              workosUser.email
             ),
             role,
             workosUserId: data.userId,
@@ -265,8 +265,8 @@ export class SyncService {
         });
 
         await this.prisma.userTenant.updateMany({
-          data: { status: "ACTIVE", acceptedAt: new Date() },
-          where: { userId: preCreated.id, tenantId: tenant.id },
+          data: { acceptedAt: new Date(), status: "ACTIVE" },
+          where: { tenantId: tenant.id, userId: preCreated.id },
         });
 
         this.logger.log(

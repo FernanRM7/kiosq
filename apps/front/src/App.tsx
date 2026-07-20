@@ -6,9 +6,9 @@ import { SyncAuth } from "@/components/auth/sync-auth";
 import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { SyncProvider } from "@/contexts/sync.context";
+import CashierLoginPage from "@/pages/cashier-login";
 import CategoriesPage from "@/pages/categories";
 import DashboardPage from "@/pages/dashboard";
-import CashierLoginPage from "@/pages/cashier-login";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
 import ProductsPage from "@/pages/products";
@@ -51,11 +51,7 @@ function App() {
               </Route>
 
               <Route
-                element={
-                  <RoleRoute
-                    allowedRoles={["ADMIN", "SUPER_ADMIN"]}
-                  />
-                }
+                element={<RoleRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]} />}
               >
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
@@ -68,6 +64,5 @@ function App() {
     </SyncProvider>
   );
 }
-
 
 export default App;

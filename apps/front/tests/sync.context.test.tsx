@@ -2,13 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SyncProvider, useSync } from "@/contexts/sync.context";
 import type { Product } from "@/db";
 import { populateProducts } from "@/db/repositories/products.repo";
 import { createLocalSale } from "@/db/repositories/sales.repo";
-
 import { request } from "@/lib/api";
-
-import { SyncProvider, useSync } from "@/contexts/sync.context";
 
 vi.mock(import("@/lib/api"), () => ({
   request: vi.fn<typeof request>(),

@@ -22,7 +22,7 @@ export class UserService {
    * user not yet synced to `users`).
    */
   async buildMeResponse(
-    session: AuthenticatedSessionResult,
+    session: AuthenticatedSessionResult
   ): Promise<MeResponseSchema> {
     const dbRole = await this.lookupDbRole(session.userId);
 
@@ -37,9 +37,7 @@ export class UserService {
     };
   }
 
-  private async lookupDbRole(
-    userId: string,
-  ): Promise<string | undefined> {
+  private async lookupDbRole(userId: string): Promise<string | undefined> {
     try {
       const user = await this.prisma.user.findFirst({
         select: { role: true },

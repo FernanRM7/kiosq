@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
-import type { AuthenticatedSessionResult } from "../types/session.type";
 import type { PrismaService } from "../lib/prisma.service";
+import type { AuthenticatedSessionResult } from "../types/session.type";
 import { UserService } from "./user.service";
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
@@ -50,7 +50,9 @@ function makeSession(
 describe("UserService — buildMeResponse()", () => {
   const mockPrisma = {
     user: {
-      findFirst: jest.fn<(...args: unknown[]) => Promise<{ role: string } | null>>().mockResolvedValue(null),
+      findFirst: jest
+        .fn<(...args: unknown[]) => Promise<{ role: string } | null>>()
+        .mockResolvedValue(null),
     },
   } as unknown as PrismaService;
   const service = new UserService(mockPrisma);
@@ -58,7 +60,9 @@ describe("UserService — buildMeResponse()", () => {
   // ── Field mapping ──────────────────────────────────────────────────────────
 
   it("maps userId from session to response id", async () => {
-    const result = await service.buildMeResponse(makeSession({ userId: "user_99" }));
+    const result = await service.buildMeResponse(
+      makeSession({ userId: "user_99" })
+    );
     expect(result.id).toBe("user_99");
   });
 
@@ -68,22 +72,30 @@ describe("UserService — buildMeResponse()", () => {
   });
 
   it("maps user.firstName (string value)", async () => {
-    const result = await service.buildMeResponse(makeSession({ firstName: "Ana" }));
+    const result = await service.buildMeResponse(
+      makeSession({ firstName: "Ana" })
+    );
     expect(result.firstName).toBe("Ana");
   });
 
   it("maps user.firstName as null when absent", async () => {
-    const result = await service.buildMeResponse(makeSession({ firstName: null }));
+    const result = await service.buildMeResponse(
+      makeSession({ firstName: null })
+    );
     expect(result.firstName).toBeNull();
   });
 
   it("maps user.lastName (string value)", async () => {
-    const result = await service.buildMeResponse(makeSession({ lastName: "García" }));
+    const result = await service.buildMeResponse(
+      makeSession({ lastName: "García" })
+    );
     expect(result.lastName).toBe("García");
   });
 
   it("maps user.lastName as null when absent", async () => {
-    const result = await service.buildMeResponse(makeSession({ lastName: null }));
+    const result = await service.buildMeResponse(
+      makeSession({ lastName: null })
+    );
     expect(result.lastName).toBeNull();
   });
 
@@ -104,24 +116,32 @@ describe("UserService — buildMeResponse()", () => {
   // ── Organization claim ─────────────────────────────────────────────────────
 
   it("maps organizationId when user belongs to an org", async () => {
-    const result = await service.buildMeResponse(makeSession({ orgId: "org_42" }));
+    const result = await service.buildMeResponse(
+      makeSession({ orgId: "org_42" })
+    );
     expect(result.organizationId).toBe("org_42");
   });
 
   it("maps organizationId as undefined when user has no org", async () => {
-    const result = await service.buildMeResponse(makeSession({ orgId: undefined }));
+    const result = await service.buildMeResponse(
+      makeSession({ orgId: undefined })
+    );
     expect(result.organizationId).toBeUndefined();
   });
 
   // ── RBAC role claim ────────────────────────────────────────────────────────
 
   it("maps role when present", async () => {
-    const result = await service.buildMeResponse(makeSession({ role: "owner" }));
+    const result = await service.buildMeResponse(
+      makeSession({ role: "owner" })
+    );
     expect(result.role).toBe("owner");
   });
 
   it("maps role as undefined when not set", async () => {
-    const result = await service.buildMeResponse(makeSession({ role: undefined }));
+    const result = await service.buildMeResponse(
+      makeSession({ role: undefined })
+    );
     expect(result.role).toBeUndefined();
   });
 

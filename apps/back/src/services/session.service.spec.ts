@@ -79,10 +79,17 @@ describe("SessionService", () => {
   const mockAuthenticate = jest.fn<(...args: unknown[]) => Promise<unknown>>();
   const mockRefresh = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
-  const mockLoadSealedSession = jest.fn<(...args: unknown[]) => { authenticate: (...args: unknown[]) => Promise<unknown>; refresh: (...args: unknown[]) => Promise<unknown> }>().mockReturnValue({
-    authenticate: mockAuthenticate,
-    refresh: mockRefresh,
-  });
+  const mockLoadSealedSession = jest
+    .fn<
+      (...args: unknown[]) => {
+        authenticate: (...args: unknown[]) => Promise<unknown>;
+        refresh: (...args: unknown[]) => Promise<unknown>;
+      }
+    >()
+    .mockReturnValue({
+      authenticate: mockAuthenticate,
+      refresh: mockRefresh,
+    });
 
   const mockAuthService = {
     cookiePassword: "test-password-that-is-32-chars-min",
@@ -103,13 +110,13 @@ describe("SessionService", () => {
     });
 
     const mockSessionRegistry = {
-    registerSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
-    revokeSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
-    isSessionActive: jest.fn<(...args: unknown[]) => Promise<boolean>>(),
-    touchSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
-  } as unknown as SessionRegistryService;
+      registerSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+      revokeSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+      isSessionActive: jest.fn<(...args: unknown[]) => Promise<boolean>>(),
+      touchSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+    } as unknown as SessionRegistryService;
 
-  const module: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
         { provide: AuthService, useValue: mockAuthService },

@@ -81,7 +81,7 @@ test.describe("HEL-43 - Manejo de errores en cliente", () => {
     ).toBeVisible();
 
     // Verifica que el usuario permanezca en la pantalla de login.
-    await expect(page).toHaveURL(/login/);
+    await expect(page).toHaveURL(/login/u);
 
     // Comprueba que no se expongan errores técnicos del servidor.
     await expect(page.getByText("Internal Server Error")).toHaveCount(0);
@@ -125,7 +125,7 @@ test("QA-ERR-003 Debe manejar correctamente una respuesta inesperada del backend
   ).toBeVisible();
 
   // Verifica que permanezca en la pantalla de login.
-  await expect(page).toHaveURL(/login/);
+  await expect(page).toHaveURL(/login/u);
 
   // Verifica que no aparezcan errores técnicos.
   await expect(page.getByText("Internal Server Error")).toHaveCount(0);
@@ -156,7 +156,7 @@ test("QA-ERR-004 Debe redirigir al usuario cuando la sesión haya expirado", asy
   await page.goto("/dashboard");
 
   // Debe ser redirigido al login.
-  await expect(page).toHaveURL(/login/);
+  await expect(page).toHaveURL(/login/u);
 
   // Debe mostrarse el botón para iniciar sesión.
   await expect(

@@ -1,13 +1,8 @@
+/* eslint-disable sort-keys */
 const nodeExternals = require("webpack-node-externals");
 
 /** @type {import("webpack").Configuration} */
 module.exports = {
-  target: "node",
-
-  externalsPresets: {
-    node: true,
-  },
-
   externals: [
     nodeExternals({
       allowlist: [],
@@ -17,6 +12,10 @@ module.exports = {
       "node-gyp-build": "commonjs node-gyp-build",
     },
   ],
+
+  externalsPresets: {
+    node: true,
+  },
 
   module: {
     rules: [
@@ -45,4 +44,6 @@ module.exports = {
   resolve: {
     extensions: [".ts", ".js"],
   },
+
+  target: "node",
 };

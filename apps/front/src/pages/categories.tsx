@@ -37,21 +37,21 @@ export default function CategoriesPage() {
     (category: Category) => {
       restoreCategoryMutation.mutate(category.id);
     },
-    [restoreCategoryMutation],
+    [restoreCategoryMutation]
   );
 
   const activeColumns = useMemo(
     () =>
       getCategoryColumns(
         (category) => setEditCategory(category),
-        (category) => setDeleteCategory(category),
+        (category) => setDeleteCategory(category)
       ),
-    [],
+    []
   );
 
   const deletedColumns = useMemo(
     () => getDeletedCategoryColumns(handleRestoreCategory),
-    [handleRestoreCategory],
+    [handleRestoreCategory]
   );
 
   return (

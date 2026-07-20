@@ -33,8 +33,7 @@ export function loadAuthConfig(): AuthConfig {
   const cookiePassword = process.env.WORKOS_COOKIE_PASSWORD;
   const redirectUri = process.env.WORKOS_REDIRECT_URI;
   const appUrl = process.env.APP_URL ?? "http://localhost:5173";
-  const logoutReturnTo =
-    process.env.WORKOS_LOGOUT_RETURN_TO ?? appUrl;
+  const logoutReturnTo = process.env.WORKOS_LOGOUT_RETURN_TO ?? appUrl;
 
   if (!apiKey) {
     throw new Error("Missing required environment variable: WORKOS_API_KEY");
