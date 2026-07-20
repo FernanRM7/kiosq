@@ -4,6 +4,7 @@ import { decodeJwt } from "jose";
 
 import {
   CASHIER_SESSION_COOKIE_NAME,
+  CASHIER_SESSION_COOKIE_OPTIONS,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
@@ -15,10 +16,10 @@ import type { SessionMetadata } from "./session-registry.service";
 
 /**
  * Proactive refresh triggers when the JWT remaining lifetime is below
- * this many seconds. Set to 1 hour to ensure the WorkOS inactivity timer
- * (typically ≤ 1 hour) gets reset before the session is killed.
+ * this many seconds. Five minutes gives enough runway to obtain a new token
+ * before the current one expires without refreshing on every request.
  */
-const PROACTIVE_REFRESH_SECONDS = 60 * 60;
+const PROACTIVE_REFRESH_SECONDS = 5 * 60;
 
 interface WorkosAuthenticatedResult {
   accessToken: string;
@@ -99,7 +100,12 @@ export class SessionService {
    * Call this on logout before redirecting to the WorkOS logout URL.
    */
   clearSession(response: Response): void {
-    response.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+    response.clearCookie(SESSION_COOKIE_NAME, {
+      httpOnly: SESSION_COOKIE_OPTIONS.httpOnly,
+      path: SESSION_COOKIE_OPTIONS.path,
+      sameSite: SESSION_COOKIE_OPTIONS.sameSite,
+      secure: SESSION_COOKIE_OPTIONS.secure,
+    });
     this.logger.debug("Session cookie cleared");
   }
 
@@ -107,7 +113,12 @@ export class SessionService {
    * Clears the cashier session cookie from the response.
    */
   clearCashierSession(response: Response): void {
-    response.clearCookie(CASHIER_SESSION_COOKIE_NAME, { path: "/" });
+    response.clearCookie(CASHIER_SESSION_COOKIE_NAME, {
+      httpOnly: CASHIER_SESSION_COOKIE_OPTIONS.httpOnly,
+      path: CASHIER_SESSION_COOKIE_OPTIONS.path,
+      sameSite: CASHIER_SESSION_COOKIE_OPTIONS.sameSite,
+      secure: CASHIER_SESSION_COOKIE_OPTIONS.secure,
+    });
     this.logger.debug("Cashier session cookie cleared");
   }
 
@@ -578,17 +589,21 @@ export class SessionService {
    */
   private shouldProactivelyRefresh(accessToken: string): boolean {
     try {
-      const payload = decodeJwt(accessToken);
-      const now = Math.floor(Date.now() / 1000);
-      const exp = payload.exp as number | undefined;
-
-      if (!exp) {
-        return false;
-      }
-
-      return exp - now < PROACTIVE_REFRESH_SECONDS;
+      const remaining = this.getJwtRemainingSeconds(accessToken);
+      return remaining !== null && remaining < PROACTIVE_REFRESH_SECONDS;
     } catch {
       return false;
     }
+  }
+
+  private getJwtRemainingSeconds(accessToken: string): number | null {
+    const payload = decodeJwt(accessToken);
+    const exp = payload.exp as number | undefined;
+
+    if (!exp) {
+      return null;
+    }
+
+    return exp - Math.floor(Date.now() / 1000);
   }
 }

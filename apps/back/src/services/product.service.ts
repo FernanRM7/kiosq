@@ -61,6 +61,7 @@ export class ProductService {
     session: AuthenticatedSessionResult
   ): Promise<ProductResponse[]> {
     const tenantId = await this.getTenantId(session);
+    const canSeeCost = session.role !== "CASHIER";
 
     const products = await this.prisma.product.findMany({
       include: productInclude,
@@ -68,7 +69,7 @@ export class ProductService {
       where: { isActive: true, tenantId },
     });
 
-    return products.map((product) => this.toResponse(product));
+    return products.map((product) => this.toResponse(product, canSeeCost));
   }
 
   async createProduct(
@@ -118,7 +119,7 @@ export class ProductService {
           }
         }
 
-        return this.toResponse(product);
+        return this.toResponse(product, true);
       });
     } catch (error) {
       this.logger.error(
@@ -210,7 +211,7 @@ export class ProductService {
           }
         }
 
-        return this.toResponse(updatedProduct);
+        return this.toResponse(updatedProduct, true);
       });
     } catch (error) {
       this.logger.error(
@@ -245,7 +246,7 @@ export class ProductService {
           where: { id: productId },
         });
 
-        return this.toResponse(deletedProduct);
+        return this.toResponse(deletedProduct, true);
       });
     } catch (error) {
       this.logger.error(
@@ -372,12 +373,15 @@ export class ProductService {
     return value.toFixed(decimals);
   }
 
-  private toResponse(product: ProductRecord): ProductResponse {
+  private toResponse(
+    product: ProductRecord,
+    includeCost: boolean
+  ): ProductResponse {
     return {
       barcode: product.barcode,
       category: product.category,
       categoryId: product.categoryId,
-      cost: this.decimalToNumber(product.cost),
+      cost: includeCost ? this.decimalToNumber(product.cost) : null,
       createdAt: product.createdAt.toISOString(),
       description: product.description,
       id: product.id,

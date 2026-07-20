@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -14,6 +15,12 @@ enum Role {
   ADMIN
   MANAGER
   CASHIER
+}
+
+enum UserTenantStatus {
+  PENDING
+  ACTIVE
+  DISABLED
 }
 
 enum TenantStatus {
@@ -203,6 +210,7 @@ model Tenant {
   devices        Device[]
   categories     Category[]
   products       Product[]
+  suppliers      Supplier[]
   sales          Sale[]
   syncEvents     SyncEvent[]
   stockMovements StockMovement[]
@@ -257,6 +265,7 @@ model User {
   sessions           Session[]
   sales              Sale[]
   userTenants        UserTenant[]
+  invitedMemberships UserTenant[] @relation("UserTenantInviter")
   cashierShifts      CashierShift[] @relation("CashierShifts")
   // FIX: dos relaciones nombradas para distinguir permisos propios vs permisos otorgados
   permissions        UserPermission[] @relation("UserPermissions")
@@ -329,12 +338,17 @@ model Device {
 // ── WORKSPACE / USER-TENANT ────────────────────────
 
 model UserTenant {
-  userId   String
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenantId String
-  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  role     Role    @default(ADMIN)
-  joinedAt DateTime @default(now())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role            Role             @default(ADMIN)
+  status          UserTenantStatus  @default(ACTIVE)
+  invitedAt       DateTime?
+  acceptedAt      DateTime?
+  invitedByUserId String?
+  invitedBy       User?            @relation("UserTenantInviter", fields: [invitedByUserId], references: [id])
+  joinedAt        DateTime         @default(now())
 
   @@id([userId, tenantId])
   @@map("user_tenants")
@@ -461,6 +475,30 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+// Un proveedor es un contacto externo que abastece productos.
+// Es global por tenant (catálogo único).
+model Supplier {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name    String
+  rfc     String?
+  email   String?
+  phone   String?
+  address String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, name])
+  @@map("suppliers")
+}
+
 // ── VENTAS ─────────────────────────────────────────
 
 model Sale {
@@ -560,8 +598,8 @@ model SyncEvent {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   entityType String
   entityId   String

@@ -80,14 +80,14 @@ export class TenantService {
       user.email ||
       "Usuario";
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { workosUserId: userId },
+    const existingUser = await this.prisma.user.findFirst({
+      where: { OR: [{ workosUserId: userId }, { id: userId }] },
     });
 
     const dbUser = await (existingUser
       ? this.prisma.user.update({
           data: { isActive: true, role: "ADMIN", tenantId: tenant.id },
-          where: { workosUserId: userId },
+          where: { id: existingUser.id },
         })
       : this.prisma.user.create({
           data: {
@@ -409,6 +409,10 @@ export class TenantService {
 
     if (!user) {
       return [];
+    }
+
+    if (user.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para ver workspaces");
     }
 
     try {

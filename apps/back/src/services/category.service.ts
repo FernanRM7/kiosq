@@ -37,6 +37,10 @@ export class CategoryService {
   async listCategories(
     session: AuthenticatedSessionResult
   ): Promise<CategoryListResponse> {
+    if (session.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para ver categorías");
+    }
+
     const tenantId = await this.getTenantId(session);
 
     const [active, deleted] = await Promise.all([
