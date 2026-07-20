@@ -1,7 +1,5 @@
 import type { Prisma } from "@prisma/client";
 
-import type { PrismaService } from "./prisma.service";
-
 /**
  * Finds a user by either their `workosUserId` (WorkOS-managed users) or
  * their internal `id` (cashier users, who have no WorkOS id).
@@ -16,7 +14,7 @@ import type { PrismaService } from "./prisma.service";
  */
 export function buildUserLookup<T extends Prisma.UserFindFirstArgs>(
   userId: string,
-  args: Omit<T, "where">,
+  args: Omit<T, "where">
 ): T {
   return {
     ...args,

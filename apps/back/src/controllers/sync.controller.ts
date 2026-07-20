@@ -102,9 +102,9 @@ export class SyncController {
   ) {
     const data = await this.offlineSync.getChangesSince(
       {
-        since: query.since,
         cursor: query.cursor,
         limit: query.limit,
+        since: query.since,
       },
       session
     );

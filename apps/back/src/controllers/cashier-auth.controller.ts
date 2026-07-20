@@ -13,8 +13,8 @@ import {
 import type { Request, Response } from "express";
 
 import { Public } from "../decorators/public.decorator";
-import { getRedisClient } from "../lib/redis.lib";
 import { PrismaService } from "../lib/prisma.service";
+import { getRedisClient } from "../lib/redis.lib";
 import { CashierSessionService } from "../services/cashier-session.service";
 
 @Controller()
@@ -23,7 +23,7 @@ export class CashierAuthController {
 
   constructor(
     private readonly cashierSessionService: CashierSessionService,
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaService
   ) {}
 
   /**
@@ -45,7 +45,7 @@ export class CashierAuthController {
 
     const cashiers = await this.prisma.userTenant.findMany({
       select: {
-        user: { select: { id: true, name: true, cashierCode: true } },
+        user: { select: { cashierCode: true, id: true, name: true } },
       },
       where: {
         role: "CASHIER",
@@ -75,10 +75,10 @@ export class CashierAuthController {
   async loginWithPin(
     @Body() body: { code: string; pin: string; slug?: string },
     @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
+    @Res({ passthrough: true }) response: Response
   ) {
     if (!body.code) {
-      return { statusCode: 400, message: "El código es obligatorio" };
+      return { message: "El código es obligatorio", statusCode: 400 };
     }
 
     const result = await this.cashierSessionService.loginWithPin(
@@ -86,14 +86,14 @@ export class CashierAuthController {
       body.pin,
       body.slug,
       request,
-      response,
+      response
     );
 
     if (result.authenticated) {
       return { redirectTo: "/dashboard" };
     }
 
-    return { statusCode: 401, message: "Código o PIN incorrecto" };
+    return { message: "Código o PIN incorrecto", statusCode: 401 };
   }
 
   /**
@@ -103,7 +103,7 @@ export class CashierAuthController {
   @Public()
   @Post("auth/pin/logout")
   @HttpCode(HttpStatus.NO_CONTENT)
-  async logout(@Req() request: Request, @Res() response: Response) {
+  logout(@Req() request: Request, @Res() response: Response) {
     const cashierId = request.cookies?.["cashier-session"];
 
     if (cashierId) {

@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Smartphone, Tablet, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { TeamSection } from "@/components/team/team-section";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TeamSection } from "@/components/team/team-section";
 import { useSessions } from "@/hooks/queries/use-sessions";
 import { revokeSession } from "@/lib/auth";
 

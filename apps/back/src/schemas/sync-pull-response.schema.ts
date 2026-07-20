@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { ApiProperty } from "@nestjs/swagger";
 
 class SyncPullSaleItemSchema {
@@ -57,7 +58,10 @@ class SyncPullSaleSchema {
   @ApiProperty({ description: "Estado", example: "COMPLETED" })
   status: string;
 
-  @ApiProperty({ description: "Fecha de creación", example: "2024-01-01T00:00:00.000Z" })
+  @ApiProperty({
+    description: "Fecha de creación",
+    example: "2024-01-01T00:00:00.000Z",
+  })
   createdAt: Date;
 
   @ApiProperty({ description: "Fecha de sincronización" })

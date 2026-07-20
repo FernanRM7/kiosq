@@ -1,14 +1,16 @@
-import { Injectable, Logger } from "@nestjs/common";
-import type { Request, Response } from "express";
-import * as bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
+
+/* eslint-disable no-await-in-loop */
+import { Injectable, Logger } from "@nestjs/common";
+import * as bcrypt from "bcrypt";
+import type { Request, Response } from "express";
 
 import {
   CASHIER_SESSION_COOKIE_NAME,
   CASHIER_SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
-import { getRedisClient } from "../lib/redis.lib";
 import { PrismaService } from "../lib/prisma.service";
+import { getRedisClient } from "../lib/redis.lib";
 import type { SessionResult } from "../types/session.type";
 
 const CASHIER_SESSION_REDIS_PREFIX = "cashier_session:";
@@ -39,26 +41,26 @@ export class CashierSessionService {
   }): import("@workos-inc/node").User {
     const now = new Date().toISOString();
     return {
-      object: "user",
-      id: dbUser.id,
+      createdAt: now,
       email: dbUser.email ?? `${dbUser.id}@cashier.local`,
       emailVerified: false,
-      profilePictureUrl: null,
-      name: dbUser.name,
+      externalId: null,
       firstName: dbUser.name,
+      id: dbUser.id,
       lastName: null,
       lastSignInAt: null,
       locale: null,
-      createdAt: now,
-      updatedAt: now,
-      externalId: null,
       metadata: {},
+      name: dbUser.name,
+      object: "user",
+      profilePictureUrl: null,
+      updatedAt: now,
     };
   }
 
   async authenticateCashierSession(
     request: Request,
-    response: Response,
+    _response: Response
   ): Promise<SessionResult> {
     const cashierId = request.cookies?.[CASHIER_SESSION_COOKIE_NAME];
 
@@ -71,7 +73,7 @@ export class CashierSessionService {
 
     try {
       const raw = await getRedisClient().get(
-        `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`,
+        `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`
       );
 
       if (!raw) {
@@ -95,7 +97,7 @@ export class CashierSessionService {
 
       if (!membership || membership.status !== "ACTIVE") {
         await getRedisClient().del(
-          `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`,
+          `${CASHIER_SESSION_REDIS_PREFIX}${cashierId}`
         );
         return {
           authenticated: false,
@@ -104,7 +106,7 @@ export class CashierSessionService {
       }
 
       const user = await this.prisma.user.findUnique({
-        select: { id: true, email: true, name: true },
+        select: { email: true, id: true, name: true },
         where: { id: payload.userId },
       });
 
@@ -138,7 +140,7 @@ export class CashierSessionService {
     pin: string,
     slug: string | undefined,
     request: Request,
-    response: Response,
+    response: Response
   ): Promise<SessionResult> {
     if (!slug) {
       return { authenticated: false, reason: "cashier_login_no_tenant" };
@@ -154,8 +156,14 @@ export class CashierSessionService {
     }
 
     const user = await this.prisma.user.findFirst({
-      select: { id: true, email: true, name: true, pinHash: true, tenantId: true },
-      where: { tenantId: tenant.id, cashierCode: code, role: "CASHIER" },
+      select: {
+        email: true,
+        id: true,
+        name: true,
+        pinHash: true,
+        tenantId: true,
+      },
+      where: { cashierCode: code, role: "CASHIER", tenantId: tenant.id },
     });
 
     if (!user?.pinHash) {
@@ -192,7 +200,7 @@ export class CashierSessionService {
     try {
       await getRedisClient().set(
         `${CASHIER_SESSION_REDIS_PREFIX}${sessionId}`,
-        JSON.stringify(payload),
+        JSON.stringify(payload)
       );
     } catch (error) {
       this.logger.error(`Failed to persist cashier session in Redis: ${error}`);
@@ -202,7 +210,7 @@ export class CashierSessionService {
     response.cookie(
       CASHIER_SESSION_COOKIE_NAME,
       sessionId,
-      CASHIER_SESSION_COOKIE_OPTIONS,
+      CASHIER_SESSION_COOKIE_OPTIONS
     );
 
     this.logger.log(`Cashier session created: user=${user.id}`);
@@ -224,9 +232,7 @@ export class CashierSessionService {
   async revokeCashierSession(userId: string): Promise<void> {
     try {
       const redis = getRedisClient();
-      const keys = await redis.keys(
-        `${CASHIER_SESSION_REDIS_PREFIX}*`,
-      );
+      const keys = await redis.keys(`${CASHIER_SESSION_REDIS_PREFIX}*`);
 
       const pipeline = redis.multi();
       for (const key of keys) {
@@ -244,7 +250,9 @@ export class CashierSessionService {
       }
       await pipeline.exec();
     } catch (error) {
-      this.logger.error(`Failed to revoke cashier sessions for user ${userId}: ${error}`);
+      this.logger.error(
+        `Failed to revoke cashier sessions for user ${userId}: ${error}`
+      );
     }
   }
 }

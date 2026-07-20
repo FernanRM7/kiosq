@@ -1,4 +1,6 @@
-import { jest } from '@jest/globals';
+/* eslint-disable @typescript-eslint/no-explicit-any, promise/prefer-await-to-callbacks */
+import { jest } from "@jest/globals";
+
 import type { PrismaService } from "../../lib/prisma.service";
 import type { SyncPayloadInput } from "../../schemas/sync.schema";
 import type { AuthenticatedSessionResult } from "../../types/session.type";
@@ -26,7 +28,9 @@ export function makeMockTransaction(overrides?: {
     },
     sale: {
       create: jest.fn<any>().mockResolvedValue({ id: "sale-1" }),
-      findUnique: jest.fn<any>().mockResolvedValue(overrides?.existingSale ?? null),
+      findUnique: jest
+        .fn<any>()
+        .mockResolvedValue(overrides?.existingSale ?? null),
     },
     saleItem: {
       createMany: jest.fn<any>().mockResolvedValue({ count: 1 }),

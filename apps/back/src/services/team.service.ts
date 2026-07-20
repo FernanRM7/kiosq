@@ -19,7 +19,7 @@ export class TeamService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly cashierSessionService: CashierSessionService,
+    private readonly cashierSessionService: CashierSessionService
   ) {}
 
   /**
@@ -46,7 +46,7 @@ export class TeamService {
   assertCanManageTeam(role: string): void {
     if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
       throw new ForbiddenException(
-        "No tienes permisos para administrar el equipo",
+        "No tienes permisos para administrar el equipo"
       );
     }
   }
@@ -67,7 +67,7 @@ export class TeamService {
       code: string;
       email?: string;
       pin: string;
-    },
+    }
   ): Promise<{
     id: string;
     name: string;
@@ -116,7 +116,7 @@ export class TeamService {
       });
 
       this.logger.log(
-        `Cashier created: user=${result.user.id} tenant=${tenantId}`,
+        `Cashier created: user=${result.user.id} tenant=${tenantId}`
       );
 
       return {
@@ -135,7 +135,7 @@ export class TeamService {
         const target = (error.meta?.target as string[]) ?? [];
         if (target.includes("cashierCode")) {
           throw new ConflictException(
-            "Ya existe un dependiente con ese código en este workspace",
+            "Ya existe un dependiente con ese código en este workspace"
           );
         }
         throw new ConflictException("Ya existe un registro con esos datos");
@@ -148,9 +148,7 @@ export class TeamService {
    * Lists all members of the caller's workspace.
    * Cashiers, managers, and admins are included.
    */
-  async listMembers(
-    callerId: string,
-  ): Promise<
+  async listMembers(callerId: string): Promise<
     {
       id: string;
       name: string;
@@ -162,20 +160,20 @@ export class TeamService {
     const caller = await this.getCallerInfo(callerId);
 
     const members = await this.prisma.userTenant.findMany({
+      orderBy: { joinedAt: "asc" },
       select: {
         role: true,
         status: true,
         user: {
-          select: { id: true, email: true, name: true },
+          select: { email: true, id: true, name: true },
         },
       },
       where: { tenantId: caller.tenantId },
-      orderBy: { joinedAt: "asc" },
     });
 
     return members.map((m) => ({
-      id: m.user.id,
       email: m.user.email,
+      id: m.user.id,
       name: m.user.name,
       role: m.role,
       status: m.status,
@@ -196,7 +194,7 @@ export class TeamService {
     callerId: string,
     data: {
       email: string;
-    },
+    }
   ): Promise<{
     id: string;
     email: string | null;
@@ -211,9 +209,7 @@ export class TeamService {
     });
 
     if (existing && existing.tenantId) {
-      throw new ConflictException(
-        "Este email ya pertenece a otro workspace",
-      );
+      throw new ConflictException("Este email ya pertenece a otro workspace");
     }
 
     const caller = await this.getCallerInfo(callerId);
@@ -225,44 +221,42 @@ export class TeamService {
     });
 
     if (existingInTenant) {
-      throw new ConflictException(
-        "Este email ya es miembro de este workspace",
-      );
+      throw new ConflictException("Este email ya es miembro de este workspace");
     }
 
     const user = await this.prisma.user.create({
       data: {
         email: normalizedEmail,
+        isActive: true,
         name: normalizedEmail,
         role: "MANAGER",
         tenantId,
-        isActive: true,
       },
-      select: { id: true, email: true },
+      select: { email: true, id: true },
     });
 
     const membership = await this.prisma.userTenant.create({
       data: {
-        userId: user.id,
-        tenantId,
+        invitedByUserId: caller.id,
         role: "MANAGER",
         status: "PENDING",
-        invitedByUserId: caller.id,
+        tenantId,
+        userId: user.id,
       },
       select: {
         role: true,
         status: true,
-        user: { select: { id: true, email: true } },
+        user: { select: { email: true, id: true } },
       },
     });
 
     this.logger.log(
-      `Manager pre-created: user=${user.id} email=${normalizedEmail} tenant=${tenantId}`,
+      `Manager pre-created: user=${user.id} email=${normalizedEmail} tenant=${tenantId}`
     );
 
     return {
-      id: membership.user.id,
       email: membership.user.email ?? null,
+      id: membership.user.id,
       role: membership.role,
       status: membership.status,
     };
@@ -300,12 +294,12 @@ export class TeamService {
   async cancelInvite(userId: string): Promise<void> {
     const updated = await this.prisma.userTenant.updateMany({
       data: { status: "DISABLED" },
-      where: { userId, status: "PENDING" },
+      where: { status: "PENDING", userId },
     });
 
     if (updated.count === 0) {
       throw new NotFoundException(
-        "La invitación no está pendiente o no existe",
+        "La invitación no está pendiente o no existe"
       );
     }
 

@@ -69,7 +69,7 @@ export function CreateCashierDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "No se pudo crear la cuenta de dependiente",
+          : "No se pudo crear la cuenta de dependiente"
       );
     }
   };
@@ -98,9 +98,7 @@ export function CreateCashierDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="cashier-code">
-              Código del dependiente
-            </Label>
+            <Label htmlFor="cashier-code">Código del dependiente</Label>
             <Input
               id="cashier-code"
               placeholder="Ej. juan.kiosko"

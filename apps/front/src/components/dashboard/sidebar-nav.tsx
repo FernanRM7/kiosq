@@ -4,7 +4,6 @@ import { useLocation, Link } from "react-router-dom";
 
 import { UserNav } from "@/components/dashboard/user-nav";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
-import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +21,7 @@ import {
 import { mainNavItems, bottomNavItems } from "@/data/sidebar-items";
 import { useAuth } from "@/hooks/use-auth";
 import { hasRoleAccess } from "@/lib/access";
+import { cn } from "@/lib/utils";
 
 function ThemeToggle() {
   const { state } = useSidebar();
@@ -51,24 +51,24 @@ function ThemeToggle() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
-  onClick={handleToggle}
-  variant="outline"
-  className={cn(
-    state === "collapsed"
-      ? "justify-center px-0"
-      : "justify-start gap-3"
-  )}
->
-  {theme === "dark" ? (
-    <Sun className="size-4" />
-  ) : (
-    <Moon className="size-4" />
-  )}
+          onClick={handleToggle}
+          variant="outline"
+          className={cn(
+            state === "collapsed"
+              ? "justify-center px-0"
+              : "justify-start gap-3"
+          )}
+        >
+          {theme === "dark" ? (
+            <Sun className="size-4" />
+          ) : (
+            <Moon className="size-4" />
+          )}
 
-  {state !== "collapsed" && (
-    <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
-  )}
-</SidebarMenuButton>
+          {state !== "collapsed" && (
+            <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
+          )}
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   );
@@ -90,11 +90,11 @@ export function DashboardSidebar() {
         <div className="flex flex-col gap-3">
           <WorkspaceSwitcher />
           <div
-  className={cn(
-    "rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15",
-    "group-data-[collapsible=icon]:p-1"
-  )}
->
+            className={cn(
+              "rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15",
+              "group-data-[collapsible=icon]:p-1"
+            )}
+          >
             <ThemeToggle />
           </div>
         </div>

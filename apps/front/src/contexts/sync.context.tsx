@@ -69,13 +69,10 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  const nextDelay = useCallback(
-    (attempt: number) => {
-      const exponential = Math.min(BASE_DELAY * 2 ** attempt, MAX_DELAY);
-      return exponential * (0.8 + Math.random() * 0.4);
-    },
-    []
-  );
+  const nextDelay = useCallback((attempt: number) => {
+    const exponential = Math.min(BASE_DELAY * 2 ** attempt, MAX_DELAY);
+    return exponential * (0.8 + Math.random() * 0.4);
+  }, []);
 
   const scheduleRetry = useCallback(() => {
     if (retryCountRef.current >= MAX_RETRIES) {
@@ -185,8 +182,6 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   return (
-    <SyncContext.Provider value={contextValue}>
-      {children}
-    </SyncContext.Provider>
+    <SyncContext.Provider value={contextValue}>{children}</SyncContext.Provider>
   );
 };

@@ -30,9 +30,7 @@ export function CashierLoginForm() {
     }
 
     if (!TENANT_SLUG) {
-      setError(
-        "El kiosko no está configurado. Contacta al administrador.",
-      );
+      setError("El kiosko no está configurado. Contacta al administrador.");
       return;
     }
 
@@ -46,7 +44,7 @@ export function CashierLoginForm() {
       navigate(result.redirectTo);
     } catch (submitError) {
       setError(
-        (submitError as ApiClientError).message ?? "Código o PIN incorrecto",
+        (submitError as ApiClientError).message ?? "Código o PIN incorrecto"
       );
     } finally {
       setLoading(false);
@@ -61,6 +59,7 @@ export function CashierLoginForm() {
       <div className="flex w-full max-w-xs flex-col gap-3">
         <input
           type="text"
+          aria-label="Código"
           placeholder="Tu código"
           maxLength={20}
           autoFocus
@@ -71,6 +70,7 @@ export function CashierLoginForm() {
         />
         <input
           type="password"
+          aria-label="PIN"
           inputMode="numeric"
           placeholder="Tu PIN"
           maxLength={6}

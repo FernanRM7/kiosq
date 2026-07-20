@@ -9,7 +9,6 @@ import {
 } from "../constants/cookie.constants";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 import { CashierSessionService } from "../services/cashier-session.service";
-import { cid } from "../lib/request-context";
 import { SessionService } from "../services/session.service";
 import type { SessionResult } from "../types/session.type";
 
@@ -31,7 +30,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly sessionService: SessionService,
     private readonly cashierSessionService: CashierSessionService,
-    private readonly reflector: Reflector,
+    private readonly reflector: Reflector
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -54,7 +53,7 @@ export class AuthGuard implements CanActivate {
     if (wosCookie) {
       const result = await this.sessionService.authenticateSession(
         request,
-        response,
+        response
       );
 
       if (result.authenticated) {
@@ -71,7 +70,7 @@ export class AuthGuard implements CanActivate {
       const result =
         await this.cashierSessionService.authenticateCashierSession(
           request,
-          response,
+          response
         );
 
       if (result.authenticated) {
@@ -86,10 +85,7 @@ export class AuthGuard implements CanActivate {
     throw new UnauthorizedException("Inicia sesión para continuar");
   }
 
-  private injectUser(
-    request: Request,
-    result: SessionResult,
-  ): void {
+  private injectUser(request: Request, result: SessionResult): void {
     (request as unknown as Record<string, unknown>)["user"] = result;
   }
 }

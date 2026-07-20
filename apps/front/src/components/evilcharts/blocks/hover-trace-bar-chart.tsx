@@ -178,9 +178,7 @@ export function EvilHoverTraceBarChart() {
         </div>
 
         <div className="space-y-1 text-right">
-          <p className="text-muted-foreground font-mono text-[10px]">
-            [month]
-          </p>
+          <p className="text-muted-foreground font-mono text-[10px]">[month]</p>
           <p className="text-primary font-mono text-xs">{selectedData.month}</p>
         </div>
       </div>

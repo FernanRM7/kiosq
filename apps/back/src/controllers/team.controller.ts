@@ -23,7 +23,7 @@ export class TeamController {
 
   @Get("members")
   @HttpCode(HttpStatus.OK)
-  async listMembers(@CurrentUser() session: AuthenticatedSessionResult) {
+  listMembers(@CurrentUser() session: AuthenticatedSessionResult) {
     return this.teamService.listMembers(session.userId);
   }
 
@@ -31,24 +31,26 @@ export class TeamController {
   @HttpCode(HttpStatus.CREATED)
   async createCashier(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Body() body: { name: string; code: string; email?: string; pin: string },
+    @Body() body: { name: string; code: string; email?: string; pin: string }
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
 
-    if (!/^\d{4,6}$/.test(body.pin)) {
-      throw new BadRequestException(
-        "El PIN debe tener 4-6 dígitos numéricos",
-      );
+    if (!/^\d{4,6}$/u.test(body.pin)) {
+      throw new BadRequestException("El PIN debe tener 4-6 dígitos numéricos");
     }
 
     if (!body.name || body.name.trim().length === 0) {
       throw new BadRequestException("El nombre es obligatorio");
     }
 
-    if (!body.code || body.code.trim().length < 3 || body.code.trim().length > 20) {
+    if (
+      !body.code ||
+      body.code.trim().length < 3 ||
+      body.code.trim().length > 20
+    ) {
       throw new BadRequestException(
-        "El código del dependiente debe tener entre 3 y 20 caracteres",
+        "El código del dependiente debe tener entre 3 y 20 caracteres"
       );
     }
 
@@ -64,15 +66,13 @@ export class TeamController {
   @HttpCode(HttpStatus.CREATED)
   async createManager(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Body() body: { email: string },
+    @Body() body: { email: string }
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
 
-    if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-      throw new BadRequestException(
-        "Debes proporcionar un email válido",
-      );
+    if (!body.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(body.email)) {
+      throw new BadRequestException("Debes proporcionar un email válido");
     }
 
     return this.teamService.createManager(session.userId, {
@@ -84,7 +84,7 @@ export class TeamController {
   @HttpCode(HttpStatus.OK)
   async disableMember(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Param("userId") userId: string,
+    @Param("userId") userId: string
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
@@ -97,7 +97,7 @@ export class TeamController {
   @HttpCode(HttpStatus.OK)
   async enableMember(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Param("userId") userId: string,
+    @Param("userId") userId: string
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
@@ -110,7 +110,7 @@ export class TeamController {
   @HttpCode(HttpStatus.OK)
   async cancelInvite(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Param("userId") userId: string,
+    @Param("userId") userId: string
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
@@ -123,7 +123,7 @@ export class TeamController {
   @HttpCode(HttpStatus.OK)
   async revokeCashierSession(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Param("userId") userId: string,
+    @Param("userId") userId: string
   ) {
     const caller = await this.teamService.getCallerInfo(session.userId);
     this.teamService.assertCanManageTeam(caller.role);
