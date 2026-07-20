@@ -7,7 +7,61 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
-import { cashierLogin } from "@/lib/auth";
+import { ApiClientError, cashierLogin } from "@/lib/auth";
+
+interface ValidationIssueLike {
+  message: string;
+  path?: string;
+}
+
+function formatCashierLoginError(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    const { details } = error;
+
+    if (Array.isArray(details)) {
+      const messages = details
+        .map((detail) => {
+          if (
+            detail === null ||
+            typeof detail !== "object" ||
+            !("message" in detail) ||
+            typeof (detail as ValidationIssueLike).message !== "string"
+          ) {
+            return null;
+          }
+
+          const issue = detail as ValidationIssueLike;
+
+          if (
+            "path" in issue &&
+            typeof issue.path === "string" &&
+            issue.path !== "(root)"
+          ) {
+            return `${issue.path}: ${issue.message}`;
+          }
+
+          return issue.message;
+        })
+        .filter((message): message is string => message !== null);
+
+      if (messages.length > 0) {
+        return messages.join(" · ");
+      }
+    }
+
+    if (typeof details === "string" && details.trim()) {
+      return details;
+    }
+
+    if (error.message.trim()) {
+      return error.message;
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "No se pudo iniciar sesión como cajero.";
+}
 
 export function LoginForm() {
   const { error, login, pendingAction } = useAuth();
@@ -43,11 +97,7 @@ export function LoginForm() {
 
       window.location.assign(response.redirectTo);
     } catch (loginError) {
-      setCashierError(
-        loginError instanceof Error
-          ? loginError.message
-          : "No se pudo iniciar sesión como cajero."
-      );
+      setCashierError(formatCashierLoginError(loginError));
     } finally {
       setIsCashierSubmitting(false);
     }

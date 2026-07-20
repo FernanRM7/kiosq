@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { isMissingPrismaTableError } from "../lib/prisma-errors";
 import { PrismaService } from "../lib/prisma.service";
 import type {
   CreateCashierInput,
@@ -18,6 +19,8 @@ import type {
   UpdateTenantSettingsInput,
 } from "../schemas/tenant-dashboard.schema";
 import { SessionRegistryService } from "./session-registry.service";
+
+const CASHIER_SHIFTS_TABLE = "public.cashier_shifts";
 
 @Injectable()
 export class TenantService {
@@ -386,71 +389,19 @@ export class TenantService {
   }
 
   async getTenantByUserId(userId: string) {
-    const user = await this.prisma.user.findFirst({
-      select: {
-        email: true,
-        id: true,
-        name: true,
-        role: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            plan: {
-              select: {
-                id: true,
-                maxBranches: true,
-                maxDevices: true,
-                maxUsers: true,
-                name: true,
-              },
-            },
-            planId: true,
-            settings: true,
-            slug: true,
-            status: true,
-            users: {
-              orderBy: { createdAt: "asc" },
-              select: {
-                cashierCode: true,
-                cashierShifts: {
-                  orderBy: { openedAt: "desc" },
-                  select: {
-                    closedAt: true,
-                    closingCash: true,
-                    dailySales: true,
-                    id: true,
-                    openedAt: true,
-                    openingCash: true,
-                    soldProducts: true,
-                    status: true,
-                  },
-                  take: 1,
-                },
-                email: true,
-                id: true,
-                isActive: true,
-                lastLoginAt: true,
-                name: true,
-                role: true,
-              },
-              where: { role: "CASHIER" },
-            },
-          },
-        },
-        tenantId: true,
-        workosUserId: true,
-      },
-      where: {
-        OR: [{ id: userId }, { workosUserId: userId }],
-      },
-    });
+    try {
+      return await this.findTenantByUserId(userId, true);
+    } catch (error) {
+      if (!isMissingPrismaTableError(error, CASHIER_SHIFTS_TABLE)) {
+        throw error;
+      }
 
-    if (user?.tenant?.status === "CANCELLED") {
-      return null;
+      this.logger.warn(
+        `cashier_shifts table unavailable — returning tenant without shift history`
+      );
+
+      return this.findTenantByUserId(userId, false);
     }
-
-    return user;
   }
 
   async listUserTenants(userId: string) {
@@ -685,6 +636,94 @@ export class TenantService {
         OR: [{ id: userId }, { workosUserId: userId }],
       },
     });
+  }
+
+  private async findTenantByUserId(
+    userId: string,
+    includeCashierShifts: boolean
+  ) {
+    const user = await this.prisma.user.findFirst({
+      select: {
+        email: true,
+        id: true,
+        name: true,
+        role: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            plan: {
+              select: {
+                id: true,
+                maxBranches: true,
+                maxDevices: true,
+                maxUsers: true,
+                name: true,
+              },
+            },
+            planId: true,
+            settings: true,
+            slug: true,
+            status: true,
+            users: {
+              orderBy: { createdAt: "asc" },
+              select: {
+                cashierCode: true,
+                ...(includeCashierShifts
+                  ? {
+                      cashierShifts: {
+                        orderBy: { openedAt: "desc" },
+                        select: {
+                          closedAt: true,
+                          closingCash: true,
+                          dailySales: true,
+                          id: true,
+                          openedAt: true,
+                          openingCash: true,
+                          soldProducts: true,
+                          status: true,
+                        },
+                        take: 1,
+                      },
+                    }
+                  : {}),
+                email: true,
+                id: true,
+                isActive: true,
+                lastLoginAt: true,
+                name: true,
+                role: true,
+              },
+              where: { role: "CASHIER" },
+            },
+          },
+        },
+        tenantId: true,
+        workosUserId: true,
+      },
+      where: {
+        OR: [{ id: userId }, { workosUserId: userId }],
+      },
+    });
+
+    if (user?.tenant?.status === "CANCELLED") {
+      return null;
+    }
+
+    if (!user?.tenant || includeCashierShifts) {
+      return user;
+    }
+
+    return {
+      ...user,
+      tenant: {
+        ...user.tenant,
+        users: user.tenant.users.map((cashier) => ({
+          ...cashier,
+          cashierShifts: [],
+        })),
+      },
+    };
   }
 
   private ensureActiveTenant(currentUser: {

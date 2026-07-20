@@ -7,7 +7,10 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 
+import { isMissingPrismaTableError } from "../lib/prisma-errors";
 import { PrismaService } from "../lib/prisma.service";
+
+const CASHIER_SHIFTS_TABLE = "public.cashier_shifts";
 
 interface CashierLoginResult {
   cashier: {
@@ -125,25 +128,49 @@ export class CashierService {
       throw new BadRequestException("El negocio no está activo");
     }
 
-    await this.prisma.cashierShift.create({
-      data: {
-        cashierId,
-        openingCash: this.resolveOpeningCash(tenant?.settings),
-        tenantId: cashier.tenantId,
-      },
-    });
+    try {
+      await this.prisma.cashierShift.create({
+        data: {
+          cashierId,
+          openingCash: this.resolveOpeningCash(tenant?.settings),
+          tenantId: cashier.tenantId,
+        },
+      });
+    } catch (error) {
+      if (isMissingPrismaTableError(error, CASHIER_SHIFTS_TABLE)) {
+        this.logger.warn(
+          `cashier_shifts table unavailable — skipping shift creation for cashier ${cashierId}`
+        );
+        return;
+      }
+
+      throw error;
+    }
   }
 
   async closeCashierShift(
     cashierId: string
   ): Promise<ClosedShiftSummary | null> {
-    const shift = await this.prisma.cashierShift.findFirst({
-      orderBy: { openedAt: "desc" },
-      where: {
-        cashierId,
-        status: "OPEN",
-      },
-    });
+    const shift = await (async () => {
+      try {
+        return await this.prisma.cashierShift.findFirst({
+          orderBy: { openedAt: "desc" },
+          where: {
+            cashierId,
+            status: "OPEN",
+          },
+        });
+      } catch (error) {
+        if (isMissingPrismaTableError(error, CASHIER_SHIFTS_TABLE)) {
+          this.logger.warn(
+            `cashier_shifts table unavailable — skipping shift close for cashier ${cashierId}`
+          );
+          return null;
+        }
+
+        throw error;
+      }
+    })();
 
     if (!shift) {
       return null;
@@ -204,16 +231,33 @@ export class CashierService {
     const closingCash = Number(shift.openingCash.toString()) + dailySales;
     const closedAt = new Date();
 
-    const updatedShift = await this.prisma.cashierShift.update({
-      data: {
-        closedAt,
-        closingCash: closingCash.toFixed(2),
-        dailySales: dailySales.toFixed(2),
-        soldProducts,
-        status: "CLOSED",
-      },
-      where: { id: shift.id },
-    });
+    const updatedShift = await (async () => {
+      try {
+        return await this.prisma.cashierShift.update({
+          data: {
+            closedAt,
+            closingCash: closingCash.toFixed(2),
+            dailySales: dailySales.toFixed(2),
+            soldProducts,
+            status: "CLOSED",
+          },
+          where: { id: shift.id },
+        });
+      } catch (error) {
+        if (isMissingPrismaTableError(error, CASHIER_SHIFTS_TABLE)) {
+          this.logger.warn(
+            `cashier_shifts table unavailable — skipping shift close for cashier ${cashierId}`
+          );
+          return null;
+        }
+
+        throw error;
+      }
+    })();
+
+    if (!updatedShift) {
+      return null;
+    }
 
     this.logger.log(`Cashier shift closed: ${shift.id}`);
 
