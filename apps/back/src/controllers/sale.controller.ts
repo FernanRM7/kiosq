@@ -38,7 +38,7 @@ export class SaleController {
       const sale = await this.saleService.createSale(session, body);
       this.logger.log(`Sale created`, {
         saleId: sale.id,
-        tenantId: session.organizationId,
+        tenantId: session.tenantId ?? session.organizationId,
         userId: session.userId,
       });
       return sale;

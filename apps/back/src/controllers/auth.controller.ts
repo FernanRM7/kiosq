@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -20,6 +23,7 @@ import {
 import type { Request, Response } from "express";
 
 import {
+  CASHIER_SESSION_COOKIE_NAME,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
@@ -28,16 +32,18 @@ import { Public } from "../decorators/public.decorator";
 import { cid } from "../lib/request-context";
 import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-response.schema";
+import { CashierLoginDto } from "../schemas/cashier-auth.dto";
 import { AuthService } from "../services/auth.service";
+import { CashierService } from "../services/cashier.service";
 import { SessionService } from "../services/session.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
 /** Error reasons returned by WorkOS in the `error` query param */
 const WORKOS_ERROR_MESSAGES: Record<string, string> = {
-  access_denied: "Authentication was cancelled or denied.",
-  invalid_client: "Invalid WorkOS client configuration.",
-  invalid_grant: "Authorization code is invalid or has already been used.",
-  server_error: "WorkOS encountered an internal error. Please try again.",
+  access_denied: "La autenticación fue cancelada o denegada.",
+  invalid_client: "La configuración de WorkOS no es válida.",
+  invalid_grant: "El código de autorización no es válido o ya se usó.",
+  server_error: "WorkOS tuvo un error interno. Intenta de nuevo.",
 };
 
 /** Shape of the data returned by POST /auth/logout */
@@ -53,6 +59,7 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly cashierService: CashierService,
     private readonly sessionService: SessionService
   ) {}
 
@@ -123,6 +130,47 @@ Omit it for the default AuthKit flow (email + social providers).
     });
 
     return { authorizationUrl };
+  }
+
+  @Public()
+  @Post("cashier/login")
+  @HttpCode(HttpStatus.OK)
+  async cashierLogin(
+    @Body() body: CashierLoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<{ redirectTo: string }> {
+    const { cashier } =
+      await this.cashierService.authenticateCashierLogin(body);
+    const sessionId = randomUUID();
+
+    await this.sessionService.registerSession(
+      cashier.id,
+      sessionId,
+      {
+        email: null,
+        name: cashier.name,
+      },
+      request
+    );
+
+    response.cookie(
+      CASHIER_SESSION_COOKIE_NAME,
+      this.sessionService.createCashierSessionCookieValue(
+        cashier.id,
+        sessionId
+      ),
+      SESSION_COOKIE_OPTIONS
+    );
+
+    await this.cashierService.openCashierShift(cashier.id);
+
+    this.logger.log(`Cashier logged in`, {
+      cashierId: cashier.id,
+      tenantId: cashier.tenantId,
+    });
+
+    return { redirectTo: `${this.authService.appUrl}/dashboard` };
   }
 
   /**
@@ -306,7 +354,7 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
 
       // Never expose raw exchange errors to the browser — use a generic message
       response.redirect(
-        `${loginUrl}?error=exchange_failed&message=${encodeURIComponent("Authentication could not be completed. Please try again.")}`
+        `${loginUrl}?error=exchange_failed&message=${encodeURIComponent("No se pudo completar la autenticación. Intenta de nuevo.")}`
       );
     }
   }
@@ -382,6 +430,36 @@ configured in the WorkOS dashboard (typically \`/login\`).
     @CurrentUser() session: AuthenticatedSessionResult,
     @Res({ passthrough: true }) response: Response
   ): Promise<LogoutResponseData> {
+    if (session.authType === "cashier") {
+      const closedShift = await this.cashierService.closeCashierShift(
+        session.userId
+      );
+
+      if (closedShift) {
+        this.logger.log(`Cashier shift closed`, {
+          cashierId: session.userId,
+          shiftId: closedShift.id,
+        });
+      }
+
+      try {
+        await this.sessionService.revokeSession(
+          session.userId,
+          session.sessionId
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to revoke cashier session from Redis: ${error}`
+        );
+      }
+
+      this.sessionService.clearCashierSession(response);
+
+      return {
+        logoutUrl: `${this.authService.appUrl}/login`,
+      };
+    }
+
     const logoutUrl = this.authService.getLogoutUrl(session.sessionId);
 
     this.logger.log(

@@ -13,9 +13,10 @@ import { getRoleLabel } from "@/lib/access";
 import { cn } from "@/lib/utils";
 
 function getDisplayName(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  const name =
+    user.name || [user.firstName, user.lastName].filter(Boolean).join(" ");
 
-  return name || user.email;
+  return name || user.email || "Usuario";
 }
 
 function getInitials(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {

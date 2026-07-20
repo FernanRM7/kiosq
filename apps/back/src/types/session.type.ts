@@ -1,13 +1,23 @@
-import type { User } from "@workos-inc/node";
+export interface SessionUser {
+  email: string | null;
+  emailVerified: boolean;
+  firstName: string | null;
+  id: string;
+  lastName: string | null;
+  name: string | null;
+}
 
 /** Successful session authentication result */
 export interface AuthenticatedSessionResult {
   authenticated: true;
+  authType: "workos" | "cashier";
+  dbUserId?: string;
+  tenantId?: string;
   userId: string;
   sessionId: string;
   organizationId: string | undefined;
   role: string | undefined;
-  user: User;
+  user: SessionUser;
   accessToken: string;
 }
 
