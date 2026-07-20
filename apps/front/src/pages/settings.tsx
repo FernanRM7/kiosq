@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Smartphone, Tablet, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { TeamSection } from "@/components/team/team-section";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -82,6 +83,9 @@ export default function SettingsPage() {
           Administra tu cuenta y tus sesiones activas.
         </p>
       </div>
+
+      {/* ── Team ─────────────────────────────────────────────────────────── */}
+      <TeamSection />
 
       {/* ── Sessions ─────────────────────────────────────────────────────── */}
       <Card>

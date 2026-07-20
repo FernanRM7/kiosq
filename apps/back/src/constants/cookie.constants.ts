@@ -1,7 +1,7 @@
-/** Name of the HttpOnly cookie that stores the WorkOS sealed session */
+/** Name of the HttpOnly cookie that stores the WorkOS sealed session. */
 export const SESSION_COOKIE_NAME = "wos-session";
 
-/** Name of the HttpOnly cookie that stores the cashier local session */
+/** Name of the HttpOnly cookie that stores the cashier session id. */
 export const CASHIER_SESSION_COOKIE_NAME = "cashier-session";
 
 /**

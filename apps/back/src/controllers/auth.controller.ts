@@ -29,6 +29,7 @@ import {
 } from "../constants/cookie.constants";
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { Public } from "../decorators/public.decorator";
+import { cid } from "../lib/request-context";
 import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-response.schema";
 import { CashierLoginDto } from "../schemas/cashier-auth.dto";
@@ -123,12 +124,8 @@ Omit it for the default AuthKit flow (email + social providers).
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     type: ApiErrorResponseSchema,
   })
-  login(
-    @Query("organization_id") organizationId?: string,
-    @Query("state") state?: string
-  ): AuthorizationUrlResponseSchema {
+  login(@Query("state") state?: string): AuthorizationUrlResponseSchema {
     const authorizationUrl = this.authService.getAuthorizationUrl({
-      organizationId,
       state,
     });
 
@@ -277,7 +274,7 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
         "Authentication failed.";
 
       this.logger.warn(
-        `WorkOS callback error: ${error} — ${errorDescription ?? "no description"}`
+        `${cid()} WorkOS callback error: error=${error} description=${errorDescription ?? "none"}`
       );
 
       response.redirect(
@@ -289,7 +286,7 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
 
     // ── 2. Validate code presence ─────────────────────────────────────────────
     if (!code) {
-      this.logger.warn("Callback received without a code parameter");
+      this.logger.warn(`${cid()} Callback received without a code parameter`);
 
       response.redirect(
         `${loginUrl}?error=missing_code&message=${encodeURIComponent("Authorization code was not provided.")}`
@@ -302,6 +299,10 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
     try {
       const { sealedSession, userId, organizationId } =
         await this.authService.exchangeCodeForSession(code);
+
+      this.logger.log(
+        `${cid()} Code exchange successful: userId=${userId} organizationId=${organizationId ?? "none"} hasSession=${!!sealedSession}`
+      );
 
       response.cookie(
         SESSION_COOKIE_NAME,
@@ -325,13 +326,18 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
             authResult.user,
             request
           );
+          this.logger.log(
+            `${cid()} Session registered in Redis: userId=${userId} sessionId=${String(authResult.sessionId ?? "unknown")}`
+          );
         }
       } catch (regError) {
-        this.logger.warn(`Failed to register session in Redis: ${regError}`);
+        this.logger.warn(
+          `${cid()} Failed to register session in Redis: ${regError instanceof Error ? regError.message : String(regError)}`
+        );
       }
 
       this.logger.log(
-        `Session established for user ${userId}${organizationId ? ` (org: ${organizationId})` : ""}`
+        `${cid()} Session established — redirecting to onboarding: userId=${userId}${organizationId ? ` org=${organizationId}` : ""}`
       );
 
       response.redirect(onboardingUrl);
@@ -341,7 +347,10 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
           ? exchangeError.message
           : "Unknown error during code exchange";
 
-      this.logger.error(`Code exchange failed: ${reason}`, exchangeError);
+      this.logger.error(
+        `${cid()} Code exchange failed: ${reason}`,
+        exchangeError instanceof Error ? exchangeError.stack : undefined
+      );
 
       // Never expose raw exchange errors to the browser — use a generic message
       response.redirect(
@@ -453,6 +462,11 @@ configured in the WorkOS dashboard (typically \`/login\`).
 
     const logoutUrl = this.authService.getLogoutUrl(session.sessionId);
 
+    this.logger.log(
+      `${cid()} Logout initiated: userId=${session.userId} sessionId=${session.sessionId} ` +
+        `returnTo=${this.authService.logoutReturnTo} logoutUrl=${logoutUrl}`
+    );
+
     // Revoke session from Redis
     try {
       await this.sessionService.revokeSession(
@@ -460,7 +474,9 @@ configured in the WorkOS dashboard (typically \`/login\`).
         session.sessionId
       );
     } catch (error) {
-      this.logger.warn(`Failed to revoke session from Redis: ${error}`);
+      this.logger.warn(
+        `${cid()} Failed to revoke session from Redis: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     // Clear the local cookie immediately — the session is considered terminated
@@ -468,7 +484,7 @@ configured in the WorkOS dashboard (typically \`/login\`).
     this.sessionService.clearSession(response);
 
     this.logger.log(
-      `Session cleared for user ${session.userId}. WorkOS logout URL generated.`
+      `${cid()} Logout completed: userId=${session.userId} sessionId=${session.sessionId} returnTo=${this.authService.logoutReturnTo}`
     );
 
     return { logoutUrl };

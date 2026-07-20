@@ -63,9 +63,11 @@ cookie in the response before returning this endpoint's data.
     status: HttpStatus.UNAUTHORIZED,
     type: ApiErrorResponseSchema,
   })
-  getMe(@CurrentUser() session: AuthenticatedSessionResult): MeResponseSchema {
+  async getMe(
+    @CurrentUser() session: AuthenticatedSessionResult
+  ): Promise<MeResponseSchema> {
     this.logger.log(`GET /me`, { userId: session.userId });
-    return this.userService.buildMeResponse(session);
+    return await this.userService.buildMeResponse(session);
   }
 
   @Get("sessions")

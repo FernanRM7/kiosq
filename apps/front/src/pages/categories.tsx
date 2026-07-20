@@ -75,14 +75,16 @@ export default function CategoriesPage() {
   } else if (!hasTenant) {
     statusMessage = (
       <p className="text-muted-foreground text-sm">
-        Crea o activa un negocio para ver y administrar las categorías.
+        Crea o activa un negocio para ver y administrar las categor\u00edas.
       </p>
     );
   }
 
   if (hasTenant) {
     categoryContent = isLoading ? (
-      <p className="text-muted-foreground text-sm">Cargando categorías...</p>
+      <p className="text-muted-foreground text-sm">
+        Cargando categor\u00edas...
+      </p>
     ) : (
       <Tabs defaultValue="active">
         <TabsList>
@@ -97,8 +99,8 @@ export default function CategoriesPage() {
         <TabsContent value="active" className="mt-4">
           {categories.active.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No hay categorías activas. Crea una con el botón "Nueva
-              categoría".
+              No hay categor\u00edas activas. Crea una con el bot\u00f3n{" "}
+              <strong>&quot;Nueva categor\u00eda&quot;</strong>.
             </p>
           ) : (
             <DataTable columns={activeColumns} data={categories.active} />
@@ -108,7 +110,7 @@ export default function CategoriesPage() {
         <TabsContent value="deleted" className="mt-4">
           {categories.deleted.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              No hay categorías eliminadas.
+              No hay categor\u00edas eliminadas.
             </p>
           ) : (
             <DataTable columns={deletedColumns} data={categories.deleted} />
@@ -121,9 +123,11 @@ export default function CategoriesPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="font-semibold text-lg">Categorías</h1>
+        <h1 className="font-semibold text-lg">Categor\u00edas</h1>
         {hasTenant && (
-          <Button onClick={() => setCreateOpen(true)}>Nueva categoría</Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            Nueva categor\u00eda
+          </Button>
         )}
       </div>
       {statusMessage}
@@ -131,7 +135,7 @@ export default function CategoriesPage() {
         <p className="mb-4 text-destructive text-sm">
           {visibleError instanceof Error
             ? visibleError.message
-            : "No se pudieron cargar las categorías"}
+            : "No se pudieron cargar las categor\u00EDas"}
         </p>
       )}
       {categoryContent}

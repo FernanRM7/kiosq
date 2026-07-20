@@ -89,45 +89,29 @@ describe("AuthController — GET /auth/login", () => {
   });
 
   it("returns authorizationUrl from AuthService", () => {
-    const result = controller.login(undefined, undefined);
+    const result = controller.login(undefined);
 
     expect(result.authorizationUrl).toBe(MOCK_AUTHORIZATION_URL);
   });
 
   it("calls getAuthorizationUrl with no options when params are absent", () => {
-    controller.login(undefined, undefined);
+    controller.login(undefined);
 
-    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
-      organizationId: undefined,
-      state: undefined,
-    });
-  });
-
-  it("forwards organization_id to getAuthorizationUrl", () => {
-    controller.login("org_01", undefined);
-
-    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
-      organizationId: "org_01",
-      state: undefined,
-    });
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: undefined,
+      })
+    );
   });
 
   it("forwards state to getAuthorizationUrl", () => {
-    controller.login(undefined, "csrf_token_xyz");
+    controller.login("csrf_token_xyz");
 
-    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
-      organizationId: undefined,
-      state: "csrf_token_xyz",
-    });
-  });
-
-  it("forwards both organization_id and state simultaneously", () => {
-    controller.login("org_01", "csrf_token_xyz");
-
-    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith({
-      organizationId: "org_01",
-      state: "csrf_token_xyz",
-    });
+    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: "csrf_token_xyz",
+      })
+    );
   });
 });
 
@@ -166,7 +150,8 @@ describe("AuthController — GET /auth/callback", () => {
       "valid-code",
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).toHaveBeenCalledWith(
@@ -189,7 +174,13 @@ describe("AuthController — GET /auth/callback", () => {
       userId: "user_02",
     });
 
-    await controller.callback("code", undefined, undefined, response as never);
+    await controller.callback(
+      "code",
+      undefined,
+      undefined,
+      response as never,
+      {} as never
+    );
 
     expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/dashboard`);
   });
@@ -203,7 +194,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "access_denied",
       "User cancelled",
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -219,7 +211,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "unknown_error_code",
       "Something went wrong on WorkOS",
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(response.redirect).toHaveBeenCalledWith(
@@ -238,7 +231,8 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -260,7 +254,8 @@ describe("AuthController — GET /auth/callback", () => {
       "used-code",
       undefined,
       undefined,
-      response as never
+      response as never,
+      {} as never
     );
 
     expect(response.cookie).not.toHaveBeenCalled();
@@ -277,7 +272,13 @@ describe("AuthController — GET /auth/callback", () => {
       .mocked(mockAuthService.exchangeCodeForSession)
       .mockRejectedValueOnce(new Error(sensitiveMessage));
 
-    await controller.callback("code", undefined, undefined, response as never);
+    await controller.callback(
+      "code",
+      undefined,
+      undefined,
+      response as never,
+      {} as never
+    );
 
     const redirectArg: string = (response.redirect as jest.Mock).mock
       .calls[0][0] as string;

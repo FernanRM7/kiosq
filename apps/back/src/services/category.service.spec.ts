@@ -38,7 +38,7 @@ function buildService() {
       findMany: jest.fn(),
     },
     user: {
-      findUnique: jest
+      findFirst: jest
         .fn()
         .mockResolvedValue({ isActive: true, tenantId: "tenant-1" }),
     },
@@ -225,7 +225,7 @@ describe("CategoryService", () => {
   it("rejects when the user has no active workspace", async () => {
     const { service, prisma } = buildService();
 
-    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.findFirst.mockResolvedValue(null);
 
     await expect(service.listCategories(session)).rejects.toThrow(
       ForbiddenException

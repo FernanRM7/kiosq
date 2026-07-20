@@ -1,10 +1,8 @@
 # QA — Migración a Zustand + TanStack Query
 
-> Checklist manual de regresión. Ejecutar sobre el build de desarrollo
-> (`npm run dev` en `apps/front` con `apps/back` corriendo).
+> Checklist manual de regresión. Ejecutar sobre el build de desarrollo (`npm run dev` en `apps/front` con `apps/back` corriendo).
 >
-> Cada flujo debe verificarse en el orden indicado. Si un paso falla,
-> anotar el error y continuar con el siguiente flujo independiente.
+> Cada flujo debe verificarse en el orden indicado. Si un paso falla, anotar el error y continuar con el siguiente flujo independiente.
 
 ---
 

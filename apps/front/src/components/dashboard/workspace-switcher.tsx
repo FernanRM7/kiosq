@@ -1,5 +1,5 @@
 /* eslint-disable complexity, no-nested-ternary, unicorn/no-nested-ternary */
-import { ChevronsUpDown, PencilLine, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, PencilLine, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,11 +23,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useDeleteTenant } from "@/hooks/mutations/use-delete-tenant";
 import { useUpdateTenant } from "@/hooks/mutations/use-update-tenant";
-import { useMyTenant } from "@/hooks/queries/use-tenants";
+import { useMyTenant, useTenants } from "@/hooks/queries/use-tenants";
 import { useAuth } from "@/hooks/use-auth";
-import type { MyTenantData } from "@/lib/auth";
+import { canSwitchWorkspace } from "@/lib/access";
+import { switchTenant } from "@/lib/auth";
+import type { MyTenantData, TenantListItem } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 type TenantData = NonNullable<MyTenantData["tenant"]>;
 
@@ -449,28 +453,66 @@ function WorkspaceManagementMenu({
 }
 
 export function WorkspaceSwitcher() {
-  const { data: myTenant } = useMyTenant();
-  const { user } = useAuth();
+  const { status, user } = useAuth();
+  const { state } = useSidebar();
+  const canSwitch = canSwitchWorkspace(user?.role);
+  const canManageWorkspace = user?.role ? user.role !== "CASHIER" : false;
+  const { data: myTenant } = useMyTenant(status === "authenticated");
+  const { data: tenants = [] } = useTenants(
+    status === "authenticated" && canSwitch
+  );
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
 
+  const activeTenantId = myTenant?.tenant?.id ?? null;
+  const activeTenantName = myTenant?.tenant?.name ?? null;
   const tenant = myTenant?.tenant ?? null;
-  const activeTenantName = tenant?.name ?? null;
-  const canManageWorkspace = user?.role !== "CASHIER";
+  const workspaces = tenants as TenantListItem[];
   const cashierLimit = getCashierLimit(tenant);
-  const roleLabel = getRoleLabel(myTenant?.role ?? "ADMIN");
+  const roleLabel = getRoleLabel(myTenant?.role ?? user?.role ?? "ADMIN");
 
   const workspaceLabel = activeTenantName ?? "Sin negocio activo";
-  let workspaceMeta = "Tu cuenta es de cajero";
+  const workspaceMeta = tenant
+    ? `Plan ${tenant.plan?.name ?? "activo"} · ${cashierLimit} cajeros`
+    : canManageWorkspace
+      ? "Aún no tienes un negocio"
+      : "Pide al dueño que registre el negocio.";
 
-  if (tenant) {
-    workspaceMeta = `Plan ${tenant.plan?.name ?? "activo"} · ${cashierLimit} cajeros`;
-  } else if (canManageWorkspace) {
-    workspaceMeta = "Aún no tienes un negocio";
+  async function handleSwitch(tenantId: string) {
+    if (tenantId === activeTenantId) {
+      setPopoverOpen(false);
+      return;
+    }
+
+    setSwitching(tenantId);
+
+    try {
+      await switchTenant(tenantId);
+      setPopoverOpen(false);
+      window.location.replace("/dashboard");
+    } catch (error) {
+      console.error("[Workspace] Failed to switch tenant", error);
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  function handleCreateWorkspace() {
+    setPopoverOpen(false);
+    setShowOnboarding(true);
+  }
+
+  function handleOnboardingComplete(_tenantName: string) {
+    setShowOnboarding(false);
   }
 
   function closePopover() {
     setPopoverOpen(false);
+  }
+
+  if (status !== "authenticated" || !user) {
+    return null;
   }
 
   return (
@@ -480,7 +522,12 @@ export function WorkspaceSwitcher() {
           render={
             <Button
               variant="ghost"
-              className="w-full justify-start gap-3 rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl px-3 py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90"
+              className={cn(
+                "w-full rounded-[2rem] border border-sidebar-border/30 bg-sidebar/70 backdrop-blur-xl py-3 text-sm shadow-2xl shadow-black/10 hover:bg-sidebar/90",
+                state === "collapsed"
+                  ? "justify-center px-2"
+                  : "justify-start gap-3 px-3"
+              )}
             />
           }
         >
@@ -491,23 +538,79 @@ export function WorkspaceSwitcher() {
               className="size-full rounded-2xl object-cover"
             />
           </Avatar>
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate font-semibold text-sm text-sidebar-foreground">
-              {workspaceLabel}
-            </span>
-            <span className="truncate text-xs text-sidebar-foreground/60">
-              {workspaceMeta}
-            </span>
-          </div>
-          <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+
+          {state !== "collapsed" && (
+            <>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-semibold text-sm text-sidebar-foreground">
+                  {workspaceLabel}
+                </span>
+
+                <span className="truncate text-xs text-sidebar-foreground/60">
+                  {workspaceMeta}
+                </span>
+              </div>
+
+              <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+            </>
+          )}
         </PopoverTrigger>
-        <PopoverContent className="w-72" side="bottom" align="end">
+        <PopoverContent className="w-80" side="bottom" align="end">
+          {canSwitch ? (
+            <>
+              <div className="max-h-52 overflow-y-auto">
+                {workspaces.length === 0 ? (
+                  <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                    No tienes workspaces disponibles.
+                  </p>
+                ) : (
+                  workspaces.map((ws) => {
+                    const isActive = ws.id === activeTenantId;
+
+                    return (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        disabled={switching !== null}
+                        onClick={() => handleSwitch(ws.id)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                      >
+                        <Avatar className="size-5 shrink-0 rounded">
+                          <img
+                            src="/logo.jpg"
+                            alt=""
+                            className="size-full rounded object-cover"
+                          />
+                        </Avatar>
+                        <div className="flex flex-1 flex-col truncate">
+                          <span className="truncate font-medium text-sm">
+                            {ws.name}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {getRoleLabel(ws.role)}
+                          </span>
+                        </div>
+                        {isActive && (
+                          <Check className="size-4 shrink-0 text-primary" />
+                        )}
+                        {switching === ws.id && (
+                          <span className="shrink-0 text-muted-foreground text-xs">
+                            ...
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <Separator className="my-1" />
+            </>
+          ) : null}
+
           <WorkspaceManagementMenu
             canManageWorkspace={canManageWorkspace}
             onClosePopover={closePopover}
-            onCreateWorkspace={() => {
-              setShowOnboarding(true);
-            }}
+            onCreateWorkspace={handleCreateWorkspace}
             roleLabel={roleLabel}
             tenant={tenant}
             workspaceLabel={workspaceLabel}
@@ -519,7 +622,7 @@ export function WorkspaceSwitcher() {
       {showOnboarding && (
         <OnboardingDialog
           open={showOnboarding}
-          onComplete={() => setShowOnboarding(false)}
+          onComplete={handleOnboardingComplete}
         />
       )}
     </>

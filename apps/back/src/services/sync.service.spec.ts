@@ -24,17 +24,35 @@ const MOCK_WORKOS_USER = {
 function makeMockPrisma() {
   return {
     plan: {
-      findFirst: jest.fn().mockResolvedValue({ id: MOCK_PLAN_ID }),
+      findFirst: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string } | null>>()
+        .mockResolvedValue({ id: MOCK_PLAN_ID }),
     },
     tenant: {
-      findMany: jest.fn().mockResolvedValue([]),
-      findUnique: jest.fn().mockResolvedValue(null),
-      upsert: jest.fn().mockResolvedValue({ id: MOCK_TENANT_ID, slug: "acme" }),
+      findMany: jest
+        .fn<(...args: unknown[]) => Promise<{ slug: string }[]>>()
+        .mockResolvedValue([]),
+      findUnique: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string } | null>>()
+        .mockResolvedValue(null),
+      upsert: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string; slug: string }>>()
+        .mockResolvedValue({ id: MOCK_TENANT_ID, slug: "acme" }),
     },
     user: {
-      findUnique: jest.fn().mockResolvedValue(null),
-      update: jest.fn().mockResolvedValue({ id: MOCK_USER_ID }),
-      upsert: jest.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+      findUnique: jest
+        .fn<
+          (
+            ...args: unknown[]
+          ) => Promise<{ id: string; tenantId: string } | null>
+        >()
+        .mockResolvedValue(null),
+      update: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string }>>()
+        .mockResolvedValue({ id: MOCK_USER_ID }),
+      upsert: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string }>>()
+        .mockResolvedValue({ id: MOCK_USER_ID }),
     },
   };
 }
@@ -43,7 +61,9 @@ function makeMockAuthService() {
   return {
     workos: {
       userManagement: {
-        getUser: jest.fn().mockResolvedValue(MOCK_WORKOS_USER),
+        getUser: jest
+          .fn<(...args: unknown[]) => Promise<typeof MOCK_WORKOS_USER>>()
+          .mockResolvedValue(MOCK_WORKOS_USER),
       },
     },
   };
@@ -102,7 +122,9 @@ describe("SyncService", () => {
     it("derives slug from organization name", async () => {
       await service.handleEvent(event);
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        create: { slug: string };
+      };
       expect(call.create.slug).toBe("acme-corp");
     });
 
@@ -112,14 +134,18 @@ describe("SyncService", () => {
         data: { ...event.data, name: "Tiendá Ópticá" },
       });
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        create: { slug: string };
+      };
       expect(call.create.slug).toBe("tienda-optica");
     });
 
     it("is idempotent — upsert does NOT change slug on update", async () => {
       await service.handleEvent(event);
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        update: Record<string, unknown>;
+      };
       expect(call.update).not.toHaveProperty("slug");
     });
 
@@ -130,7 +156,9 @@ describe("SyncService", () => {
         expect.objectContaining({ where: { isActive: true } })
       );
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        create: { planId: string };
+      };
       expect(call.create.planId).toBe(MOCK_PLAN_ID);
     });
 
@@ -142,7 +170,9 @@ describe("SyncService", () => {
 
       await service.handleEvent(event);
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        create: { slug: string };
+      };
       expect(call.create.slug).toBe("acme-corp-1");
     });
 
@@ -181,7 +211,9 @@ describe("SyncService", () => {
 
       await service.handleEvent(event);
 
-      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.tenant.upsert).mock.calls[0][0] as {
+        update: { name: string };
+      };
       expect(call.update.name).toBe("New Name");
     });
   });
@@ -255,7 +287,9 @@ describe("SyncService", () => {
 
       await service.handleEvent(event);
 
-      const call = jest.mocked(prismaMock.user.update).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.user.update).mock.calls[0][0] as {
+        data: { name: string };
+      };
       expect(call.data.name).toBe("Jane Smith");
     });
 
@@ -269,7 +303,9 @@ describe("SyncService", () => {
         data: { ...event.data, first_name: null, last_name: undefined },
       });
 
-      const call = jest.mocked(prismaMock.user.update).mock.calls[0][0];
+      const call = jest.mocked(prismaMock.user.update).mock.calls[0][0] as {
+        data: { name: string };
+      };
       expect(call.data.name).toBe("jane.updated@example.com");
     });
 
@@ -338,14 +374,18 @@ describe("SyncService", () => {
       it("builds name from WorkOS first_name + last_name", async () => {
         await service.handleEvent(membershipEvent);
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { name: string };
+        };
         expect(call.create.name).toBe("Jane Doe");
       });
 
       it("sets email from WorkOS profile", async () => {
         await service.handleEvent(membershipEvent);
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { email: string };
+        };
         expect(call.create.email).toBe("jane@example.com");
       });
     });
@@ -447,7 +487,9 @@ describe("SyncService", () => {
           data: { ...membershipEvent.data, role: { slug: "admin" } },
         });
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { role: string };
+        };
         expect(call.create.role).toBe("ADMIN");
       });
 
@@ -457,7 +499,9 @@ describe("SyncService", () => {
           data: { ...membershipEvent.data, role: { slug: "member" } },
         });
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { role: string };
+        };
         expect(call.create.role).toBe("MANAGER");
       });
 
@@ -467,7 +511,9 @@ describe("SyncService", () => {
           data: { ...membershipEvent.data, role: { slug: "custom_role" } },
         });
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { role: string };
+        };
         expect(call.create.role).toBe("ADMIN");
       });
 
@@ -477,7 +523,9 @@ describe("SyncService", () => {
           data: { ...membershipEvent.data, role: undefined },
         });
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { role: string };
+        };
         expect(call.create.role).toBe("ADMIN");
       });
 
@@ -487,7 +535,9 @@ describe("SyncService", () => {
           data: { ...membershipEvent.data, role: null },
         });
 
-        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0];
+        const call = jest.mocked(prismaMock.user.upsert).mock.calls[0][0] as {
+          create: { role: string };
+        };
         expect(call.create.role).toBe("ADMIN");
       });
     });

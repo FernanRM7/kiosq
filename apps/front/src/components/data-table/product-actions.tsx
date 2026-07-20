@@ -2,6 +2,8 @@ import type { Row } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { canManageCatalog } from "@/lib/access";
 import type { Product } from "@/lib/products";
 
 interface ProductActionsProps {
@@ -11,7 +13,13 @@ interface ProductActionsProps {
 }
 
 export function ProductActions({ row, onEdit, onDelete }: ProductActionsProps) {
+  const { user } = useAuth();
+  const canEditCatalog = canManageCatalog(user?.role);
   const product = row.original;
+
+  if (!canEditCatalog) {
+    return null;
+  }
 
   return (
     <div className="flex gap-2">

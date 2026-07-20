@@ -220,6 +220,14 @@ export class CategoryService {
     return user.tenantId;
   }
 
+  private assertCanManageCatalog(role: string): void {
+    if (role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar categorías"
+      );
+    }
+  }
+
   private ensureCanManageCategories(session: AuthenticatedSessionResult): void {
     if (session.role === "CASHIER") {
       throw new ForbiddenException(

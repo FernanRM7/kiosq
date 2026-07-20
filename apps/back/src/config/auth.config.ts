@@ -15,6 +15,16 @@ export interface AuthConfig {
    * Example: http://localhost:5173
    */
   appUrl: string;
+  /**
+   * URL to redirect the browser after WorkOS completes server-side logout.
+   * MUST be registered as a Redirect URI in the WorkOS AuthKit dashboard.
+   * Defaults to APP_URL if not set.
+   *
+   * IMPORTANT: If this URL is not registered in WorkOS, the logout will
+   * redirect to a WorkOS error page ("Something went wrong").
+   * Register it under AuthKit → Redirects → Redirect URIs.
+   */
+  logoutReturnTo: string;
 }
 
 export function loadAuthConfig(): AuthConfig {
@@ -23,6 +33,7 @@ export function loadAuthConfig(): AuthConfig {
   const cookiePassword = process.env.WORKOS_COOKIE_PASSWORD;
   const redirectUri = process.env.WORKOS_REDIRECT_URI;
   const appUrl = process.env.APP_URL ?? "http://localhost:5173";
+  const logoutReturnTo = process.env.WORKOS_LOGOUT_RETURN_TO ?? appUrl;
 
   if (!apiKey) {
     throw new Error("Missing required environment variable: WORKOS_API_KEY");
@@ -50,5 +61,12 @@ export function loadAuthConfig(): AuthConfig {
     );
   }
 
-  return { apiKey, appUrl, clientId, cookiePassword, redirectUri };
+  return {
+    apiKey,
+    appUrl,
+    clientId,
+    cookiePassword,
+    logoutReturnTo,
+    redirectUri,
+  };
 }

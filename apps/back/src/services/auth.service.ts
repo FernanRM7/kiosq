@@ -1,16 +1,17 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { WorkOS } from "@workos-inc/node";
 import type { JWTVerifyGetKey } from "jose";
 
 import { loadAuthConfig } from "../config/auth.config";
 import type { AuthConfig } from "../config/auth.config";
 import { createWorkosJwks } from "../lib/jwks.lib";
+import { cid } from "../lib/request-context";
 import type { JwtPayload } from "../types/jwt-payload.type";
 import { verifyWorkosToken } from "../utils/jwt.util";
 
 /** Result of a successful code exchange */
 export interface CodeExchangeResult {
-  /** The WorkOS sealed session string — write this to the `wos-session` cookie */
+  /** The WorkOS sealed session string - write this to the `wos-session` cookie */
   sealedSession: string;
   /** WorkOS user ID */
   userId: string;
@@ -19,11 +20,22 @@ export interface CodeExchangeResult {
 }
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
-  private cachedConfig: AuthConfig | null = null;
-  private cachedJwks: JWTVerifyGetKey | null = null;
-  private cachedWorkos: WorkOS | null = null;
+  readonly workos: WorkOS;
+  private readonly config: AuthConfig;
+  private jwks!: JWTVerifyGetKey;
+
+  constructor() {
+    this.config = loadAuthConfig();
+    this.workos = new WorkOS(this.config.apiKey, {
+      clientId: this.config.clientId,
+    });
+  }
+
+  onModuleInit() {
+    this.jwks = createWorkosJwks(this.config.clientId);
+  }
 
   get clientId(): string {
     return this.config.clientId;
@@ -38,28 +50,21 @@ export class AuthService {
     return this.config.redirectUri;
   }
 
-  /** Frontend base URL — used to build post-auth redirect targets */
+  /** Frontend base URL - used to build post-auth redirect targets */
   get appUrl(): string {
     return this.config.appUrl;
   }
 
-  /** Lazily constructed WorkOS SDK client. */
-  get workos(): WorkOS {
-    if (!this.cachedWorkos) {
-      const { config } = this;
-      this.cachedWorkos = new WorkOS(config.apiKey, {
-        clientId: config.clientId,
-      });
-    }
-
-    return this.cachedWorkos;
+  /** Post-logout redirect URL - MUST be registered in WorkOS AuthKit */
+  get logoutReturnTo(): string {
+    return this.config.logoutReturnTo;
   }
 
   /**
    * Exchanges an OAuth2 authorization code for a sealed WorkOS session.
    *
    * Uses `sealSession: true` so WorkOS returns an encrypted session string
-   * ready to be stored in an HttpOnly cookie — no access/refresh tokens
+   * ready to be stored in an HttpOnly cookie - no access/refresh tokens
    * are exposed to the browser at any point.
    *
    * @param code - The `code` query parameter received from WorkOS
@@ -67,13 +72,11 @@ export class AuthService {
    */
   async exchangeCodeForSession(code: string): Promise<CodeExchangeResult> {
     try {
-      const { config } = this;
-
       const result = await this.workos.userManagement.authenticateWithCode({
-        clientId: config.clientId,
+        clientId: this.config.clientId,
         code,
         session: {
-          cookiePassword: config.cookiePassword,
+          cookiePassword: this.config.cookiePassword,
           sealSession: true,
         },
       });
@@ -86,7 +89,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error(
         { error: error instanceof Error ? error.message : String(error) },
-        "Failed to exchange WorkOS code"
+        `${cid()} Failed to exchange WorkOS code (sealSession=true clientId=${this.config.clientId.slice(0, 8)}...)`
       );
       throw error;
     }
@@ -106,14 +109,19 @@ export class AuthService {
    * Generates a WorkOS logout URL for the given session.
    *
    * Visiting this URL invalidates the WorkOS session server-side.
-   * After invalidation, WorkOS redirects the user to the post-logout
-   * URL configured in the WorkOS dashboard.
+   * After invalidation, WorkOS redirects the user to `logoutReturnTo`.
+   *
+   * IMPORTANT: `logoutReturnTo` MUST be registered as a Redirect URI
+   * in the WorkOS AuthKit dashboard. If it isn't, WorkOS will show
+   * a "Something went wrong" error page instead of redirecting.
+   *
+   * Configure via `WORKOS_LOGOUT_RETURN_TO` env var or defaults to APP_URL.
    *
    * @param sessionId - The `sessionId` from the authenticated session result
    */
   getLogoutUrl(sessionId: string): string {
     return this.workos.userManagement.getLogoutUrl({
-      returnTo: this.config.appUrl,
+      returnTo: this.config.logoutReturnTo,
       sessionId,
     });
   }
@@ -134,30 +142,12 @@ export class AuthService {
     organizationId?: string;
     state?: string;
   }): string {
-    const { config } = this;
-
     return this.workos.userManagement.getAuthorizationUrl({
-      clientId: config.clientId,
+      clientId: this.config.clientId,
       organizationId: options?.organizationId,
       provider: "authkit",
-      redirectUri: config.redirectUri,
+      redirectUri: this.config.redirectUri,
       state: options?.state,
     });
-  }
-
-  private get config(): AuthConfig {
-    if (!this.cachedConfig) {
-      this.cachedConfig = loadAuthConfig();
-    }
-
-    return this.cachedConfig;
-  }
-
-  private get jwks(): JWTVerifyGetKey {
-    if (!this.cachedJwks) {
-      this.cachedJwks = createWorkosJwks(this.config.clientId);
-    }
-
-    return this.cachedJwks;
   }
 }

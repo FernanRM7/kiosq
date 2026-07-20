@@ -1,9 +1,12 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { RoleRoute } from "@/components/auth/role-route";
 import { SyncAuth } from "@/components/auth/sync-auth";
 import AuthLayout from "@/components/layout/auth-layout";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import { SyncProvider } from "@/contexts/sync.context";
+import CashierLoginPage from "@/pages/cashier-login";
 import CategoriesPage from "@/pages/categories";
 import DashboardPage from "@/pages/dashboard";
 import LoginPage from "@/pages/login";
@@ -17,32 +20,50 @@ import SupportPage from "@/pages/support";
 
 function App() {
   return (
-    <>
-      <SyncAuth />
-      <Routes>
-        {/* Public routes — accessible without a session */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-        </Route>
+    <SyncProvider>
+      <>
+        <SyncAuth />
 
-        {/* Protected routes — require a valid wos-session cookie */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
-            <Route path="sales" element={<SalesPage />} />
-            <Route path="suppliers" element={<SuppliersPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="support" element={<SupportPage />} />
+        <Routes>
+          {/* Public routes */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login/pin" element={<CashierLoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
           </Route>
-        </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </>
+          {/* Protected routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="sales" element={<SalesPage />} />
+              <Route path="support" element={<SupportPage />} />
+
+              <Route
+                element={
+                  <RoleRoute
+                    allowedRoles={["MANAGER", "ADMIN", "SUPER_ADMIN"]}
+                  />
+                }
+              >
+                <Route path="products" element={<ProductsPage />} />
+                <Route path="categories" element={<CategoriesPage />} />
+                <Route path="suppliers" element={<SuppliersPage />} />
+              </Route>
+
+              <Route
+                element={<RoleRoute allowedRoles={["ADMIN", "SUPER_ADMIN"]} />}
+              >
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </>
+    </SyncProvider>
   );
 }
 

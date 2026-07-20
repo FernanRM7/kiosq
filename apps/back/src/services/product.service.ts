@@ -283,6 +283,14 @@ export class ProductService {
     return user.tenantId;
   }
 
+  private assertCanManageCatalog(role: string): void {
+    if (role === "CASHIER") {
+      throw new ForbiddenException(
+        "No tienes permisos para administrar el catálogo"
+      );
+    }
+  }
+
   private ensureCanManageProducts(session: AuthenticatedSessionResult): void {
     if (session.role === "CASHIER") {
       throw new ForbiddenException(

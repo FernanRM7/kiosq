@@ -16,25 +16,29 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { mainNavItems, bottomNavItems } from "@/data/sidebar-items";
+import { useAuth } from "@/hooks/use-auth";
+import { hasRoleAccess } from "@/lib/access";
+import { cn } from "@/lib/utils";
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
+  const { state } = useSidebar();
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     const storedTheme = window.localStorage.getItem("theme");
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)"
     ).matches;
-    const initialTheme =
-      storedTheme === "dark" || (!storedTheme && prefersDark)
-        ? "dark"
-        : "light";
 
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
+    return storedTheme === "dark" || (!storedTheme && prefersDark)
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   const handleToggle = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -49,14 +53,21 @@ function ThemeToggle() {
         <SidebarMenuButton
           onClick={handleToggle}
           variant="outline"
-          className="justify-start gap-3"
+          className={cn(
+            state === "collapsed"
+              ? "justify-center px-0"
+              : "justify-start gap-3"
+          )}
         >
           {theme === "dark" ? (
             <Sun className="size-4" />
           ) : (
             <Moon className="size-4" />
           )}
-          <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
+
+          {state !== "collapsed" && (
+            <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>
+          )}
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
@@ -65,13 +76,25 @@ function ThemeToggle() {
 
 export function DashboardSidebar() {
   const location = useLocation();
+  const { user } = useAuth();
+  const visibleMainNavItems = mainNavItems.filter((item) =>
+    hasRoleAccess(user?.role, item.allowedRoles)
+  );
+  const visibleBottomNavItems = bottomNavItems.filter((item) =>
+    hasRoleAccess(user?.role, item.allowedRoles)
+  );
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader className="rounded-[2.25rem] border border-sidebar-border/40 bg-sidebar/85 px-3 py-4 shadow-sm shadow-black/10 dark:bg-sidebar/95 dark:border-sidebar-border/30">
         <div className="flex flex-col gap-3">
           <WorkspaceSwitcher />
-          <div className="rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15">
+          <div
+            className={cn(
+              "rounded-[1.75rem] border border-sidebar-border/15 bg-sidebar/80 p-2 shadow-sm shadow-black/5 dark:bg-sidebar/15 dark:border-sidebar-border/15",
+              "group-data-[collapsible=icon]:p-1"
+            )}
+          >
             <ThemeToggle />
           </div>
         </div>
@@ -84,7 +107,7 @@ export function DashboardSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {visibleMainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -105,7 +128,7 @@ export function DashboardSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {bottomNavItems.map((item) => (
+              {visibleBottomNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

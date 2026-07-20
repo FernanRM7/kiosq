@@ -210,8 +210,8 @@ model Tenant {
   devices        Device[]
   categories     Category[]
   products       Product[]
-  suppliers      Supplier[]
   sales          Sale[]
+  suppliers      Supplier[]
   syncEvents     SyncEvent[]
   stockMovements StockMovement[]
   cashierShifts  CashierShift[]
@@ -252,6 +252,7 @@ model User {
   /// Bcrypt hash of the PIN for cashier fast-switch (Tauri only).
   /// Null for users authenticated exclusively via WorkOS.
   pinHash      String?
+  /// Custom identifier for cashier login (replaces email for PIN users).
   cashierCode  String?
   name         String
   role         Role      @default(CASHIER)
