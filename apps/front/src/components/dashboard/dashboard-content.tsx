@@ -7,6 +7,7 @@ import {
   TrendingUp,
   UserPlus,
   Users,
+  Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
@@ -32,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateCashier } from "@/hooks/mutations/use-create-cashier";
+import { useDeleteCashier } from "@/hooks/mutations/use-delete-cashier";
 import { useUpdateCashier } from "@/hooks/mutations/use-update-cashier";
 import { useUpdateTenantSettings } from "@/hooks/mutations/use-update-tenant-settings";
 import { useProducts } from "@/hooks/queries/use-products";
@@ -65,6 +67,7 @@ interface PeriodSummary {
 interface CashierSummary extends PeriodSummary {
   lastLoginAt: string | null;
   latestShift: CashierShiftData | null;
+  todayMovements: Sale[];
 }
 
 interface MetricCardProps {
@@ -78,6 +81,7 @@ interface MetricCardProps {
 interface CashierCardProps {
   cashier: TenantCashierData;
   canManageCashiers: boolean;
+  onDeleteCashier: (cashier: TenantCashierData) => void;
   onEditCashier: (cashier: TenantCashierData) => void;
   summary: CashierSummary;
 }
@@ -206,14 +210,14 @@ function isRevenueSale(sale: Sale): boolean {
 
 function getCashierLabel(totalCashiers: number): string {
   if (totalCashiers === 0) {
-    return "Aún no hay cajeros registrados";
+    return "Aún no hay cajeros activos";
   }
 
   if (totalCashiers === 1) {
-    return "1 cajero registrado";
+    return "1 cajero activo";
   }
 
-  return `${totalCashiers} cajeros registrados`;
+  return `${totalCashiers} cajeros activos`;
 }
 
 function normalizeTenantSettings(
@@ -327,12 +331,20 @@ function buildCashierSummary(
   productCostMap: Map<string, number>
 ): CashierSummary {
   const cashierSales = sales.filter((sale) => sale.userId === cashier.id);
-  const summary = buildPeriodSummary(cashierSales, reference, productCostMap);
+  const revenueSales = cashierSales.filter(isRevenueSale);
+  const todayMovements = revenueSales
+    .filter((sale) => isSameLocalDay(new Date(sale.createdAt), reference))
+    .toSorted(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    );
+  const summary = buildPeriodSummary(revenueSales, reference, productCostMap);
 
   return {
     ...summary,
     lastLoginAt: cashier.lastLoginAt,
     latestShift: getLatestShift(cashier),
+    todayMovements,
   };
 }
 
@@ -382,9 +394,170 @@ function TopProductCard({ quantity, title }: TopProductCardProps) {
   );
 }
 
+function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+interface CashierDayOverview {
+  cashier: TenantCashierData;
+  summary: CashierSummary;
+}
+
+interface DailyMovementsSectionProps {
+  cashiers: CashierDayOverview[];
+}
+
+function DailyMovementsSection({ cashiers }: DailyMovementsSectionProps) {
+  const recentMovements = cashiers
+    .flatMap(({ cashier, summary }) =>
+      summary.todayMovements.map((movement) => ({
+        cashier,
+        movement,
+      }))
+    )
+    .toSorted(
+      (left, right) =>
+        new Date(right.movement.createdAt).getTime() -
+        new Date(left.movement.createdAt).getTime()
+    )
+    .slice(0, 6);
+
+  return (
+    <Card className="border-primary/10 bg-gradient-to-br from-primary/5 via-background to-muted/20">
+      <CardHeader className="gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>Movimientos de hoy</CardTitle>
+            <CardDescription>
+              Revisa la apertura de cada cajero y sus ventas más recientes.
+            </CardDescription>
+          </div>
+          <Banknote className="size-4 text-muted-foreground" />
+        </div>
+      </CardHeader>
+      <CardPanel className="space-y-4">
+        {cashiers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Aún no hay cajeros activos para mostrar.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {cashiers.map(({ cashier, summary }) => {
+                const { latestShift } = summary;
+                const latestMovement = summary.todayMovements[0] ?? null;
+
+                return (
+                  <div
+                    key={cashier.id}
+                    className="rounded-2xl border border-border/60 bg-background/85 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar className="size-10 rounded-2xl ring-1 ring-border/60">
+                          <AvatarFallback className="rounded-2xl bg-primary/10 text-primary">
+                            {getInitials(getDisplayName(cashier))}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-sm">
+                            {getDisplayName(cashier)}
+                          </p>
+                          <p className="truncate text-muted-foreground text-xs">
+                            {cashier.cashierCode ?? "Sin código"}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          latestShift?.status === "OPEN"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-zinc-100 text-zinc-600"
+                        }`}
+                      >
+                        {getShiftStatusLabel(latestShift)}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      <SummaryRow
+                        label="Fondo inicial"
+                        value={formatMoney(
+                          normalizeMoney(
+                            latestShift?.openingCash ?? DEFAULT_OPENING_CASH
+                          )
+                        )}
+                      />
+                      <SummaryRow
+                        label="Movimientos de hoy"
+                        value={String(summary.todayMovements.length)}
+                      />
+                      <SummaryRow
+                        label="Ventas de hoy"
+                        value={formatMoney(summary.todaySales)}
+                      />
+                      <SummaryRow
+                        label="Último movimiento"
+                        value={
+                          latestMovement
+                            ? formatDateTime(latestMovement.createdAt)
+                            : "Sin registro"
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="rounded-2xl bg-muted/40 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium text-sm">Ventas más recientes</p>
+                <p className="text-muted-foreground text-xs">
+                  {recentMovements.length} movimientos
+                </p>
+              </div>
+              {recentMovements.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Todavía no hay ventas registradas hoy.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {recentMovements.map(({ cashier, movement }) => (
+                    <div
+                      key={movement.id}
+                      className="flex flex-col gap-1 rounded-xl border border-border/50 bg-background/80 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-sm">
+                          {getDisplayName(cashier)}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {formatDateTime(movement.createdAt)}
+                        </p>
+                      </div>
+                      <p className="font-semibold tabular-nums">
+                        {formatMoney(movement.total)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </CardPanel>
+    </Card>
+  );
+}
+
 function CashierCard({
   canManageCashiers,
   cashier,
+  onDeleteCashier,
   onEditCashier,
   summary,
 }: CashierCardProps) {
@@ -392,11 +565,12 @@ function CashierCard({
   const initials = getInitials(displayName);
   const { latestShift } = summary;
   const latestShiftTopProduct = getShiftTopProduct(latestShift);
+  const latestMovement = summary.todayMovements[0] ?? null;
 
   return (
     <Card>
       <CardHeader className="gap-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="size-10 rounded-2xl ring-1 ring-border/60">
               <AvatarFallback className="rounded-2xl bg-primary/10 text-primary">
@@ -416,7 +590,7 @@ function CashierCard({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:justify-end">
             <span
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                 cashier.isActive
@@ -427,55 +601,72 @@ function CashierCard({
               {cashier.isActive ? "Activo" : "Inactivo"}
             </span>
             {canManageCashiers ? (
-              <Button
-                className="shrink-0"
-                onClick={() => onEditCashier(cashier)}
-                size="sm"
-                variant="ghost"
-              >
-                <PencilLine className="size-4" />
-                Editar
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  className="shrink-0"
+                  onClick={() => onEditCashier(cashier)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <PencilLine className="size-4" />
+                  Editar
+                </Button>
+                {cashier.isActive ? (
+                  <Button
+                    className="shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => onDeleteCashier(cashier)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <Trash2 className="size-4" />
+                    Eliminar
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
       </CardHeader>
       <CardPanel className="space-y-3 pt-0">
         <div className="grid gap-2 text-sm">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Inicio de turno</span>
-            <span className="font-medium tabular-nums">
-              {formatDateTime(latestShift?.openedAt)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Fin de turno</span>
-            <span className="font-medium tabular-nums">
-              {getShiftEndLabel(latestShift)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Fondo inicial</span>
-            <span className="font-medium tabular-nums">
-              {formatMoney(
-                normalizeMoney(latestShift?.openingCash ?? DEFAULT_OPENING_CASH)
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Ventas del día</span>
-            <span className="font-medium tabular-nums">
-              {formatMoney(summary.todaySales)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Corte de caja</span>
-            <span className="font-medium tabular-nums">
-              {latestShift?.status === "CLOSED"
+          <SummaryRow
+            label="Inicio de turno"
+            value={formatDateTime(latestShift?.openedAt)}
+          />
+          <SummaryRow
+            label="Fin de turno"
+            value={getShiftEndLabel(latestShift)}
+          />
+          <SummaryRow
+            label="Fondo inicial"
+            value={formatMoney(
+              normalizeMoney(latestShift?.openingCash ?? DEFAULT_OPENING_CASH)
+            )}
+          />
+          <SummaryRow
+            label="Ventas del día"
+            value={formatMoney(summary.todaySales)}
+          />
+          <SummaryRow
+            label="Movimientos de hoy"
+            value={String(summary.todayMovements.length)}
+          />
+          <SummaryRow
+            label="Último movimiento"
+            value={
+              latestMovement
+                ? formatDateTime(latestMovement.createdAt)
+                : "Sin registro"
+            }
+          />
+          <SummaryRow
+            label="Corte de caja"
+            value={
+              latestShift?.status === "CLOSED"
                 ? formatMoney(normalizeMoney(latestShift.closingCash))
-                : "Pendiente"}
-            </span>
-          </div>
+                : "Pendiente"
+            }
+          />
         </div>
         <div className="rounded-xl bg-muted/50 p-3">
           <p className="text-muted-foreground text-xs">Producto más vendido</p>
@@ -512,9 +703,7 @@ function CashierEmptyState({
     <Card className="border-dashed bg-muted/20">
       <CardHeader className="gap-2">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">
-            No hay cajeros registrados
-          </CardTitle>
+          <CardTitle className="text-base">No hay cajeros activos</CardTitle>
           <Users className="size-4 text-muted-foreground" />
         </div>
         <CardDescription>
@@ -523,7 +712,7 @@ function CashierEmptyState({
       </CardHeader>
       <CardPanel className="space-y-3 pt-0">
         <p className="text-sm text-muted-foreground">
-          Tu plan permite registrar cajeros y ver su resumen individual.
+          Tu plan permite ver el resumen individual de cada cajero.
         </p>
         {canManageCashiers ? (
           <Button
@@ -553,6 +742,7 @@ interface CashierSectionProps {
   cashierSlotsLeft: number;
   now: Date;
   onAddCashier: () => void;
+  onDeleteCashier: (cashier: TenantCashierData) => void;
   onEditCashier: (cashier: TenantCashierData) => void;
   productCostMap: Map<string, number>;
   sales: Sale[];
@@ -567,21 +757,24 @@ function CashierSection({
   cashierSlotsLeft,
   now,
   onAddCashier,
+  onDeleteCashier,
   onEditCashier,
   productCostMap,
   sales,
   tenant,
 }: CashierSectionProps) {
+  const activeCashiers = tenant.users.filter((cashier) => cashier.isActive);
+
   return (
     <Card>
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <CardTitle>Cajeros del plan</CardTitle>
+            <CardTitle>Cajeros activos</CardTitle>
             <CardDescription>
               {tenant.plan
-                ? `Tu plan ${tenant.plan.name} permite hasta ${cashierLimit} cajeros registrados.`
-                : `Tu plan actual permite hasta ${cashierLimit} cajeros registrados.`}
+                ? `Tu plan ${tenant.plan.name} permite hasta ${cashierLimit} cajeros activos.`
+                : `Tu plan actual permite hasta ${cashierLimit} cajeros activos.`}
             </CardDescription>
           </div>
           {canManageCashiers ? (
@@ -606,7 +799,7 @@ function CashierSection({
               : "Límite de cajeros alcanzado con tu plan actual."}
           </p>
         </div>
-        {tenant.users.length === 0 ? (
+        {activeCashiers.length === 0 ? (
           <CashierEmptyState
             canManageCashiers={canManageCashiers}
             disabled={!canAddCashier}
@@ -614,11 +807,12 @@ function CashierSection({
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {tenant.users.map((cashier) => (
+            {activeCashiers.map((cashier) => (
               <CashierCard
                 key={cashier.id}
                 canManageCashiers={canManageCashiers}
                 cashier={cashier}
+                onDeleteCashier={onDeleteCashier}
                 onEditCashier={onEditCashier}
                 summary={buildCashierSummary(
                   cashier,
@@ -658,14 +852,14 @@ function OpeningCashDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar fondo inicial</DialogTitle>
+          <DialogTitle>Editar fondo base</DialogTitle>
           <DialogDescription>
-            Cambia el monto con el que inicia el corte de caja del día.
+            Cambia el monto con el que inicia el área de trabajo cada día.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-2 text-left">
-            <Label htmlFor="cash-opening-amount">Fondo inicial</Label>
+            <Label htmlFor="cash-opening-amount">Fondo base</Label>
             <Input
               id="cash-opening-amount"
               inputMode="decimal"
@@ -843,6 +1037,59 @@ function EditCashierDialog({
   );
 }
 
+interface DeleteCashierDialogProps {
+  cashier: TenantCashierData | null;
+  error: Error | null;
+  isPending: boolean;
+  onDelete: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}
+
+function DeleteCashierDialog({
+  cashier,
+  error,
+  isPending,
+  onDelete,
+  onOpenChange,
+  open,
+}: DeleteCashierDialogProps) {
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar cajero</DialogTitle>
+          <DialogDescription>
+            ¿Seguro que quieres eliminar{" "}
+            <span className="font-medium text-foreground">
+              {cashier?.name ?? "este cajero"}
+            </span>
+            ? Se desactivará, se cerrarán sus sesiones y dejará de aparecer en
+            el panel. Sus ventas e historial se conservan.
+          </DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p className="text-destructive text-sm" role="alert">
+            {error.message}
+          </p>
+        )}
+        <DialogFooter>
+          <Button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            variant="outline"
+          >
+            Cancelar
+          </Button>
+          <Button disabled={isPending} onClick={onDelete} variant="destructive">
+            {isPending ? "Eliminando..." : "Eliminar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface CashierManagementPanelProps {
   canAddCashier: boolean;
   canManageCashiers: boolean;
@@ -868,10 +1115,14 @@ function CashierManagementPanel({
 }: CashierManagementPanelProps) {
   const createCashierMutation = useCreateCashier();
   const updateCashierMutation = useUpdateCashier();
+  const deleteCashierMutation = useDeleteCashier();
   const [isCashierDialogOpen, setIsCashierDialogOpen] = useState(false);
   const [isEditCashierDialogOpen, setIsEditCashierDialogOpen] = useState(false);
+  const [isDeleteCashierDialogOpen, setIsDeleteCashierDialogOpen] =
+    useState(false);
   const [cashierName, setCashierName] = useState("");
   const editingCashierRef = useRef<TenantCashierData | null>(null);
+  const deletingCashierRef = useRef<TenantCashierData | null>(null);
   const [editingCashierName, setEditingCashierName] = useState("");
   const [editingCashierPin, setEditingCashierPin] = useState("");
   const [latestCashierCredential, setLatestCashierCredential] =
@@ -925,6 +1176,16 @@ function CashierManagementPanel({
     setIsEditCashierDialogOpen(true);
   }
 
+  function handleOpenDeleteCashierDialog(cashier: TenantCashierData) {
+    if (!canManageCashiers) {
+      return;
+    }
+
+    deleteCashierMutation.reset();
+    deletingCashierRef.current = cashier;
+    setIsDeleteCashierDialogOpen(true);
+  }
+
   function handleEditCashierSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -968,6 +1229,21 @@ function CashierManagementPanel({
     );
   }
 
+  function handleDeleteCashier() {
+    const deletingCashier = deletingCashierRef.current;
+
+    if (!deletingCashier) {
+      return;
+    }
+
+    deleteCashierMutation.mutate(deletingCashier.id, {
+      onSuccess: () => {
+        setIsDeleteCashierDialogOpen(false);
+        deletingCashierRef.current = null;
+      },
+    });
+  }
+
   return (
     <>
       <CashierSection
@@ -978,6 +1254,7 @@ function CashierManagementPanel({
         cashierSlotsLeft={cashierSlotsLeft}
         now={now}
         onAddCashier={handleOpenCashierDialog}
+        onDeleteCashier={handleOpenDeleteCashierDialog}
         onEditCashier={handleOpenEditCashierDialog}
         productCostMap={productCostMap}
         sales={sales}
@@ -1045,6 +1322,25 @@ function CashierManagementPanel({
         open={isEditCashierDialogOpen}
         pinValue={editingCashierPin}
       />
+
+      <DeleteCashierDialog
+        cashier={deletingCashierRef.current}
+        error={
+          deleteCashierMutation.error instanceof Error
+            ? deleteCashierMutation.error
+            : null
+        }
+        isPending={deleteCashierMutation.isPending}
+        onDelete={handleDeleteCashier}
+        onOpenChange={(open) => {
+          setIsDeleteCashierDialogOpen(open);
+
+          if (!open) {
+            deletingCashierRef.current = null;
+          }
+        }}
+        open={isDeleteCashierDialogOpen}
+      />
     </>
   );
 }
@@ -1102,9 +1398,10 @@ export function DashboardContent() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Sin negocio activo</CardTitle>
+          <CardTitle>Sin área de trabajo activa</CardTitle>
           <CardDescription>
-            Crea o selecciona un negocio para ver las métricas del panel.
+            Crea o selecciona un área de trabajo para ver las métricas del
+            panel.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -1116,7 +1413,12 @@ export function DashboardContent() {
   const summary = buildPeriodSummary(sales, now, productCostMap);
   const openingCash = getOpeningCash(tenant.settings);
   const cashierLimit = Math.max((tenant.plan?.maxUsers ?? 3) - 1, 0);
-  const totalCashiers = tenant.users.length;
+  const activeCashiers = tenant.users.filter((cashier) => cashier.isActive);
+  const cashierSummaries = activeCashiers.map((cashier) => ({
+    cashier,
+    summary: buildCashierSummary(cashier, sales, now, productCostMap),
+  }));
+  const totalCashiers = activeCashiers.length;
   const cashierLabel = getCashierLabel(totalCashiers);
   const cashierSlotsLeft = Math.max(cashierLimit - totalCashiers, 0);
   const canManageCashiers = tenantData?.role !== "CASHIER";
@@ -1157,9 +1459,9 @@ export function DashboardContent() {
           value={formatMoney(summary.todaySales)}
         />
         <MetricCard
-          description="Monto base para el corte de caja"
+          description="Monto base con el que arranca el área de trabajo"
           icon={Banknote}
-          title="Fondo inicial"
+          title="Fondo base del área de trabajo"
           value={formatMoney(openingCash)}
           action={
             canManageCashiers && (
@@ -1185,6 +1487,8 @@ export function DashboardContent() {
           title={summary.topProduct.name}
         />
       </div>
+
+      <DailyMovementsSection cashiers={cashierSummaries} />
 
       <OpeningCashDialog
         error={

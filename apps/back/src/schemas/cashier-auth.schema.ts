@@ -1,21 +1,24 @@
 import { z } from "zod";
 
+const CASHIER_LOGIN_GENERIC_MESSAGE =
+  "Completa los datos para iniciar sesión como cajero";
+
 export const CashierLoginSchema = z.object({
   cashierCode: z
     .string()
     .trim()
-    .min(3, "El código del cajero es obligatorio")
-    .max(32, "El código del cajero debe tener máximo 32 caracteres"),
+    .min(3, CASHIER_LOGIN_GENERIC_MESSAGE)
+    .max(32, CASHIER_LOGIN_GENERIC_MESSAGE),
   pin: z
     .string()
     .trim()
-    .min(4, "La contraseña del cajero es obligatoria")
-    .max(12, "La contraseña del cajero debe tener máximo 12 caracteres"),
+    .min(4, CASHIER_LOGIN_GENERIC_MESSAGE)
+    .max(12, CASHIER_LOGIN_GENERIC_MESSAGE),
   tenantSlug: z
     .string()
     .trim()
-    .min(2, "El negocio es obligatorio")
-    .max(120, "El negocio debe tener máximo 120 caracteres"),
+    .min(2, CASHIER_LOGIN_GENERIC_MESSAGE)
+    .max(120, CASHIER_LOGIN_GENERIC_MESSAGE),
 });
 
 export type CashierLoginInput = z.infer<typeof CashierLoginSchema>;

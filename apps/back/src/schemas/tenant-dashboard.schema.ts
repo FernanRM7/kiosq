@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+export const CreateTenantSchema = z.object({
+  logoUrl: z
+    .string()
+    .trim()
+    .min(1, "El logo no puede estar vacío")
+    .max(3_000_000, "El logo es demasiado grande")
+    .refine(
+      (value) => value.startsWith("data:image/"),
+      "El logo debe ser una imagen válida"
+    )
+    .optional(),
+  name: z
+    .string()
+    .trim()
+    .min(2, "El nombre del negocio es obligatorio")
+    .max(120, "El negocio debe tener máximo 120 caracteres"),
+});
+
 export const UpdateTenantSettingsSchema = z.object({
   cashOpeningAmount: z.coerce
     .number()
@@ -58,6 +76,7 @@ export const UpdateCashierSchema = z
 export type UpdateTenantSettingsInput = z.infer<
   typeof UpdateTenantSettingsSchema
 >;
+export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;
 export type UpdateTenantInput = z.infer<typeof UpdateTenantSchema>;
 export type DeleteTenantInput = z.infer<typeof DeleteTenantSchema>;
 export type CreateCashierInput = z.infer<typeof CreateCashierSchema>;

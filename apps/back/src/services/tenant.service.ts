@@ -13,11 +13,13 @@ import { isMissingPrismaTableError } from "../lib/prisma-errors";
 import { PrismaService } from "../lib/prisma.service";
 import type {
   CreateCashierInput,
+  CreateTenantInput,
   DeleteTenantInput,
   UpdateCashierInput,
   UpdateTenantInput,
   UpdateTenantSettingsInput,
 } from "../schemas/tenant-dashboard.schema";
+import { CashierSessionService } from "./cashier-session.service";
 import { SessionRegistryService } from "./session-registry.service";
 
 const CASHIER_SHIFTS_TABLE = "public.cashier_shifts";
@@ -28,18 +30,20 @@ export class TenantService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly sessionRegistry: SessionRegistryService
+    private readonly sessionRegistry: SessionRegistryService,
+    private readonly cashierSessionService: CashierSessionService
   ) {}
 
   async createTenant(
     userId: string,
-    name: string,
+    input: CreateTenantInput,
     user: {
       firstName?: string | null;
       lastName?: string | null;
       email: string | null;
     }
   ) {
+    const name = input.name.trim();
     const currentUser = await this.findUser(userId);
 
     if (currentUser?.role === "CASHIER") {
@@ -70,6 +74,7 @@ export class TenantService {
         settings: {
           cashOpeningAmount: 500,
           createdByWorkosUserId: userId,
+          logoUrl: input.logoUrl ?? null,
         },
         slug,
       },
@@ -259,6 +264,7 @@ export class TenantService {
     const cashierLimit = this.getCashierLimit(tenant.plan?.maxUsers);
     const cashierCount = await this.prisma.user.count({
       where: {
+        isActive: true,
         role: "CASHIER",
         tenantId: tenant.id,
       },
@@ -379,6 +385,7 @@ export class TenantService {
 
     if (input.pin) {
       await this.sessionRegistry.removeAllSessions(cashier.id);
+      await this.cashierSessionService.revokeCashierSession(cashier.id);
     }
 
     return {
@@ -386,6 +393,62 @@ export class TenantService {
       temporaryPin,
       tenant: await this.getTenantByUserId(userId),
     };
+  }
+
+  async deleteCashier(userId: string, cashierId: string) {
+    const currentUser = await this.findUser(userId);
+
+    if (!currentUser) {
+      throw new NotFoundException("Usuario no encontrado");
+    }
+
+    if (currentUser.role === "CASHIER") {
+      throw new ForbiddenException("No tienes permisos para eliminar cajeros");
+    }
+
+    this.ensureActiveTenant(currentUser);
+
+    const cashier = await this.prisma.user.findFirst({
+      select: {
+        id: true,
+        name: true,
+        tenantId: true,
+      },
+      where: {
+        id: cashierId,
+        role: "CASHIER",
+        tenantId: currentUser.tenantId,
+      },
+    });
+
+    if (!cashier) {
+      throw new NotFoundException("Cajero no encontrado");
+    }
+
+    await this.prisma.user.update({
+      data: { isActive: false },
+      where: { id: cashier.id },
+    });
+
+    try {
+      await this.prisma.userTenant.updateMany({
+        data: { status: "DISABLED" },
+        where: { tenantId: currentUser.tenantId, userId: cashier.id },
+      });
+    } catch {
+      this.logger.warn(
+        `user_tenants table unavailable while deleting cashier ${cashier.id}`
+      );
+    }
+
+    await this.sessionRegistry.removeAllSessions(cashier.id);
+    await this.cashierSessionService.revokeCashierSession(cashier.id);
+
+    this.logger.log(
+      `Cashier deleted: user=${cashier.id} tenant=${currentUser.tenantId}`
+    );
+
+    return { tenant: await this.getTenantByUserId(userId) };
   }
 
   async getTenantByUserId(userId: string) {
@@ -428,6 +491,7 @@ export class TenantService {
       return userTenants.map((ut) => ({
         id: ut.tenant.id,
         joinedAt: ut.joinedAt.toISOString(),
+        logoUrl: this.getTenantLogoUrl(ut.tenant.settings),
         name: ut.tenant.name,
         role: ut.role,
         slug: ut.tenant.slug,
@@ -440,12 +504,13 @@ export class TenantService {
         {
           id: string;
           name: string;
+          settings: unknown;
           slug: string;
           status: string;
           createdAt: Date;
         }[]
       >`
-        SELECT id, name, slug, status::text, "createdAt"
+        SELECT id, name, settings, slug, status::text, "createdAt"
         FROM tenants
         WHERE settings->>'createdByWorkosUserId' = ${user.workosUserId ?? userId}
           AND status <> 'CANCELLED'
@@ -456,6 +521,7 @@ export class TenantService {
       const result: {
         id: string;
         joinedAt: string;
+        logoUrl: string | null;
         name: string;
         role: string;
         slug: string;
@@ -468,6 +534,7 @@ export class TenantService {
           result.push({
             id: row.id,
             joinedAt: new Date(row.createdAt).toISOString(),
+            logoUrl: this.getTenantLogoUrl(row.settings),
             name: row.name,
             role: user.role,
             slug: row.slug,
@@ -484,6 +551,7 @@ export class TenantService {
         result.push({
           id: user.tenant.id,
           joinedAt: user.createdAt.toISOString(),
+          logoUrl: this.getTenantLogoUrl(user.tenant.settings),
           name: user.tenant.name,
           role: user.role,
           slug: user.tenant.slug,
@@ -493,6 +561,16 @@ export class TenantService {
 
       return result;
     }
+  }
+
+  private getTenantLogoUrl(settings: unknown): string | null {
+    if (!settings || typeof settings !== "object") {
+      return null;
+    }
+
+    const { logoUrl } = settings as { logoUrl?: unknown };
+
+    return typeof logoUrl === "string" && logoUrl.trim() ? logoUrl : null;
   }
 
   async switchTenant(
@@ -619,6 +697,7 @@ export class TenantService {
     tenant: {
       id: string;
       name: string;
+      settings: unknown;
       slug: string;
       status: string;
     } | null;
@@ -631,7 +710,13 @@ export class TenantService {
         id: true,
         role: true,
         tenant: {
-          select: { id: true, name: true, slug: true, status: true },
+          select: {
+            id: true,
+            name: true,
+            settings: true,
+            slug: true,
+            status: true,
+          },
         },
         tenantId: true,
         workosUserId: true,

@@ -1,5 +1,7 @@
-import handlerModule from "../apps/back/dist/main.js";
+import { createRequire } from "node:module";
 
+const require = createRequire(import.meta.url);
+const handlerModule = require("../apps/back/dist/main.js");
 const handler =
   typeof handlerModule === "function" ? handlerModule : handlerModule?.default;
 

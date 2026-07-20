@@ -42,10 +42,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (authError) {
           console.error("[Auth] Auth flow failed", authError);
           set({
-            error:
-              authError instanceof Error
-                ? authError.message
-                : "No se pudo iniciar la autenticacion.",
+            error: "No se pudo iniciar sesión. Intenta de nuevo.",
             pendingAction: null,
           });
         }
@@ -89,10 +86,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (authError) {
           console.error("[Auth] Auth flow failed", authError);
           set({
-            error:
-              authError instanceof Error
-                ? authError.message
-                : "No se pudo iniciar la autenticacion.",
+            error: "No se pudo registrar la cuenta. Intenta de nuevo.",
             pendingAction: null,
           });
         }

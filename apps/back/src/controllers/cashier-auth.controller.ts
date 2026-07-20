@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -77,8 +78,10 @@ export class CashierAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response
   ) {
-    if (!body.code) {
-      return { message: "El código es obligatorio", statusCode: 400 };
+    if (!body.code?.trim() || !body.pin?.trim() || !body.slug?.trim()) {
+      throw new BadRequestException(
+        "Completa los datos para iniciar sesión como cajero"
+      );
     }
 
     const result = await this.cashierSessionService.loginWithPin(

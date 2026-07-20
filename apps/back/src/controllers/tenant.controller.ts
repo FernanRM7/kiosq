@@ -13,6 +13,7 @@ import {
 
 import { CurrentUser } from "../decorators/current-user.decorator";
 import { CreateCashierDto } from "../schemas/create-cashier.dto";
+import { CreateTenantDto } from "../schemas/create-tenant.dto";
 import {
   DeleteTenantDto,
   UpdateTenantDto,
@@ -38,9 +39,9 @@ export class TenantController {
   @HttpCode(HttpStatus.CREATED)
   async create(
     @CurrentUser() session: AuthenticatedSessionResult,
-    @Body("name") name: string
+    @Body() body: CreateTenantDto
   ) {
-    const tenant = await this.tenantService.createTenant(session.userId, name, {
+    const tenant = await this.tenantService.createTenant(session.userId, body, {
       email: session.user.email,
       firstName: session.user.firstName,
       lastName: session.user.lastName,
@@ -102,6 +103,23 @@ export class TenantController {
       body
     );
     this.logger.log(`Cashier updated`, {
+      cashierId,
+      userId: session.userId,
+    });
+    return tenant;
+  }
+
+  @Delete("me/cashiers/:id")
+  @HttpCode(HttpStatus.OK)
+  async deleteCashier(
+    @CurrentUser() session: AuthenticatedSessionResult,
+    @Param("id") cashierId: string
+  ) {
+    const tenant = await this.tenantService.deleteCashier(
+      session.userId,
+      cashierId
+    );
+    this.logger.log(`Cashier deleted`, {
       cashierId,
       userId: session.userId,
     });

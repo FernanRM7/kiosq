@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { OnboardingDialog } from "@/components/onboarding/onboarding-dialog";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,6 +50,25 @@ function getRoleLabel(role: string): string {
       return role;
     }
   }
+}
+
+function getAvatarInitials(label: string): string {
+  const parts = label.split(/[\s._-]+/u).filter(Boolean);
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
+function getLogoUrl(settings: TenantData["settings"]): string | null {
+  if (!settings || typeof settings !== "object") {
+    return null;
+  }
+
+  const { logoUrl } = settings as { logoUrl?: unknown };
+
+  return typeof logoUrl === "string" && logoUrl.trim() ? logoUrl : null;
 }
 
 function getCashierLimit(tenant: TenantData | null): number {
@@ -170,11 +189,13 @@ function WorkspaceManagementMenu({
         <>
           <div className="flex items-center gap-2 rounded-md px-2 py-1.5">
             <Avatar className="size-8 rounded-md">
-              <img
-                src="/logo.jpg"
-                alt="Negocio"
-                className="size-full rounded-md object-cover"
+              <AvatarImage
+                alt={workspaceLabel}
+                src={getLogoUrl(tenant.settings) ?? "/logo.jpg"}
               />
+              <AvatarFallback className="rounded-md bg-sidebar-primary/10 text-[0.65rem] font-semibold text-sidebar-primary">
+                {getAvatarInitials(workspaceLabel) || "AT"}
+              </AvatarFallback>
             </Avatar>
             <div className="flex min-w-0 flex-col">
               <span className="truncate font-medium text-sm">
@@ -188,7 +209,7 @@ function WorkspaceManagementMenu({
           <Separator className="my-1" />
           <div className="space-y-1">
             <p className="px-2 text-muted-foreground text-xs">
-              {roleLabel} · Solo puedes tener un negocio activo.
+              {roleLabel} · Solo puedes tener un área de trabajo activa.
             </p>
             {canManageWorkspace ? (
               <>
@@ -198,7 +219,7 @@ function WorkspaceManagementMenu({
                   variant="ghost"
                 >
                   <PencilLine className="size-4" />
-                  <span className="text-sm">Editar negocio</span>
+                  <span className="text-sm">Editar área de trabajo</span>
                 </Button>
                 <Button
                   className="w-full justify-start gap-2 px-2 text-destructive hover:text-destructive"
@@ -206,12 +227,12 @@ function WorkspaceManagementMenu({
                   variant="ghost"
                 >
                   <Trash2 className="size-4" />
-                  <span className="text-sm">Eliminar negocio</span>
+                  <span className="text-sm">Eliminar área de trabajo</span>
                 </Button>
               </>
             ) : (
               <p className="px-2 py-1 text-muted-foreground text-xs">
-                Solo el dueño puede editar o eliminar el negocio.
+                Solo el dueño puede editar o eliminar el área de trabajo.
               </p>
             )}
           </div>
@@ -219,11 +240,11 @@ function WorkspaceManagementMenu({
       ) : (
         <>
           <div className="px-2 py-1.5">
-            <p className="font-medium text-sm">Sin negocio activo</p>
+            <p className="font-medium text-sm">Sin área de trabajo activa</p>
             <p className="text-muted-foreground text-xs">
               {canManageWorkspace
-                ? "Crea tu primer negocio para empezar."
-                : "Pide al dueño que registre el negocio."}
+                ? "Crea tu primera área de trabajo para empezar."
+                : "Pide al dueño que registre el área de trabajo."}
             </p>
           </div>
           <Separator className="my-1" />
@@ -237,11 +258,11 @@ function WorkspaceManagementMenu({
               }}
             >
               <Plus className="size-4" />
-              <span className="text-sm">Nuevo negocio</span>
+              <span className="text-sm">Nueva área de trabajo</span>
             </Button>
           ) : (
             <p className="px-2 py-1 text-muted-foreground text-xs">
-              Tu cuenta de cajero no puede crear negocios.
+              Tu cuenta de cajero no puede crear áreas de trabajo.
             </p>
           )}
         </>
@@ -258,15 +279,15 @@ function WorkspaceManagementMenu({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar negocio</DialogTitle>
+            <DialogTitle>Editar área de trabajo</DialogTitle>
             <DialogDescription>
-              Cambia el nombre del negocio. Luego te pediremos confirmarlo una
-              vez más.
+              Cambia el nombre del área de trabajo. Luego te pediremos
+              confirmarlo una vez más.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleEditSubmit}>
             <div className="space-y-2 text-left">
-              <Label htmlFor="workspace-name">Nombre del negocio</Label>
+              <Label htmlFor="workspace-name">Nombre del área de trabajo</Label>
               <Input
                 id="workspace-name"
                 minLength={2}
@@ -317,7 +338,7 @@ function WorkspaceManagementMenu({
             <p className="text-muted-foreground">
               Nombre actual:{" "}
               <span className="font-medium text-foreground">
-                {tenant?.name ?? "Sin negocio"}
+                {tenant?.name ?? "Sin área de trabajo"}
               </span>
             </p>
             <p className="text-muted-foreground">
@@ -366,10 +387,10 @@ function WorkspaceManagementMenu({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Eliminar negocio</DialogTitle>
+            <DialogTitle>Eliminar área de trabajo</DialogTitle>
             <DialogDescription>
-              Esta acción cancela el negocio y oculta su información. Luego te
-              pediremos una segunda confirmación.
+              Esta acción cancela el área de trabajo y oculta su información.
+              Luego te pediremos una segunda confirmación.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -400,13 +421,13 @@ function WorkspaceManagementMenu({
           <DialogHeader>
             <DialogTitle>Confirmación final</DialogTitle>
             <DialogDescription>
-              Escribe el nombre exacto del negocio para eliminarlo.
+              Escribe el nombre exacto del área de trabajo para eliminarlo.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleDeleteSubmit}>
             <div className="space-y-2 text-left">
               <Label htmlFor="delete-confirmation-name">
-                Nombre del negocio
+                Nombre del área de trabajo
               </Label>
               <Input
                 id="delete-confirmation-name"
@@ -471,13 +492,14 @@ export function WorkspaceSwitcher() {
   const workspaces = tenants as TenantListItem[];
   const cashierLimit = getCashierLimit(tenant);
   const roleLabel = getRoleLabel(myTenant?.role ?? user?.role ?? "ADMIN");
+  const workspaceLogoUrl = getLogoUrl(tenant?.settings ?? null) ?? "/logo.jpg";
 
-  const workspaceLabel = activeTenantName ?? "Sin negocio activo";
+  const workspaceLabel = activeTenantName ?? "Sin área de trabajo activa";
   const workspaceMeta = tenant
     ? `Plan ${tenant.plan?.name ?? "activo"} · ${cashierLimit} cajeros`
     : canManageWorkspace
-      ? "Aún no tienes un negocio"
-      : "Pide al dueño que registre el negocio.";
+      ? "Aún no tienes un área de trabajo"
+      : "Pide al dueño que registre el área de trabajo.";
 
   async function handleSwitch(tenantId: string) {
     if (tenantId === activeTenantId) {
@@ -532,11 +554,10 @@ export function WorkspaceSwitcher() {
           }
         >
           <Avatar className="size-7 rounded-2xl ring-1 ring-sidebar-border/60">
-            <img
-              src="/logo.jpg"
-              alt="Negocio"
-              className="size-full rounded-2xl object-cover"
-            />
+            <AvatarImage alt={workspaceLabel} src={workspaceLogoUrl} />
+            <AvatarFallback className="rounded-2xl bg-sidebar-primary/10 text-[0.65rem] font-semibold text-sidebar-primary">
+              {getAvatarInitials(workspaceLabel) || "AT"}
+            </AvatarFallback>
           </Avatar>
 
           {state !== "collapsed" && (
@@ -561,11 +582,12 @@ export function WorkspaceSwitcher() {
               <div className="max-h-52 overflow-y-auto">
                 {workspaces.length === 0 ? (
                   <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                    No tienes workspaces disponibles.
+                    No tienes áreas de trabajo disponibles.
                   </p>
                 ) : (
                   workspaces.map((ws) => {
                     const isActive = ws.id === activeTenantId;
+                    const workspaceInitials = getAvatarInitials(ws.name);
 
                     return (
                       <button
@@ -576,11 +598,13 @@ export function WorkspaceSwitcher() {
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
                       >
                         <Avatar className="size-5 shrink-0 rounded">
-                          <img
-                            src="/logo.jpg"
-                            alt=""
-                            className="size-full rounded object-cover"
+                          <AvatarImage
+                            alt={ws.name}
+                            src={ws.logoUrl || "/logo.jpg"}
                           />
+                          <AvatarFallback className="rounded bg-muted text-[0.6rem] font-semibold">
+                            {workspaceInitials || "AT"}
+                          </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-1 flex-col truncate">
                           <span className="truncate font-medium text-sm">

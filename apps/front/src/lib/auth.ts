@@ -1,4 +1,4 @@
-import { isUnauthenticatedError, request } from "@/lib/api";
+import { ApiClientError, isUnauthenticatedError, request } from "@/lib/api";
 import type { ApiSuccess } from "@/lib/api";
 
 export {
@@ -92,11 +92,12 @@ export function revokeSession(
   });
 }
 
-export function createTenant(
-  name: string
-): Promise<{ tenant: { id: string; name: string; slug: string } }> {
+export function createTenant(data: {
+  logoUrl?: string | null;
+  name: string;
+}): Promise<{ tenant: { id: string; name: string; slug: string } }> {
   return request("/api/tenants", {
-    data: { name },
+    data,
     method: "POST",
   });
 }
@@ -119,6 +120,10 @@ export interface UpdateCashierResponse {
   };
   tenant: MyTenantData | null;
   temporaryPin?: string;
+}
+
+export interface DeleteCashierResponse {
+  tenant: MyTenantData | null;
 }
 
 export interface CashierLoginInput {
@@ -179,6 +184,17 @@ export function updateCashier(
   );
 }
 
+export function deleteCashier(
+  cashierId: string
+): Promise<DeleteCashierResponse> {
+  return request<DeleteCashierResponse>(
+    `/api/tenants/me/cashiers/${cashierId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
 export function cashierLogin(
   data: CashierLoginInput
 ): Promise<{ redirectTo: string }> {
@@ -186,6 +202,24 @@ export function cashierLogin(
     data,
     method: "POST",
   });
+}
+
+export function getCashierLoginErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    if (error.status === 401) {
+      return "Credenciales de cajero inválidas.";
+    }
+
+    if (error.status === 400) {
+      return "Completa los datos para iniciar sesión como cajero.";
+    }
+
+    if (error.status === 0) {
+      return "No se pudo conectar con el servidor.";
+    }
+  }
+
+  return "No se pudo iniciar sesión como cajero.";
 }
 
 export interface MyTenantData {
@@ -243,6 +277,7 @@ export function getMyTenant(): Promise<MyTenantData | null> {
 
 export interface TenantListItem {
   id: string;
+  logoUrl: string | null;
   name: string;
   role: string;
   slug: string;

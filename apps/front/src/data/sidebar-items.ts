@@ -4,6 +4,7 @@ import {
   Package,
   Tags,
   DollarSign,
+  LifeBuoy,
   Truck,
   Settings,
 } from "lucide-react";
@@ -21,40 +22,46 @@ export const mainNavItems: NavItem[] = [
   {
     allowedRoles: ["CASHIER", "MANAGER", "ADMIN", "SUPER_ADMIN"],
     icon: LayoutDashboard,
-    title: "Dashboard",
+    title: "Inicio",
     url: "/dashboard",
   },
   {
     allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
     icon: Package,
-    title: "Products",
+    title: "Productos",
     url: "/dashboard/products",
   },
   {
     allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
     icon: Tags,
-    title: "Categories",
+    title: "Categorías",
     url: "/dashboard/categories",
   },
   {
     allowedRoles: ["CASHIER", "MANAGER", "ADMIN", "SUPER_ADMIN"],
     icon: DollarSign,
-    title: "Sales",
+    title: "Ventas",
     url: "/dashboard/sales",
   },
   {
     allowedRoles: ["MANAGER", "ADMIN", "SUPER_ADMIN"],
     icon: Truck,
-    title: "Suppliers",
+    title: "Proveedores",
     url: "/dashboard/suppliers",
   },
 ];
 
 export const bottomNavItems: NavItem[] = [
   {
+    allowedRoles: ["CASHIER", "MANAGER", "ADMIN", "SUPER_ADMIN"],
+    icon: LifeBuoy,
+    title: "Soporte",
+    url: "/dashboard/support",
+  },
+  {
     allowedRoles: ["ADMIN", "SUPER_ADMIN"],
     icon: Settings,
-    title: "Settings",
+    title: "Ajustes",
     url: "/dashboard/settings",
   },
 ];

@@ -1,51 +1,40 @@
+import type { FormEvent } from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { request } from "@/lib/api";
-import type { ApiClientError } from "@/lib/api";
+import { cashierLogin, getCashierLoginErrorMessage } from "@/lib/auth";
 
 const TENANT_SLUG =
   (import.meta.env["VITE_KIOSK_TENANT_SLUG"] as string | undefined) ?? "";
 
 export function CashierLoginForm() {
-  const navigate = useNavigate();
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
+  const [tenantSlug, setTenantSlug] = useState(TENANT_SLUG);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
 
-    if (!code.trim()) {
-      setError("Ingresa tu código");
-      return;
-    }
-
-    if (!/^\d{4,6}$/u.test(pin)) {
-      setError("El PIN debe tener 4-6 dígitos numéricos");
-      return;
-    }
-
-    if (!TENANT_SLUG) {
-      setError("El kiosko no está configurado. Contacta al administrador.");
+    if (!code.trim() || !pin.trim() || !tenantSlug.trim()) {
+      setError("Completa los datos para iniciar sesión como cajero.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await request<{ redirectTo: string }>("/api/auth/pin", {
-        data: { code: code.trim(), pin, slug: TENANT_SLUG },
-        method: "POST",
+      const result = await cashierLogin({
+        cashierCode: code.trim(),
+        pin,
+        tenantSlug: tenantSlug.trim(),
       });
-      navigate(result.redirectTo);
+
+      window.location.assign(result.redirectTo);
     } catch (submitError) {
-      setError(
-        (submitError as ApiClientError).message ?? "Código o PIN incorrecto"
-      );
+      setError(getCashierLoginErrorMessage(submitError));
     } finally {
       setLoading(false);
     }
@@ -59,8 +48,19 @@ export function CashierLoginForm() {
       <div className="flex w-full max-w-xs flex-col gap-3">
         <input
           type="text"
-          aria-label="Código"
-          placeholder="Tu código"
+          aria-label="Área de trabajo"
+          placeholder="Mi área de trabajo"
+          maxLength={120}
+          autoComplete="off"
+          disabled={loading}
+          value={tenantSlug}
+          onChange={(e) => setTenantSlug(e.target.value)}
+          className="h-12 rounded-lg border border-input bg-background px-4 text-center text-lg outline-none transition-colors placeholder:text-muted-foreground focus:border-ring"
+        />
+        <input
+          type="text"
+          aria-label="Código de cajero"
+          placeholder="CJ-123456"
           maxLength={20}
           autoFocus
           disabled={loading}
@@ -72,7 +72,7 @@ export function CashierLoginForm() {
           type="password"
           aria-label="PIN"
           inputMode="numeric"
-          placeholder="Tu PIN"
+          placeholder="••••••"
           maxLength={6}
           disabled={loading}
           value={pin}
