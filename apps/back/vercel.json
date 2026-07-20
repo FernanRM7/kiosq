@@ -7,7 +7,7 @@
       "src": "dist/main.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "libquery_engine-rhel-openssl-3.0.x.so.node"
+        "includeFiles": "dist/libquery_engine-rhel-openssl-3.0.x.so.node"
       }
     }
   ],
