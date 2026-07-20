@@ -7,6 +7,7 @@ import {
   Logger,
   Post,
   Req,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type { RawBodyRequest } from "@nestjs/common";
@@ -18,7 +19,6 @@ import {
 } from "@nestjs/swagger";
 import type { Request } from "express";
 
-import { loadWebhookConfig } from "../config/webhook.config";
 import { Public } from "../decorators/public.decorator";
 import { WorkosEventSchema } from "../schemas/workos-event.schema";
 import { AuthService } from "../services/auth.service";
@@ -48,14 +48,11 @@ import { SyncService } from "../services/sync.service";
 @Controller("webhooks")
 export class WebhookController {
   private readonly logger = new Logger(WebhookController.name);
-  private readonly webhookSecret: string;
 
   constructor(
     private readonly authService: AuthService,
     private readonly syncService: SyncService
-  ) {
-    this.webhookSecret = loadWebhookConfig().secret;
-  }
+  ) {}
 
   /**
    * WorkOS webhook receiver.
@@ -112,13 +109,24 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
       throw new BadRequestException("Error interno al verificar la solicitud");
     }
 
+    const webhookSecret = this.getWebhookSecret();
+
+    if (!webhookSecret) {
+      this.logger.error(
+        "Missing required environment variable: WORKOS_WEBHOOK_SECRET"
+      );
+      throw new ServiceUnavailableException(
+        "Webhook de WorkOS no configurado en este entorno"
+      );
+    }
+
     let payload: unknown;
 
     try {
       // WorkOS SDK verifies the HMAC-SHA256 signature and returns the parsed event
       payload = this.authService.workos.webhooks.constructEvent({
         payload: rawBody,
-        secret: this.webhookSecret,
+        secret: webhookSecret,
         sigHeader: signature,
       });
     } catch (error) {
@@ -166,5 +174,9 @@ All operations are idempotent — safe for WorkOS at-least-once delivery.
     );
 
     return { received: true };
+  }
+
+  private getWebhookSecret(): string | null {
+    return process.env.WORKOS_WEBHOOK_SECRET ?? null;
   }
 }

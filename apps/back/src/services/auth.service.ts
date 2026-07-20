@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { WorkOS } from "@workos-inc/node";
 import type { JWTVerifyGetKey } from "jose";
 
@@ -19,22 +19,11 @@ export interface CodeExchangeResult {
 }
 
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  readonly workos: WorkOS;
-  private readonly config: AuthConfig;
-  private jwks!: JWTVerifyGetKey;
-
-  constructor() {
-    this.config = loadAuthConfig();
-    this.workos = new WorkOS(this.config.apiKey, {
-      clientId: this.config.clientId,
-    });
-  }
-
-  onModuleInit() {
-    this.jwks = createWorkosJwks(this.config.clientId);
-  }
+  private cachedConfig: AuthConfig | null = null;
+  private cachedJwks: JWTVerifyGetKey | null = null;
+  private cachedWorkos: WorkOS | null = null;
 
   get clientId(): string {
     return this.config.clientId;
@@ -54,6 +43,18 @@ export class AuthService implements OnModuleInit {
     return this.config.appUrl;
   }
 
+  /** Lazily constructed WorkOS SDK client. */
+  get workos(): WorkOS {
+    if (!this.cachedWorkos) {
+      const { config } = this;
+      this.cachedWorkos = new WorkOS(config.apiKey, {
+        clientId: config.clientId,
+      });
+    }
+
+    return this.cachedWorkos;
+  }
+
   /**
    * Exchanges an OAuth2 authorization code for a sealed WorkOS session.
    *
@@ -66,11 +67,13 @@ export class AuthService implements OnModuleInit {
    */
   async exchangeCodeForSession(code: string): Promise<CodeExchangeResult> {
     try {
+      const { config } = this;
+
       const result = await this.workos.userManagement.authenticateWithCode({
-        clientId: this.config.clientId,
+        clientId: config.clientId,
         code,
         session: {
-          cookiePassword: this.config.cookiePassword,
+          cookiePassword: config.cookiePassword,
           sealSession: true,
         },
       });
@@ -131,12 +134,30 @@ export class AuthService implements OnModuleInit {
     organizationId?: string;
     state?: string;
   }): string {
+    const { config } = this;
+
     return this.workos.userManagement.getAuthorizationUrl({
-      clientId: this.config.clientId,
+      clientId: config.clientId,
       organizationId: options?.organizationId,
       provider: "authkit",
-      redirectUri: this.config.redirectUri,
+      redirectUri: config.redirectUri,
       state: options?.state,
     });
+  }
+
+  private get config(): AuthConfig {
+    if (!this.cachedConfig) {
+      this.cachedConfig = loadAuthConfig();
+    }
+
+    return this.cachedConfig;
+  }
+
+  private get jwks(): JWTVerifyGetKey {
+    if (!this.cachedJwks) {
+      this.cachedJwks = createWorkosJwks(this.config.clientId);
+    }
+
+    return this.cachedJwks;
   }
 }
