@@ -16,3 +16,4 @@ Dockerfile.backend
 Dockerfile.frontend
 .opencode
 docs-site/
+.env*

@@ -7,7 +7,7 @@
       "src": "dist/main.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "../../node_modules/.prisma/client/**"
+        "includeFiles": "libquery_engine-rhel-openssl-3.0.x.so.node"
       }
     }
   ],
