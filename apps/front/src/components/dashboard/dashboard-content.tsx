@@ -115,7 +115,8 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function getLatestShift(cashier: TenantCashierData): CashierShiftData | null {
-  const [latestShift] = cashier.cashierShifts;
+  const shifts = cashier.cashierShifts ?? [];
+  const [latestShift] = shifts;
 
   return latestShift ?? null;
 }
