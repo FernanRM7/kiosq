@@ -6,16 +6,20 @@ interface PrismaKnownRequestErrorLike {
   };
 }
 
+export function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as PrismaKnownRequestErrorLike).code === code
+  );
+}
+
 export function isMissingPrismaTableError(
   error: unknown,
   tableName: string
 ): boolean {
-  if (
-    typeof error !== "object" ||
-    error === null ||
-    !("code" in error) ||
-    (error as PrismaKnownRequestErrorLike).code !== "P2021"
-  ) {
+  if (!isPrismaErrorCode(error, "P2021")) {
     return false;
   }
 

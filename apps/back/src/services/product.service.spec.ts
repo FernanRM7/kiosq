@@ -55,9 +55,11 @@ function buildService() {
       findMany: jest.fn(),
     },
     user: {
-      findFirst: jest
-        .fn()
-        .mockResolvedValue({ isActive: true, tenantId: "tenant-1" }),
+      findUnique: jest.fn().mockResolvedValue({
+        isActive: true,
+        tenant: { status: "ACTIVE" },
+        tenantId: "tenant-1",
+      }),
     },
   };
 

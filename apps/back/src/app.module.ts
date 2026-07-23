@@ -9,7 +9,6 @@ import { ZodValidationPipe } from "./common/pipes/zod-validation.pipe";
 import { PrismaService } from "./lib/prisma.service";
 import { AuthGuard } from "./middlewares/auth.guard";
 import { authRoutes } from "./routes/auth.routes";
-import { cashierAuthRoutes } from "./routes/cashier-auth.routes";
 import { categoryRoutes } from "./routes/category.routes";
 import { healthRoutes } from "./routes/health.routes";
 import { productRoutes } from "./routes/product.routes";
@@ -21,6 +20,7 @@ import { tenantRoutes } from "./routes/tenant.routes";
 import { userRoutes } from "./routes/user.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { AuthService } from "./services/auth.service";
+import { CashierLoginRateLimitService } from "./services/cashier-login-rate-limit.service";
 import { CashierSessionService } from "./services/cashier-session.service";
 import { CashierService } from "./services/cashier.service";
 import { CategoryService } from "./services/category.service";
@@ -42,7 +42,6 @@ import { UserService } from "./services/user.service";
     // the file is added under controllers/sync.controller.ts
     ...healthRoutes,
     ...authRoutes,
-    ...cashierAuthRoutes,
     ...webhookRoutes,
     ...userRoutes,
     ...tenantRoutes,
@@ -60,6 +59,7 @@ import { UserService } from "./services/user.service";
     PrismaService,
     ProductService,
     CategoryService,
+    CashierLoginRateLimitService,
     CashierService,
     SaleService,
     SupplierService,

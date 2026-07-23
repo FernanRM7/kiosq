@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 
@@ -40,6 +40,9 @@ function makeMockPrisma() {
         .mockResolvedValue({ id: MOCK_TENANT_ID, slug: "acme" }),
     },
     user: {
+      findFirst: jest
+        .fn<(...args: unknown[]) => Promise<{ id: string } | null>>()
+        .mockResolvedValue(null),
       findUnique: jest
         .fn<
           (
@@ -53,6 +56,11 @@ function makeMockPrisma() {
       upsert: jest
         .fn<(...args: unknown[]) => Promise<{ id: string }>>()
         .mockResolvedValue({ id: MOCK_USER_ID }),
+    },
+    userTenant: {
+      updateMany: jest
+        .fn<(...args: unknown[]) => Promise<{ count: number }>>()
+        .mockResolvedValue({ count: 1 }),
     },
   };
 }
@@ -180,7 +188,7 @@ describe("SyncService", () => {
       jest.mocked(prismaMock.plan.findFirst).mockResolvedValueOnce(null);
 
       await expect(service.handleEvent(event)).rejects.toThrow(
-        /no active plans/i
+        /no hay planes disponibles/i
       );
     });
   });
@@ -387,6 +395,47 @@ describe("SyncService", () => {
           create: { email: string };
         };
         expect(call.create.email).toBe("jane@example.com");
+      });
+    });
+
+    describe("when a pending user was pre-created by email", () => {
+      beforeEach(() => {
+        jest
+          .mocked(prismaMock.tenant.findUnique)
+          .mockResolvedValueOnce({ id: MOCK_TENANT_ID } as never);
+        jest.mocked(prismaMock.user.findUnique).mockResolvedValueOnce(null);
+        jest
+          .mocked(prismaMock.user.findFirst)
+          .mockResolvedValueOnce({ id: MOCK_USER_ID });
+      });
+
+      it("links the existing row to the WorkOS identity", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.user.update).toHaveBeenCalledWith({
+          data: {
+            name: "Jane Doe",
+            role: "ADMIN",
+            workosUserId: "wos_user_01",
+          },
+          where: { id: MOCK_USER_ID },
+        });
+        expect(prismaMock.user.upsert).not.toHaveBeenCalled();
+      });
+
+      it("activates the pending tenant membership", async () => {
+        await service.handleEvent(membershipEvent);
+
+        expect(prismaMock.userTenant.updateMany).toHaveBeenCalledWith({
+          data: {
+            acceptedAt: expect.any(Date),
+            status: "ACTIVE",
+          },
+          where: {
+            tenantId: MOCK_TENANT_ID,
+            userId: MOCK_USER_ID,
+          },
+        });
       });
     });
 

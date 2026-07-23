@@ -1,17 +1,15 @@
 import {
   ConflictException,
-  Injectable,
   ForbiddenException,
+  Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
-import * as bcrypt from "bcrypt";
 
+import { hashCashierPin } from "../lib/cashier-pin";
 import { PrismaService } from "../lib/prisma.service";
 import { CashierSessionService } from "./cashier-session.service";
-
-const SALT_ROUNDS = 10;
 
 @Injectable()
 export class TeamService {
@@ -81,7 +79,7 @@ export class TeamService {
     const normalizedEmail = data.email ? data.email.toLowerCase() : undefined;
     const cashierCode = data.code.trim().toUpperCase();
 
-    const pinHash = await bcrypt.hash(data.pin, SALT_ROUNDS);
+    const pinHash = await hashCashierPin(data.pin);
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {

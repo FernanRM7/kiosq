@@ -27,6 +27,7 @@ module.exports = {
   },
   compactDecrypt: () => ({ plaintext: new TextEncoder().encode("{}") }),
   createLocalJWKSet: () => () => ({}),
+  createRemoteJWKSet: () => () => ({}),
   decodeJwt: () => ({
     exp: Math.floor(Date.now() / 1000) + 3600,
     sid: "mock-session",

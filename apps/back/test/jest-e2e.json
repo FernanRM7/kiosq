@@ -1,10 +1,14 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleNameMapper": {
+    "^jose$": "<rootDir>/../src/__mocks__/jose.cjs",
+    "^jose/(.*)$": "<rootDir>/../src/__mocks__/jose.cjs"
+  },
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.test.json" }]
   },
   "transformIgnorePatterns": ["/node_modules/(?!(jose)/)"]
 }

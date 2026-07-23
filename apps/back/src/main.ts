@@ -13,6 +13,19 @@ import { getRedisClient } from "./lib/redis.lib";
 
 let _cachedApp: INestApplication;
 
+async function connectRedisInBackground(
+  redisClient: ReturnType<typeof getRedisClient>
+): Promise<void> {
+  try {
+    await redisClient.connect();
+  } catch (redisError) {
+    logger.warn(
+      { error: redisError },
+      "Redis no disponible — el acceso de cajeros permanecerá cerrado"
+    );
+  }
+}
+
 async function bootstrap(): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, {
     // rawBody is required for WorkOS webhook signature verification.
@@ -42,20 +55,14 @@ async function bootstrap(): Promise<INestApplication> {
 
   try {
     const redisClient = getRedisClient();
-    void (async () => {
-      try {
-        await redisClient.connect();
-      } catch (redisError) {
-        logger.warn(
-          { error: redisError },
-          "Redis no disponible — sesiones activas no disponibles"
-        );
-      }
-    })();
+
+    if (!redisClient.isOpen) {
+      void connectRedisInBackground(redisClient);
+    }
   } catch (redisError) {
     logger.warn(
       { error: redisError },
-      "Redis no disponible — sesiones activas no disponibles"
+      "Redis no disponible — el acceso de cajeros permanecerá cerrado"
     );
   }
 

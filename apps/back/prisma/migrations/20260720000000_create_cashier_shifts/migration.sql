@@ -1,3 +1,5 @@
+BEGIN;
+
 DO $$
 BEGIN
     CREATE TYPE "CashierShiftStatus" AS ENUM ('OPEN', 'CLOSED');
@@ -44,3 +46,12 @@ CREATE INDEX IF NOT EXISTS "cashier_shifts_tenantId_cashierId_status_idx"
 
 CREATE INDEX IF NOT EXISTS "cashier_shifts_tenantId_openedAt_idx"
     ON "cashier_shifts" ("tenantId", "openedAt");
+
+-- Enforce one active shift per cashier, including across concurrent instances.
+-- This intentionally fails deployment when historical duplicate OPEN shifts exist
+-- so they can be reviewed instead of being closed or discarded automatically.
+CREATE UNIQUE INDEX IF NOT EXISTS "cashier_shifts_one_open_per_cashier_key"
+    ON "cashier_shifts" ("tenantId", "cashierId")
+    WHERE "status" = 'OPEN';
+
+COMMIT;

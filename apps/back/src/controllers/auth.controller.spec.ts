@@ -6,7 +6,10 @@ import {
   it,
   jest,
 } from "@jest/globals";
-import { UnauthorizedException } from "@nestjs/common";
+import {
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { ExecutionContext, INestApplication } from "@nestjs/common";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
@@ -16,9 +19,14 @@ const supertestLib = require("supertest") as typeof import("supertest");
 
 import { HttpExceptionFilter } from "../common/filters/http-exception.filter";
 import { ApiResponseInterceptor } from "../common/interceptors/api-response.interceptor";
-import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
+import {
+  OAUTH_STATE_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from "../constants/cookie.constants";
 import { AuthGuard } from "../middlewares/auth.guard";
 import { AuthService } from "../services/auth.service";
+import { CashierSessionService } from "../services/cashier-session.service";
+import { CashierService } from "../services/cashier.service";
 import { SessionService } from "../services/session.service";
 import { AuthController } from "./auth.controller";
 
@@ -35,6 +43,15 @@ function makeResponse() {
 const APP_URL = "http://localhost:5173";
 const MOCK_SESSION_ID = "session_01";
 const MOCK_LOGOUT_URL = "https://auth.workos.com/logout?token=abc123";
+const OAUTH_STATE = "o".repeat(43);
+
+function makeOAuthRequest() {
+  return {
+    cookies: {
+      [OAUTH_STATE_COOKIE_NAME]: OAUTH_STATE,
+    },
+  };
+}
 
 const MOCK_SESSION = {
   accessToken: "access.token",
@@ -48,6 +65,7 @@ const MOCK_SESSION = {
     firstName: "Jane",
     id: "user_01",
     lastName: "Doe",
+    name: "Jane Doe",
   },
   userId: "user_01",
 };
@@ -64,7 +82,29 @@ const mockAuthService = {
 
 const mockSessionService = {
   clearSession: jest.fn(),
+  revokeSession: jest.fn(),
 } as unknown as SessionService;
+
+const mockCashierSessionService = {
+  clearSessionCookie: jest.fn(),
+  createSession: jest.fn(),
+  revokeSession: jest.fn(),
+  writeSessionCookie: jest.fn(),
+} as unknown as CashierSessionService;
+
+const mockCashierService = {
+  authenticateCashierLogin: jest.fn(),
+  closeCashierShift: jest.fn(),
+  openCashierShift: jest.fn(),
+  recordSuccessfulLogin: jest.fn(),
+} as unknown as CashierService;
+
+const authControllerProviders = [
+  { provide: AuthService, useValue: mockAuthService },
+  { provide: CashierSessionService, useValue: mockCashierSessionService },
+  { provide: CashierService, useValue: mockCashierService },
+  { provide: SessionService, useValue: mockSessionService },
+];
 
 // ─── GET /auth/login ─────────────────────────────────────────────────────────
 
@@ -79,39 +119,175 @@ describe("AuthController — GET /auth/login", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: mockAuthService },
-        { provide: SessionService, useValue: mockSessionService },
-      ],
+      providers: authControllerProviders,
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
   });
 
   it("returns authorizationUrl from AuthService", () => {
-    const result = controller.login(undefined);
+    const result = controller.login(makeResponse() as never);
 
     expect(result.authorizationUrl).toBe(MOCK_AUTHORIZATION_URL);
   });
 
-  it("calls getAuthorizationUrl with no options when params are absent", () => {
-    controller.login(undefined);
+  it("generates and stores a server-owned one-time OAuth state", () => {
+    const response = makeResponse();
+
+    controller.login(response as never);
 
     expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith(
       expect.objectContaining({
-        state: undefined,
+        state: expect.stringMatching(/^[\w-]{43}$/u),
+      })
+    );
+    const generatedState = jest.mocked(mockAuthService.getAuthorizationUrl).mock
+      .calls[0]?.[0]?.state;
+    expect(response.cookie).toHaveBeenCalledWith(
+      OAUTH_STATE_COOKIE_NAME,
+      generatedState,
+      expect.objectContaining({
+        httpOnly: true,
+        maxAge: 600_000,
+        path: "/",
+        secure: true,
       })
     );
   });
 
-  it("forwards state to getAuthorizationUrl", () => {
-    controller.login("csrf_token_xyz");
+  it("generates a different state for every login attempt", () => {
+    const response = makeResponse();
 
-    expect(mockAuthService.getAuthorizationUrl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        state: "csrf_token_xyz",
-      })
+    controller.login(response as never);
+    controller.login(response as never);
+
+    const firstState = jest.mocked(mockAuthService.getAuthorizationUrl).mock
+      .calls[0]?.[0]?.state;
+    const secondState = jest.mocked(mockAuthService.getAuthorizationUrl).mock
+      .calls[1]?.[0]?.state;
+    expect(firstState).not.toBe(secondState);
+  });
+});
+
+// ─── POST /auth/cashier/login ───────────────────────────────────────────────
+
+describe("AuthController — POST /auth/cashier/login", () => {
+  let controller: AuthController;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: authControllerProviders,
+    }).compile();
+
+    controller = module.get<AuthController>(AuthController);
+  });
+
+  it("persists the opaque session before writing the cashier cookie", async () => {
+    jest
+      .mocked(mockCashierService.authenticateCashierLogin)
+      .mockResolvedValueOnce({
+        cashier: {
+          id: "cashier_01",
+          name: "Caja Uno",
+          pinHash: "bcrypt-hash",
+          tenantId: "tenant_01",
+          tenantSlug: "tienda",
+        },
+        openingCash: 500,
+      });
+    jest
+      .mocked(mockCashierSessionService.createSession)
+      .mockResolvedValueOnce("s".repeat(43));
+    jest
+      .mocked(mockCashierService.openCashierShift)
+      .mockResolvedValueOnce(undefined);
+    const response = makeResponse();
+
+    const result = await controller.cashierLogin(
+      {
+        cashierCode: "CJ-123456",
+        pin: "123456",
+        tenantSlug: "tienda",
+      },
+      {
+        headers: { "x-forwarded-for": "203.0.113.10, 10.0.0.1" },
+        ip: "127.0.0.1",
+      } as never,
+      response as never
     );
+
+    expect(mockCashierService.authenticateCashierLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ cashierCode: "CJ-123456" }),
+      "127.0.0.1"
+    );
+    expect(mockCashierSessionService.createSession).toHaveBeenCalledWith({
+      pinHash: "bcrypt-hash",
+      tenantId: "tenant_01",
+      userId: "cashier_01",
+    });
+    expect(mockCashierService.openCashierShift).toHaveBeenCalledWith(
+      "cashier_01"
+    );
+    expect(mockCashierService.recordSuccessfulLogin).toHaveBeenCalledWith(
+      "cashier_01",
+      "tenant_01"
+    );
+    expect(mockSessionService.clearSession).toHaveBeenCalledWith(
+      response as never
+    );
+    expect(mockCashierSessionService.writeSessionCookie).toHaveBeenCalledWith(
+      response as never,
+      "s".repeat(43)
+    );
+    expect(result).toStrictEqual({
+      redirectTo: `${APP_URL}/dashboard`,
+    });
+  });
+
+  it("revokes the new session and does not write a cookie when shift opening fails", async () => {
+    jest
+      .mocked(mockCashierService.authenticateCashierLogin)
+      .mockResolvedValueOnce({
+        cashier: {
+          id: "cashier_01",
+          name: "Caja Uno",
+          pinHash: "bcrypt-hash",
+          tenantId: "tenant_01",
+          tenantSlug: "tienda",
+        },
+        openingCash: 500,
+      });
+    jest
+      .mocked(mockCashierSessionService.createSession)
+      .mockResolvedValueOnce("s".repeat(43));
+    jest
+      .mocked(mockCashierService.openCashierShift)
+      .mockRejectedValueOnce(new Error("shift unavailable"));
+    jest
+      .mocked(mockCashierSessionService.revokeSession)
+      .mockResolvedValueOnce(undefined);
+    const response = makeResponse();
+
+    await expect(
+      controller.cashierLogin(
+        {
+          cashierCode: "CJ-123456",
+          pin: "123456",
+          tenantSlug: "tienda",
+        },
+        { headers: {}, ip: "127.0.0.1" } as never,
+        response as never
+      )
+    ).rejects.toThrow("shift unavailable");
+
+    expect(mockCashierSessionService.revokeSession).toHaveBeenCalledWith(
+      "s".repeat(43)
+    );
+    expect(mockCashierSessionService.writeSessionCookie).not.toHaveBeenCalled();
+    expect(mockCashierService.recordSuccessfulLogin).not.toHaveBeenCalled();
   });
 });
 
@@ -126,10 +302,7 @@ describe("AuthController — GET /auth/callback", () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: mockAuthService },
-        { provide: SessionService, useValue: mockSessionService },
-      ],
+      providers: authControllerProviders,
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -137,7 +310,7 @@ describe("AuthController — GET /auth/callback", () => {
 
   // ── Successful flow ──────────────────────────────────────────────────────
 
-  it("sets wos-session cookie and redirects to /dashboard on success", async () => {
+  it("sets wos-session cookie and redirects to onboarding on success", async () => {
     const response = makeResponse();
 
     jest.mocked(mockAuthService.exchangeCodeForSession).mockResolvedValueOnce({
@@ -150,8 +323,9 @@ describe("AuthController — GET /auth/callback", () => {
       "valid-code",
       undefined,
       undefined,
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).toHaveBeenCalledWith(
@@ -162,7 +336,7 @@ describe("AuthController — GET /auth/callback", () => {
       "sealed-session-string",
       expect.objectContaining({ httpOnly: true })
     );
-    expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/dashboard`);
+    expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/onboarding`);
   });
 
   it("includes organizationId in success log (no-op if undefined)", async () => {
@@ -178,11 +352,12 @@ describe("AuthController — GET /auth/callback", () => {
       "code",
       undefined,
       undefined,
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
-    expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/dashboard`);
+    expect(response.redirect).toHaveBeenCalledWith(`${APP_URL}/onboarding`);
   });
 
   // ── WorkOS-side errors ────────────────────────────────────────────────────
@@ -194,8 +369,9 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "access_denied",
       "User cancelled",
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -211,8 +387,9 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       "unknown_error_code",
       "Something went wrong on WorkOS",
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     expect(response.redirect).toHaveBeenCalledWith(
@@ -231,8 +408,9 @@ describe("AuthController — GET /auth/callback", () => {
       undefined,
       undefined,
       undefined,
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
@@ -254,8 +432,9 @@ describe("AuthController — GET /auth/callback", () => {
       "used-code",
       undefined,
       undefined,
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     expect(response.cookie).not.toHaveBeenCalled();
@@ -276,13 +455,50 @@ describe("AuthController — GET /auth/callback", () => {
       "code",
       undefined,
       undefined,
+      OAUTH_STATE,
       response as never,
-      {} as never
+      makeOAuthRequest() as never
     );
 
     const redirectArg: string = (response.redirect as jest.Mock).mock
       .calls[0][0] as string;
     expect(redirectArg).not.toContain(sensitiveMessage);
+  });
+
+  it("rejects missing, mismatched and replayed state before code exchange", async () => {
+    const invalidCases = [
+      { cookie: OAUTH_STATE, state: undefined },
+      { cookie: OAUTH_STATE, state: "x".repeat(43) },
+      { cookie: undefined, state: OAUTH_STATE },
+    ];
+
+    for (const invalidCase of invalidCases) {
+      const response = makeResponse();
+      const request = {
+        cookies: invalidCase.cookie
+          ? { [OAUTH_STATE_COOKIE_NAME]: invalidCase.cookie }
+          : {},
+      };
+
+      await controller.callback(
+        "code",
+        undefined,
+        undefined,
+        invalidCase.state,
+        response as never,
+        request as never
+      );
+
+      expect(response.redirect).toHaveBeenCalledWith(
+        expect.stringContaining(`${APP_URL}/login?error=invalid_state`)
+      );
+      expect(response.clearCookie).toHaveBeenCalledWith(
+        OAUTH_STATE_COOKIE_NAME,
+        expect.objectContaining({ path: "/" })
+      );
+    }
+
+    expect(mockAuthService.exchangeCodeForSession).not.toHaveBeenCalled();
   });
 });
 
@@ -298,8 +514,7 @@ describe("AuthController — POST /auth/logout", () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: mockAuthService },
-        { provide: SessionService, useValue: mockSessionService },
+        ...authControllerProviders,
         { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
         {
           provide: APP_GUARD,
@@ -361,8 +576,7 @@ describe("AuthController — POST /auth/logout", () => {
     const module = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: mockAuthService },
-        { provide: SessionService, useValue: mockSessionService },
+        ...authControllerProviders,
         {
           provide: APP_GUARD,
           useValue: {
@@ -392,8 +606,7 @@ describe("AuthController — POST /auth/logout", () => {
     const module = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: mockAuthService },
-        { provide: SessionService, useValue: mockSessionService },
+        ...authControllerProviders,
         {
           provide: APP_GUARD,
           useValue: {
@@ -417,5 +630,100 @@ describe("AuthController — POST /auth/logout", () => {
     expect(mockSessionService.clearSession).not.toHaveBeenCalled();
 
     await unauthApp.close();
+  });
+});
+
+describe("AuthController — cashier logout", () => {
+  let controller: AuthController;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: authControllerProviders,
+    }).compile();
+
+    controller = module.get<AuthController>(AuthController);
+  });
+
+  it("closes the shift, revokes Redis and clears the cashier cookie", async () => {
+    jest
+      .mocked(mockCashierService.closeCashierShift)
+      .mockResolvedValueOnce(null);
+    jest
+      .mocked(mockCashierSessionService.revokeSession)
+      .mockResolvedValueOnce(undefined);
+    const response = makeResponse();
+
+    const result = await controller.logout(
+      {
+        ...MOCK_SESSION,
+        authType: "cashier",
+        role: "CASHIER",
+        sessionId: "s".repeat(43),
+      },
+      response as never
+    );
+
+    expect(mockCashierService.closeCashierShift).toHaveBeenCalledWith(
+      "user_01"
+    );
+    expect(mockCashierSessionService.revokeSession).toHaveBeenCalledWith(
+      "s".repeat(43)
+    );
+    expect(mockCashierSessionService.clearSessionCookie).toHaveBeenCalledWith(
+      response as never
+    );
+    expect(mockAuthService.getLogoutUrl).not.toHaveBeenCalled();
+    expect(result).toStrictEqual({ logoutUrl: `${APP_URL}/login` });
+  });
+
+  it("still revokes and clears the session when shift close fails", async () => {
+    jest
+      .mocked(mockCashierService.closeCashierShift)
+      .mockRejectedValueOnce(new Error("shift table unavailable"));
+    jest
+      .mocked(mockCashierSessionService.revokeSession)
+      .mockResolvedValueOnce(undefined);
+    const response = makeResponse();
+
+    await controller.logout(
+      {
+        ...MOCK_SESSION,
+        authType: "cashier",
+        role: "CASHIER",
+        sessionId: "s".repeat(43),
+      },
+      response as never
+    );
+
+    expect(mockCashierSessionService.revokeSession).toHaveBeenCalled();
+    expect(mockCashierSessionService.clearSessionCookie).toHaveBeenCalled();
+  });
+
+  it("returns 503 and preserves the cookie when revocation cannot be confirmed", async () => {
+    jest
+      .mocked(mockCashierService.closeCashierShift)
+      .mockResolvedValueOnce(null);
+    jest
+      .mocked(mockCashierSessionService.revokeSession)
+      .mockRejectedValueOnce(new Error("Redis unavailable"));
+    const response = makeResponse();
+
+    await expect(
+      controller.logout(
+        {
+          ...MOCK_SESSION,
+          authType: "cashier",
+          role: "CASHIER",
+          sessionId: "s".repeat(43),
+        },
+        response as never
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(mockCashierService.closeCashierShift).toHaveBeenCalled();
+    expect(mockCashierSessionService.clearSessionCookie).not.toHaveBeenCalled();
   });
 });

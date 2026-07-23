@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 import {
   Body,
@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   Res,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import {
   ApiCookieAuth,
@@ -23,7 +24,8 @@ import {
 import type { Request, Response } from "express";
 
 import {
-  CASHIER_SESSION_COOKIE_NAME,
+  OAUTH_STATE_COOKIE_NAME,
+  OAUTH_STATE_COOKIE_OPTIONS,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
@@ -34,6 +36,7 @@ import { ApiErrorResponseSchema } from "../schemas/api-response.schema";
 import { AuthorizationUrlResponseSchema } from "../schemas/authorization-url-response.schema";
 import { CashierLoginDto } from "../schemas/cashier-auth.dto";
 import { AuthService } from "../services/auth.service";
+import { CashierSessionService } from "../services/cashier-session.service";
 import { CashierService } from "../services/cashier.service";
 import { SessionService } from "../services/session.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
@@ -45,6 +48,7 @@ const WORKOS_ERROR_MESSAGES: Record<string, string> = {
   invalid_grant: "El código de autorización no es válido o ya se usó.",
   server_error: "WorkOS tuvo un error interno. Intenta de nuevo.",
 };
+const OAUTH_STATE_PATTERN = /^[\w-]{43}$/u;
 
 /** Shape of the data returned by POST /auth/logout */
 export interface LogoutResponseData {
@@ -59,6 +63,7 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly cashierSessionService: CashierSessionService,
     private readonly cashierService: CashierService,
     private readonly sessionService: SessionService
   ) {}
@@ -70,11 +75,8 @@ export class AuthController {
    * to start the authentication flow (login or register — WorkOS hosted UI handles both).
    * After authentication, WorkOS redirects back to `GET /auth/callback` with a one-time code.
    *
-   * ### Optional parameters
-   * - `organization_id`: Targets SSO for a specific WorkOS organization.
-   *   Use this for multi-tenant login where users select their organization first.
-   * - `state`: Opaque string echoed back verbatim in the callback `?state=` param.
-   *   Use to restore client-side navigation state or pass CSRF tokens.
+   * The backend generates and stores a one-time OAuth state value. Clients must
+   * not supply or persist that value themselves.
    */
   @Public()
   @Get("login")
@@ -106,13 +108,6 @@ Omit it for the default AuthKit flow (email + social providers).
     required: false,
     type: String,
   })
-  @ApiQuery({
-    description:
-      "Opaque state string echoed back in the callback. Use for CSRF protection or client-side state.",
-    name: "state",
-    required: false,
-    type: String,
-  })
   @ApiResponse({
     description: "WorkOS authorization URL ready for browser redirect.",
     status: HttpStatus.OK,
@@ -124,10 +119,15 @@ Omit it for the default AuthKit flow (email + social providers).
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     type: ApiErrorResponseSchema,
   })
-  login(@Query("state") state?: string): AuthorizationUrlResponseSchema {
+  login(
+    @Res({ passthrough: true }) response: Response
+  ): AuthorizationUrlResponseSchema {
+    const state = randomBytes(32).toString("base64url");
     const authorizationUrl = this.authService.getAuthorizationUrl({
       state,
     });
+
+    response.cookie(OAUTH_STATE_COOKIE_NAME, state, OAUTH_STATE_COOKIE_OPTIONS);
 
     return { authorizationUrl };
   }
@@ -140,30 +140,40 @@ Omit it for the default AuthKit flow (email + social providers).
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response
   ): Promise<{ redirectTo: string }> {
-    const { cashier } =
-      await this.cashierService.authenticateCashierLogin(body);
-    const sessionId = randomUUID();
-
-    await this.sessionService.registerSession(
-      cashier.id,
-      sessionId,
-      {
-        email: null,
-        name: cashier.name,
-      },
-      request
+    const { cashier } = await this.cashierService.authenticateCashierLogin(
+      body,
+      this.resolveClientAddress(request)
     );
+    let sessionId: string | undefined;
 
-    response.cookie(
-      CASHIER_SESSION_COOKIE_NAME,
-      this.sessionService.createCashierSessionCookieValue(
+    try {
+      sessionId = await this.cashierSessionService.createSession({
+        pinHash: cashier.pinHash,
+        tenantId: cashier.tenantId,
+        userId: cashier.id,
+      });
+      await this.cashierService.openCashierShift(cashier.id);
+      await this.cashierService.recordSuccessfulLogin(
         cashier.id,
-        sessionId
-      ),
-      SESSION_COOKIE_OPTIONS
-    );
+        cashier.tenantId
+      );
+    } catch (error) {
+      if (sessionId) {
+        await this.cashierSessionService
+          .revokeSession(sessionId)
+          .catch((revokeError) => {
+            this.logger.error(
+              { error: revokeError },
+              "Failed to roll back cashier session"
+            );
+          });
+      }
 
-    await this.cashierService.openCashierShift(cashier.id);
+      throw error;
+    }
+
+    this.sessionService.clearSession(response);
+    this.cashierSessionService.writeSessionCookie(response, sessionId);
 
     this.logger.log(`Cashier logged in`, {
       cashierId: cashier.id,
@@ -223,6 +233,12 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
     type: String,
   })
   @ApiQuery({
+    description: "One-time OAuth state generated by this backend.",
+    name: "state",
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
     description: "Human-readable description of the WorkOS error.",
     name: "error_description",
     required: false,
@@ -260,11 +276,25 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
     @Query("code") code: string | undefined,
     @Query("error") error: string | undefined,
     @Query("error_description") errorDescription: string | undefined,
+    @Query("state") state: string | undefined,
     @Res() response: Response,
     @Req() request: Request
   ): Promise<void> {
     const loginUrl = `${this.authService.appUrl}/login`;
     const onboardingUrl = `${this.authService.appUrl}/onboarding`;
+    const expectedState = request.cookies?.[OAUTH_STATE_COOKIE_NAME] as
+      | string
+      | undefined;
+
+    this.clearOAuthStateCookie(response);
+
+    if (!this.oauthStatesMatch(state, expectedState)) {
+      this.logger.warn(`${cid()} WorkOS callback rejected: invalid state`);
+      response.redirect(
+        `${loginUrl}?error=invalid_state&message=${encodeURIComponent("La solicitud de autenticación expiró o no es válida.")}`
+      );
+      return;
+    }
 
     // ── 1. Handle WorkOS-side errors ─────────────────────────────────────────
     if (error) {
@@ -309,6 +339,7 @@ On any error the browser is redirected to \`/login?error=<reason>\` where
         sealedSession,
         SESSION_COOKIE_OPTIONS
       );
+      this.cashierSessionService.clearSessionCookie(response);
 
       // Register session in Redis for tracking
       try {
@@ -431,29 +462,37 @@ configured in the WorkOS dashboard (typically \`/login\`).
     @Res({ passthrough: true }) response: Response
   ): Promise<LogoutResponseData> {
     if (session.authType === "cashier") {
-      const closedShift = await this.cashierService.closeCashierShift(
-        session.userId
-      );
+      try {
+        const closedShift = await this.cashierService.closeCashierShift(
+          session.userId
+        );
 
-      if (closedShift) {
-        this.logger.log(`Cashier shift closed`, {
-          cashierId: session.userId,
-          shiftId: closedShift.id,
-        });
+        if (closedShift) {
+          this.logger.log(`Cashier shift closed`, {
+            cashierId: session.userId,
+            shiftId: closedShift.id,
+          });
+        }
+      } catch (error) {
+        this.logger.error(
+          { cashierId: session.userId, error },
+          "Cashier shift could not be closed during logout"
+        );
       }
 
       try {
-        await this.sessionService.revokeSession(
-          session.userId,
-          session.sessionId
-        );
+        await this.cashierSessionService.revokeSession(session.sessionId);
       } catch (error) {
-        this.logger.warn(
-          `Failed to revoke cashier session from Redis: ${error}`
+        this.logger.error(
+          { cashierId: session.userId, error },
+          "Cashier logout could not confirm session revocation"
+        );
+        throw new ServiceUnavailableException(
+          "No se pudo cerrar la sesión de forma segura. Intenta de nuevo"
         );
       }
 
-      this.sessionService.clearCashierSession(response);
+      this.cashierSessionService.clearSessionCookie(response);
 
       return {
         logoutUrl: `${this.authService.appUrl}/login`,
@@ -464,7 +503,7 @@ configured in the WorkOS dashboard (typically \`/login\`).
 
     this.logger.log(
       `${cid()} Logout initiated: userId=${session.userId} sessionId=${session.sessionId} ` +
-        `returnTo=${this.authService.logoutReturnTo} logoutUrl=${logoutUrl}`
+        `returnTo=${this.authService.logoutReturnTo}`
     );
 
     // Revoke session from Redis
@@ -482,11 +521,46 @@ configured in the WorkOS dashboard (typically \`/login\`).
     // Clear the local cookie immediately — the session is considered terminated
     // from the backend's perspective even if the client hasn't visited logoutUrl yet.
     this.sessionService.clearSession(response);
+    this.cashierSessionService.clearSessionCookie(response);
 
     this.logger.log(
       `${cid()} Logout completed: userId=${session.userId} sessionId=${session.sessionId} returnTo=${this.authService.logoutReturnTo}`
     );
 
     return { logoutUrl };
+  }
+
+  private resolveClientAddress(request: Request): string {
+    return request.ip || request.socket?.remoteAddress || "unknown";
+  }
+
+  private clearOAuthStateCookie(response: Response): void {
+    response.clearCookie(OAUTH_STATE_COOKIE_NAME, {
+      httpOnly: OAUTH_STATE_COOKIE_OPTIONS.httpOnly,
+      path: OAUTH_STATE_COOKIE_OPTIONS.path,
+      sameSite: OAUTH_STATE_COOKIE_OPTIONS.sameSite,
+      secure: OAUTH_STATE_COOKIE_OPTIONS.secure,
+    });
+  }
+
+  private oauthStatesMatch(
+    state: string | undefined,
+    expectedState: string | undefined
+  ): boolean {
+    if (
+      !state ||
+      !expectedState ||
+      !OAUTH_STATE_PATTERN.test(state) ||
+      !OAUTH_STATE_PATTERN.test(expectedState)
+    ) {
+      return false;
+    }
+
+    const received = Buffer.from(state);
+    const expected = Buffer.from(expectedState);
+
+    return (
+      received.length === expected.length && timingSafeEqual(received, expected)
+    );
   }
 }

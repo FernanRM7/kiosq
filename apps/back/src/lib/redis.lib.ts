@@ -12,8 +12,14 @@ export function getRedisClient(): ReturnType<typeof createClient> {
     const redisConfig = loadRedisConfig();
 
     _client = createClient({
+      commandOptions: {
+        timeout: 5000,
+      },
+      commandsQueueMaxLength: 256,
+      disableOfflineQueue: true,
       password: redisConfig.password,
       socket: {
+        connectTimeout: 5000,
         host: redisConfig.host,
         port: redisConfig.port,
       },

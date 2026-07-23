@@ -1,0 +1,2 @@
+apps/back/prisma/migrations/**/*.sql text eol=lf
+apps/back/prisma/**/*.prisma text eol=lf

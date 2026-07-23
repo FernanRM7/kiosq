@@ -6,6 +6,7 @@ import type { App } from "supertest/types";
 
 import { AppModule } from "./../src/app.module";
 import { setupApp } from "./../src/app.setup";
+import { GlobalExceptionFilter } from "./../src/common/filters/global-exception.filter";
 import { ValidationTestController } from "./validation-test.controller";
 
 describe("AppController (e2e)", () => {
@@ -22,6 +23,7 @@ describe("AppController (e2e)", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalFilters(new GlobalExceptionFilter());
     setupApp(app);
     await app.init();
   });
@@ -69,6 +71,7 @@ describe("AppController (e2e)", () => {
   it("validates requests with global zod pipe", () =>
     request(app.getHttpServer())
       .post("/validation-test")
+      .set("Origin", "http://localhost:5173")
       .send({ name: "Kiosq" })
       .expect(200)
       .expect(({ body }) => {
@@ -83,13 +86,14 @@ describe("AppController (e2e)", () => {
   it("formats zod validation errors consistently", () =>
     request(app.getHttpServer())
       .post("/validation-test")
+      .set("Origin", "http://localhost:5173")
       .send({ name: "" })
       .expect(400)
       .expect(({ body }) => {
         expect(body.success).toBe(false);
         expect(body.error).toMatchObject({
           code: "VALIDATION_ERROR",
-          message: "Validation failed",
+          message: "Datos inválidos",
           path: "/validation-test",
           statusCode: 400,
         });
@@ -99,6 +103,24 @@ describe("AppController (e2e)", () => {
             path: "name",
           }),
         ]);
+      }));
+
+  it("blocks state-changing cross-site requests before the controller", () =>
+    request(app.getHttpServer())
+      .post("/validation-test")
+      .set("Origin", "https://evil.example")
+      .send({ name: "Kiosq" })
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body).toEqual({
+          error: {
+            code: "CSRF_ORIGIN_DENIED",
+            message: "El origen de la solicitud no está permitido",
+            path: "/validation-test",
+            statusCode: 403,
+          },
+          success: false,
+        });
       }));
 
   afterEach(async () => {

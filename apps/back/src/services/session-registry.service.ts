@@ -147,16 +147,9 @@ export class SessionRegistryService {
   /**
    * Checks if a specific session is still active (not revoked).
    */
-  isSessionActive(userId: string, sessionId: string): Promise<boolean> {
-    return this.withRedis(
-      async () => {
-        const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
-        const active = (await getRedisClient().exists(sessionKey)) === 1;
-        return active;
-      },
-      `isSessionActive:${userId}`,
-      true
-    );
+  async isSessionActive(userId: string, sessionId: string): Promise<boolean> {
+    const sessionKey = `${SESSION_PREFIX}${userId}:${sessionId}`;
+    return (await getRedisClient().exists(sessionKey)) === 1;
   }
 
   /**

@@ -2,7 +2,10 @@ jest.mock("../services/session.service");
 jest.mock("../services/cashier-session.service");
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { UnauthorizedException } from "@nestjs/common";
+import {
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
@@ -114,6 +117,7 @@ describe("AuthGuard", () => {
     return {
       authenticated: true as const,
       accessToken: "access.token",
+      authType: "workos" as const,
       organizationId: overrides.orgId ?? "org_01",
       role: "admin",
       sessionId: "session_01",
@@ -247,6 +251,23 @@ describe("AuthGuard", () => {
 
       await expect(guard.canActivate(context)).rejects.toThrow(
         UnauthorizedException
+      );
+    });
+
+    it("returns 503 when the cashier session store is unavailable", async () => {
+      mockGetAllAndOverride.mockReturnValueOnce(false);
+      mockAuthenticateCashierSession.mockResolvedValueOnce({
+        authenticated: false,
+        reason: "cashier_session_unavailable",
+      });
+
+      const { context } = makeHttpContext(
+        makeRequest(undefined, "cashier-id"),
+        makeResponse()
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        ServiceUnavailableException
       );
     });
 

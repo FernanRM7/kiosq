@@ -1,4 +1,4 @@
-import { pbkdf2Sync, randomBytes, randomInt, randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import {
   BadRequestException,
@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 
+import { hashCashierPin } from "../lib/cashier-pin";
 import { isMissingPrismaTableError } from "../lib/prisma-errors";
 import { PrismaService } from "../lib/prisma.service";
 import type {
@@ -277,7 +278,7 @@ export class TenantService {
     }
 
     const cashierCode = await this.generateUniqueCashierCode(tenant.id);
-    const credentials = this.generateCashierCredentials();
+    const credentials = await this.generateCashierCredentials();
 
     const cashier = await this.prisma.user.create({
       data: {
@@ -368,7 +369,7 @@ export class TenantService {
     let temporaryPin: string | undefined;
 
     if (input.pin) {
-      const credentials = this.generateCashierCredentials(input.pin);
+      const credentials = await this.generateCashierCredentials(input.pin);
       data.pinHash = credentials.pinHash;
       temporaryPin = credentials.pin;
     }
@@ -827,19 +828,15 @@ export class TenantService {
     return Math.max((maxUsers ?? 3) - 1, 0);
   }
 
-  private generateCashierCredentials(pin?: string): {
+  private async generateCashierCredentials(pin?: string): Promise<{
     pin: string;
     pinHash: string;
-  } {
+  }> {
     const resolvedPin = pin?.trim() || String(randomInt(100_000, 1_000_000));
-    const salt = randomBytes(16).toString("hex");
-    const hash = pbkdf2Sync(resolvedPin, salt, 100_000, 64, "sha256").toString(
-      "hex"
-    );
 
     return {
       pin: resolvedPin,
-      pinHash: `pbkdf2$100000$${salt}$${hash}`,
+      pinHash: await hashCashierPin(resolvedPin),
     };
   }
 

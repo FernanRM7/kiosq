@@ -1,21 +1,28 @@
-import { pbkdf2Sync } from "node:crypto";
-
 import {
   BadRequestException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 
-import { isMissingPrismaTableError } from "../lib/prisma-errors";
+import { hashCashierPin, verifyCashierPin } from "../lib/cashier-pin";
+import {
+  isMissingPrismaTableError,
+  isPrismaErrorCode,
+} from "../lib/prisma-errors";
 import { PrismaService } from "../lib/prisma.service";
+import { CashierLoginRateLimitService } from "./cashier-login-rate-limit.service";
 
 const CASHIER_SHIFTS_TABLE = "public.cashier_shifts";
+const DUMMY_CASHIER_PIN_HASH =
+  "$2b$12$xTCmIfFNp//uSMmaSMH32O1GxwofldSe0y/R4mMO7OM0AF5/1fCLu";
 
 interface CashierLoginResult {
   cashier: {
     id: string;
     name: string;
+    pinHash: string;
     tenantId: string;
     tenantSlug: string;
   };
@@ -42,69 +49,141 @@ const DEFAULT_OPENING_CASH = 500;
 export class CashierService {
   private readonly logger = new Logger(CashierService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loginRateLimit: CashierLoginRateLimitService
+  ) {}
 
-  async authenticateCashierLogin(input: {
-    cashierCode: string;
-    pin: string;
-    tenantSlug: string;
-  }): Promise<CashierLoginResult> {
+  async authenticateCashierLogin(
+    input: {
+      cashierCode: string;
+      pin: string;
+      tenantSlug: string;
+    },
+    clientAddress: string
+  ): Promise<CashierLoginResult> {
     const cashierCode = input.cashierCode.trim().toUpperCase();
     const tenantSlug = input.tenantSlug.trim().toLowerCase();
     const pin = input.pin.trim();
+    const attemptContext = { cashierCode, clientAddress, tenantSlug };
 
-    const cashiers = await this.prisma.user.findMany({
-      select: {
-        cashierCode: true,
-        id: true,
-        isActive: true,
-        name: true,
-        pinHash: true,
-        tenant: {
-          select: {
-            id: true,
-            settings: true,
-            slug: true,
-            status: true,
+    await this.loginRateLimit.consumeAttempt(attemptContext);
+
+    let loginResult: CashierLoginResult;
+
+    try {
+      const membership = await this.prisma.userTenant.findFirst({
+        select: {
+          tenant: {
+            select: {
+              id: true,
+              settings: true,
+              slug: true,
+              status: true,
+            },
+          },
+          user: {
+            select: {
+              cashierCode: true,
+              id: true,
+              isActive: true,
+              name: true,
+              pinHash: true,
+              role: true,
+              tenantId: true,
+            },
           },
         },
-        tenantId: true,
-      },
+        where: {
+          role: "CASHIER",
+          status: "ACTIVE",
+          tenant: {
+            slug: tenantSlug,
+            status: { in: ["ACTIVE", "TRIAL"] },
+          },
+          user: {
+            cashierCode,
+            isActive: true,
+            role: "CASHIER",
+          },
+        },
+      });
+
+      const cashier = membership?.user;
+      const storedHash = cashier?.pinHash ?? DUMMY_CASHIER_PIN_HASH;
+      const verification = await verifyCashierPin(pin, storedHash);
+
+      if (
+        !membership ||
+        !cashier ||
+        !cashier.pinHash ||
+        cashier.tenantId !== membership.tenant.id ||
+        !verification.valid
+      ) {
+        throw new UnauthorizedException("Credenciales de cajero inválidas");
+      }
+
+      let activePinHash = cashier.pinHash;
+
+      if (verification.needsRehash) {
+        activePinHash = await hashCashierPin(pin);
+
+        const updated = await this.prisma.user.updateMany({
+          data: { pinHash: activePinHash },
+          where: {
+            id: cashier.id,
+            isActive: true,
+            pinHash: cashier.pinHash,
+            role: "CASHIER",
+            tenantId: membership.tenant.id,
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new UnauthorizedException("Credenciales de cajero inválidas");
+        }
+      }
+
+      loginResult = {
+        cashier: {
+          id: cashier.id,
+          name: cashier.name,
+          pinHash: activePinHash,
+          tenantId: membership.tenant.id,
+          tenantSlug: membership.tenant.slug,
+        },
+        openingCash: this.resolveOpeningCash(membership.tenant.settings),
+      };
+    } catch (error) {
+      if (!(error instanceof UnauthorizedException)) {
+        await this.loginRateLimit.releaseAttempt(attemptContext);
+      }
+
+      throw error;
+    }
+
+    await this.loginRateLimit.registerSuccess(attemptContext);
+
+    return loginResult;
+  }
+
+  async recordSuccessfulLogin(
+    cashierId: string,
+    tenantId: string
+  ): Promise<void> {
+    const updated = await this.prisma.user.updateMany({
+      data: { lastLoginAt: new Date() },
       where: {
-        cashierCode: { not: null },
+        id: cashierId,
         isActive: true,
         role: "CASHIER",
-        tenant: { slug: tenantSlug },
+        tenantId,
       },
     });
 
-    const cashier = cashiers.find(
-      (user) => user.cashierCode?.trim().toUpperCase() === cashierCode
-    );
-
-    if (!cashier || !cashier.pinHash) {
-      throw new UnauthorizedException("Credenciales de cajero inválidas");
+    if (updated.count !== 1) {
+      throw new UnauthorizedException("La cuenta del cajero ya no está activa");
     }
-
-    if (cashier.tenant.status === "CANCELLED") {
-      throw new UnauthorizedException("Credenciales de cajero inválidas");
-    }
-
-    if (!this.verifyPin(pin, cashier.pinHash)) {
-      throw new UnauthorizedException("Credenciales de cajero inválidas");
-    }
-
-    const openingCash = this.resolveOpeningCash(cashier.tenant.settings);
-
-    return {
-      cashier: {
-        id: cashier.id,
-        name: cashier.name,
-        tenantId: cashier.tenantId,
-        tenantSlug: cashier.tenant.slug,
-      },
-      openingCash,
-    };
   }
 
   async openCashierShift(cashierId: string): Promise<void> {
@@ -120,7 +199,10 @@ export class CashierService {
       throw new BadRequestException("El cajero no existe");
     }
 
-    if (cashier.tenant?.status === "CANCELLED") {
+    if (
+      cashier.tenant?.status !== "ACTIVE" &&
+      cashier.tenant?.status !== "TRIAL"
+    ) {
       throw new BadRequestException("El negocio no está activo");
     }
 
@@ -129,11 +211,24 @@ export class CashierService {
       where: { id: cashier.tenantId },
     });
 
-    if (!tenant || tenant.status === "CANCELLED") {
+    if (!tenant || (tenant.status !== "ACTIVE" && tenant.status !== "TRIAL")) {
       throw new BadRequestException("El negocio no está activo");
     }
 
     try {
+      const openShift = await this.prisma.cashierShift.findFirst({
+        select: { id: true },
+        where: {
+          cashierId,
+          status: "OPEN",
+          tenantId: cashier.tenantId,
+        },
+      });
+
+      if (openShift) {
+        return;
+      }
+
       await this.prisma.cashierShift.create({
         data: {
           cashierId,
@@ -142,11 +237,28 @@ export class CashierService {
         },
       });
     } catch (error) {
+      if (isPrismaErrorCode(error, "P2002")) {
+        const concurrentShift = await this.prisma.cashierShift.findFirst({
+          select: { id: true },
+          where: {
+            cashierId,
+            status: "OPEN",
+            tenantId: cashier.tenantId,
+          },
+        });
+
+        if (concurrentShift) {
+          return;
+        }
+      }
+
       if (isMissingPrismaTableError(error, CASHIER_SHIFTS_TABLE)) {
-        this.logger.warn(
-          `cashier_shifts table unavailable — skipping shift creation for cashier ${cashierId}`
+        this.logger.error(
+          `cashier_shifts table unavailable — refusing login for cashier ${cashierId}`
         );
-        return;
+        throw new ServiceUnavailableException(
+          "No se pudo iniciar el turno de caja"
+        );
       }
 
       throw error;
@@ -294,29 +406,5 @@ export class CashierService {
     }
 
     return DEFAULT_OPENING_CASH;
-  }
-
-  private verifyPin(pin: string, pinHash: string): boolean {
-    const [algorithm, iterations, salt, hash] = pinHash.split("$");
-
-    if (
-      algorithm !== "pbkdf2" ||
-      !iterations ||
-      !salt ||
-      !hash ||
-      !Number.isInteger(Number(iterations))
-    ) {
-      return false;
-    }
-
-    const computed = pbkdf2Sync(
-      pin,
-      salt,
-      Number(iterations),
-      64,
-      "sha256"
-    ).toString("hex");
-
-    return computed === hash;
   }
 }

@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request, Response } from "express";
@@ -17,9 +22,9 @@ import type { SessionResult } from "../types/session.type";
  *
  * 1. **`wos-session`** (WorkOS sealed session) — validated by `SessionService`.
  *    Tried first. Existing WorkOS users are unchanged.
- * 2. **`cashier-session`** (cashier session id) — validated by
+ * 2. **`cashier-session`** (opaque Redis-backed session id) — validated by
  *    `CashierSessionService`. Tried only when the WorkOS cookie is absent
- *    or invalid. Real implementation in T5.
+ *    or invalid.
  *
  * Route-level `@Public()` bypasses both checks.
  */
@@ -77,6 +82,12 @@ export class AuthGuard implements CanActivate {
         this.logger.debug(`Cashier auth success: user=${result.userId}`);
         this.injectUser(request, result);
         return true;
+      }
+
+      if (result.reason === "cashier_session_unavailable") {
+        throw new ServiceUnavailableException(
+          "El acceso de cajeros no está disponible temporalmente"
+        );
       }
     }
 

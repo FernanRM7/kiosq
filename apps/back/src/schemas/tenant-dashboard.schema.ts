@@ -64,8 +64,7 @@ export const UpdateCashierSchema = z
     pin: z
       .string()
       .trim()
-      .min(4, "La contraseña debe tener al menos 4 caracteres")
-      .max(12, "La contraseña debe tener máximo 12 caracteres")
+      .regex(/^\d{4,6}$/u, "El PIN debe tener entre 4 y 6 dígitos")
       .optional(),
   })
   .refine(

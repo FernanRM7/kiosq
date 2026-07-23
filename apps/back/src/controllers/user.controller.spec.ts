@@ -18,6 +18,8 @@ const supertestLib = require("supertest") as typeof import("supertest");
 import { HttpExceptionFilter } from "../common/filters/http-exception.filter";
 import { ApiResponseInterceptor } from "../common/interceptors/api-response.interceptor";
 import { AuthGuard } from "../middlewares/auth.guard";
+import { SessionRegistryService } from "../services/session-registry.service";
+import { SessionService } from "../services/session.service";
 import { UserService } from "../services/user.service";
 import { UserController } from "./user.controller";
 
@@ -57,6 +59,12 @@ describe("UserController — GET /me", () => {
   const mockUserService = {
     buildMeResponse: jest.fn().mockReturnValue(MOCK_ME_RESPONSE),
   };
+  const mockSessionRegistry = {
+    getSessionsForUser: jest.fn(),
+  };
+  const mockSessionService = {
+    revokeSession: jest.fn(),
+  };
 
   // ── Authenticated request ──────────────────────────────────────────────────
 
@@ -69,6 +77,11 @@ describe("UserController — GET /me", () => {
         controllers: [UserController],
         providers: [
           { provide: UserService, useValue: mockUserService },
+          {
+            provide: SessionRegistryService,
+            useValue: mockSessionRegistry,
+          },
+          { provide: SessionService, useValue: mockSessionService },
           { provide: APP_INTERCEPTOR, useClass: ApiResponseInterceptor },
           {
             provide: APP_GUARD,
@@ -92,7 +105,7 @@ describe("UserController — GET /me", () => {
     });
 
     afterEach(async () => {
-      await app.close();
+      await app?.close();
     });
 
     it("returns HTTP 200", async () => {
@@ -158,6 +171,11 @@ describe("UserController — GET /me", () => {
         providers: [
           { provide: UserService, useValue: mockUserService },
           {
+            provide: SessionRegistryService,
+            useValue: mockSessionRegistry,
+          },
+          { provide: SessionService, useValue: mockSessionService },
+          {
             provide: APP_GUARD,
             useValue: {
               canActivate: () => {
@@ -174,7 +192,7 @@ describe("UserController — GET /me", () => {
     });
 
     afterEach(async () => {
-      await app.close();
+      await app?.close();
     });
 
     it("returns HTTP 401 when no session cookie is present", async () => {

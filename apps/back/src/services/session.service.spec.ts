@@ -4,6 +4,7 @@ import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 
 import { SESSION_COOKIE_NAME } from "../constants/cookie.constants";
+import { PrismaService } from "../lib/prisma.service";
 import { AuthService } from "./auth.service";
 import { SessionRegistryService } from "./session-registry.service";
 import { SessionService } from "./session.service";
@@ -103,6 +104,8 @@ describe("SessionService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAuthenticate.mockReset();
+    mockRefresh.mockReset();
 
     mockLoadSealedSession.mockReturnValue({
       authenticate: mockAuthenticate,
@@ -112,14 +115,26 @@ describe("SessionService", () => {
     const mockSessionRegistry = {
       registerSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
       revokeSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
-      isSessionActive: jest.fn<(...args: unknown[]) => Promise<boolean>>(),
-      touchSession: jest.fn<(...args: unknown[]) => Promise<void>>(),
+      isSessionActive: jest
+        .fn<(...args: unknown[]) => Promise<boolean>>()
+        .mockResolvedValue(true),
+      touchSession: jest
+        .fn<(...args: unknown[]) => Promise<void>>()
+        .mockResolvedValue(undefined),
     } as unknown as SessionRegistryService;
+    const mockPrisma = {
+      user: {
+        findUnique: jest
+          .fn<(...args: unknown[]) => Promise<null>>()
+          .mockResolvedValue(null),
+      },
+    } as unknown as PrismaService;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionService,
         { provide: AuthService, useValue: mockAuthService },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: SessionRegistryService, useValue: mockSessionRegistry },
       ],
     }).compile();
@@ -171,17 +186,17 @@ describe("SessionService", () => {
       });
     });
 
-    it("uses empty string as sessionData when cookie is absent", async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+    it("rejects before loading WorkOS when the cookie is absent", async () => {
+      const result = await service.authenticateSession(
+        makeRequest(),
+        makeResponse()
+      );
+
+      expect(result).toStrictEqual({
         authenticated: false,
         reason: "no_session_cookie_provided",
       });
-
-      await service.authenticateSession(makeRequest(), makeResponse());
-
-      expect(mockLoadSealedSession).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionData: "" })
-      );
+      expect(mockLoadSealedSession).not.toHaveBeenCalled();
     });
   });
 

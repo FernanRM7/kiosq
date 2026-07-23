@@ -3,8 +3,6 @@ import type { Request, Response } from "express";
 import { decodeJwt } from "jose";
 
 import {
-  CASHIER_SESSION_COOKIE_NAME,
-  CASHIER_SESSION_COOKIE_OPTIONS,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "../constants/cookie.constants";
@@ -73,25 +71,10 @@ export class SessionService {
    *
    * @returns {SessionResult} Discriminated union with authenticated payload or failure reason.
    */
-  async authenticateSession(
+  authenticateSession(
     request: Request,
     response: Response
   ): Promise<SessionResult> {
-    const cashierSession = request.cookies?.[CASHIER_SESSION_COOKIE_NAME] as
-      | string
-      | undefined;
-
-    if (cashierSession) {
-      const authenticatedCashier = await this.authenticateCashierSession(
-        cashierSession,
-        request
-      );
-
-      if (authenticatedCashier.authenticated) {
-        return authenticatedCashier;
-      }
-    }
-
     return this.authenticateWorkosSession(request, response);
   }
 
@@ -107,19 +90,6 @@ export class SessionService {
       secure: SESSION_COOKIE_OPTIONS.secure,
     });
     this.logger.debug("Session cookie cleared");
-  }
-
-  /**
-   * Clears the cashier session cookie from the response.
-   */
-  clearCashierSession(response: Response): void {
-    response.clearCookie(CASHIER_SESSION_COOKIE_NAME, {
-      httpOnly: CASHIER_SESSION_COOKIE_OPTIONS.httpOnly,
-      path: CASHIER_SESSION_COOKIE_OPTIONS.path,
-      sameSite: CASHIER_SESSION_COOKIE_OPTIONS.sameSite,
-      secure: CASHIER_SESSION_COOKIE_OPTIONS.secure,
-    });
-    this.logger.debug("Cashier session cookie cleared");
   }
 
   /**
@@ -181,15 +151,6 @@ export class SessionService {
     }
   }
 
-  /**
-   * Serializes a cashier session into an opaque cookie payload.
-   */
-  createCashierSessionCookieValue(userId: string, sessionId: string): string {
-    return Buffer.from(JSON.stringify({ sessionId, userId })).toString(
-      "base64url"
-    );
-  }
-
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private async authenticateWorkosSession(
@@ -237,79 +198,6 @@ export class SessionService {
     this.logger.warn(`Session authentication failed: ${result.reason}`);
 
     return { authenticated: false, reason: result.reason };
-  }
-
-  private async authenticateCashierSession(
-    cashierSessionCookie: string,
-    request: Request
-  ): Promise<SessionResult> {
-    const payload = this.parseCashierSessionCookie(cashierSessionCookie);
-
-    if (!payload) {
-      return { authenticated: false, reason: "cashier_session_invalid" };
-    }
-
-    const user = await this.prisma.user.findUnique({
-      select: {
-        email: true,
-        id: true,
-        isActive: true,
-        name: true,
-        role: true,
-        tenant: {
-          select: {
-            status: true,
-          },
-        },
-        tenantId: true,
-      },
-      where: { id: payload.userId },
-    });
-
-    if (
-      !user ||
-      !user.isActive ||
-      user.role !== "CASHIER" ||
-      user.tenant?.status === "CANCELLED"
-    ) {
-      return { authenticated: false, reason: "cashier_session_invalid" };
-    }
-
-    const isActive = await this.sessionRegistry.isSessionActive(
-      user.id,
-      payload.sessionId
-    );
-
-    if (!isActive) {
-      return { authenticated: false, reason: "session_revoked" };
-    }
-
-    await this.sessionRegistry.touchSession(user.id, payload.sessionId);
-
-    const deviceInfo = request.headers["user-agent"] ?? "Unknown";
-    this.logger.debug(
-      `Cashier session authenticated for user ${user.id} on ${deviceInfo}`
-    );
-
-    return {
-      accessToken: "",
-      authType: "cashier",
-      authenticated: true,
-      dbUserId: user.id,
-      organizationId: undefined,
-      role: user.role,
-      sessionId: payload.sessionId,
-      tenantId: user.tenantId,
-      user: {
-        email: user.email,
-        emailVerified: false,
-        firstName: null,
-        id: user.id,
-        lastName: null,
-        name: user.name,
-      },
-      userId: user.id,
-    };
   }
 
   private async ensureRedisSessionActive(
@@ -424,30 +312,6 @@ export class SessionService {
     }
 
     return authenticatedResult;
-  }
-
-  private parseCashierSessionCookie(
-    cookieValue: string
-  ): { sessionId: string; userId: string } | null {
-    try {
-      const parsed = JSON.parse(
-        Buffer.from(cookieValue, "base64url").toString("utf-8")
-      ) as {
-        sessionId?: string;
-        userId?: string;
-      };
-
-      if (!parsed.sessionId || !parsed.userId) {
-        return null;
-      }
-
-      return {
-        sessionId: parsed.sessionId,
-        userId: parsed.userId,
-      };
-    } catch {
-      return null;
-    }
   }
 
   private resolveLocalUserByWorkosUserId(workosUserId: string): Promise<{

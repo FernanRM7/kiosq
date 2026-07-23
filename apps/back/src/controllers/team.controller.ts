@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 
 import { CurrentUser } from "../decorators/current-user.decorator";
+import { CASHIER_CODE_PATTERN } from "../schemas/cashier-auth.schema";
 import { TeamService } from "../services/team.service";
 import type { AuthenticatedSessionResult } from "../types/session.type";
 
@@ -47,10 +48,11 @@ export class TeamController {
     if (
       !body.code ||
       body.code.trim().length < 3 ||
-      body.code.trim().length > 20
+      body.code.trim().length > 20 ||
+      !CASHIER_CODE_PATTERN.test(body.code.trim())
     ) {
       throw new BadRequestException(
-        "El código del dependiente debe tener entre 3 y 20 caracteres"
+        "El código debe tener 3-20 letras, números o guiones simples"
       );
     }
 
